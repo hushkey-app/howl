@@ -377,8 +377,8 @@ export class Howl<State = any> {
    *   app.use(authMiddleware);
    * });
    */
-  configure(fn: (app: this) => void): this;
   configure(fn: (app: this) => Promise<void>): Promise<this>;
+  configure(fn: (app: this) => void): this;
   configure(
     fn: (app: this) => void | Promise<void>,
   ): this | Promise<this> {
