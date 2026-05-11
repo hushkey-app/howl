@@ -1,7 +1,7 @@
 {
   "slug": "routing",
   "title": "Routing",
-  "description": "File-based routing, layouts, and SPA navigation",
+  "description": "File-based routing, layouts, SPA navigation, AOT chunks, and SSG prerender",
   "sections": [
     {
       "id": "file-based",
@@ -177,6 +177,54 @@
         {
           "type": "tip",
           "text": "Average SPA navigation in Howl takes 5-10ms on a local server. The single-pass SSR render and Link preload headers keep it fast."
+        }
+      ]
+    },
+    {
+      "id": "aot-ssg",
+      "heading": "AOT pages and SSG",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Two filename prefixes let a page opt into client-side navigation and/or build-time prerendering. Both modes preserve the SSR shell, so direct URL hits and crawlers always see fully rendered HTML."
+        },
+        {
+          "type": "table",
+          "headers": ["File", "Mode", "Behaviour"],
+          "rows": [
+            ["pages/__jobs.tsx", "AOT", "Dynamic SSR + client chunk for instant in-app nav"],
+            ["pages/___about.tsx", "SSG", "Prerendered HTML at build (served instantly) + client chunk"],
+            ["pages/index.tsx", "—", "Dynamic SSR every request"]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "AOT (double underscore) marks a route as client-navigable. The build emits an ESM chunk that contains the page module plus its ancestor _layout.tsx chain. On click, the runtime dynamic-imports the chunk and renders into the active <Partial> outlet — no server round-trip."
+        },
+        {
+          "type": "p",
+          "text": "SSG (triple underscore) implies AOT and additionally prerenders the route at build time. The handler runs once with an empty ctx, the rendered HTML is baked into the production snapshot, and every subsequent request to that pathname skips the renderer entirely."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "// pages/___about.tsx — built once, served forever (per build)\nimport { Head } from \"@hushkey/howl/runtime\";\n\nexport default function About() {\n  return (\n    <>\n      <Head><title>About</title></Head>\n      <p>Static content baked at build time.</p>\n    </>\n  );\n}"
+        },
+        {
+          "type": "warning",
+          "text": "Build-time prerender runs the page handler with an empty ctx — there is no req, no cookies, no per-user state. SSG only fits pages whose output is the same for every visitor. Anything per-user must stay on the regular dynamic SSR path."
+        },
+        {
+          "type": "p",
+          "text": "Dynamic params (e.g. /properties/:id) are not yet prerendered automatically — a getStaticPaths-style API for enumerating param tuples is on the roadmap. Until then, dynamic-param routes flagged with ___ silently fall through to dynamic SSR with a build-time warning."
+        },
+        {
+          "type": "p",
+          "text": "On the wire, every SSR response for an AOT or SSG route injects two globals: window.__HOWL_AOT__ (route pattern → chunk URL) for the client navigator, and window.__HOWL_USER_STATE__ (the request-scoped ctx.state) so client-side hooks and signals can read what SSR rendered with."
+        },
+        {
+          "type": "tip",
+          "text": "Build IDs rotate per build, so AOT chunks are served with Cache-Control: public, max-age=31536000, immutable in production — the URL invalidation is the cache invalidation."
         }
       ]
     },

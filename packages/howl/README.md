@@ -641,6 +641,62 @@ client/pages/foo/(_islands)/Foo.tsx        ❌ throws at build
 
 ---
 
+## AOT and SSG pages
+
+Two page-file prefixes opt into client-side navigation and/or build-time
+prerendering. Direct URL hits always serve fully rendered HTML; the prefix
+only changes how subsequent in-app navigation works.
+
+| Prefix         | Mode | First paint                              | Client nav                                |
+| -------------- | ---- | ---------------------------------------- | ----------------------------------------- |
+| (none)         | SSR  | Renderer runs per request                | Partial-nav fetches a partial fragment    |
+| `__page.tsx`   | AOT  | Renderer runs per request                | Dynamic-imports a client chunk, no server |
+| `___page.tsx`  | SSG  | Prerendered HTML served from snapshot    | Dynamic-imports a client chunk, no server |
+
+AOT (double underscore) emits an ESM chunk per route, bundled with that
+route's ancestor `_layout.tsx` chain. The chunk is `import()`-ed on first
+click and rendered into the active `<Partial>` outlet — no full document
+fetch, no re-execution of the SSR shell.
+
+SSG (triple underscore) implies AOT and additionally runs the handler **once
+at build time** with an empty `ctx`, capturing the HTML into the production
+snapshot. Subsequent requests skip the renderer entirely — the cached HTML is
+served directly.
+
+```tsx
+// pages/___about.tsx
+import { Head } from "@hushkey/howl/runtime";
+
+export default function About() {
+  return (
+    <>
+      <Head><title>About</title></Head>
+      <p>Built once at build time, served forever (per build).</p>
+    </>
+  );
+}
+```
+
+**Constraints:**
+
+- SSG handlers run with no `req`, no cookies, no per-user state. Pages whose
+  output varies per user must stay on the dynamic SSR path.
+- Dynamic-param routes (e.g. `/properties/:id`) are not yet enumerated at
+  build time. A `getStaticPaths`-style API is on the roadmap. Until then SSG
+  on parametric routes falls through to dynamic SSR with a build warning.
+- AOT chunks are served with `Cache-Control: immutable` in production —
+  `BUILD_ID` rotates per build, so each deploy invalidates its own URLs.
+
+**Runtime globals injected on AOT/SSG SSR responses:**
+
+- `window.__HOWL_AOT__` — `{ "/route": "/_howl/js/{BUILD_ID}/aot__route.js" }`
+  consumed by the client-nav runtime to dynamic-import chunks.
+- `window.__HOWL_USER_STATE__` — `JSON.stringify(ctx.state)` so client-side
+  hooks/signals can seed from what the server rendered with. Public-facing
+  only; do not put secrets in `ctx.state` if any route can flow through here.
+
+---
+
 ## Building the handler
 
 `Howl#handler()` builds the router lazily on first call and caches the result

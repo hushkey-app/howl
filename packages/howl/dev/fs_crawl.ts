@@ -32,7 +32,25 @@ export async function crawlRouteDir<State>(
     let lazy = false;
     const relative = path.relative(routeDir, entry.path);
     const url = new URL(relative, "http://localhost/");
-    const id = url.pathname.slice(0, url.pathname.lastIndexOf("."));
+    let id = url.pathname.slice(0, url.pathname.lastIndexOf("."));
+
+    // Page-file prefix opts into client-side navigation:
+    //   `__page.tsx`  → AOT (dynamic SSR + client-nav chunk)
+    //   `___page.tsx` → SSG (prerendered HTML at build + AOT chunk)
+    // The prefix is stripped from the URL pattern so the route mounts at
+    // its plain path. SSG implies AOT.
+    let aot = false;
+    let ssg = false;
+    const lastSlash = id.lastIndexOf("/");
+    const basename = id.slice(lastSlash + 1);
+    if (basename.startsWith("___")) {
+      aot = true;
+      ssg = true;
+      id = `${id.slice(0, lastSlash + 1)}${basename.slice(3)}`;
+    } else if (basename.startsWith("__")) {
+      aot = true;
+      id = `${id.slice(0, lastSlash + 1)}${basename.slice(2)}`;
+    }
 
     let overrideConfig: RouteConfig | undefined;
     let pattern = "*";
@@ -96,6 +114,8 @@ export async function crawlRouteDir<State>(
       lazy,
       css: [],
       overrideConfig,
+      aot,
+      ssg,
     });
   }, ignore);
 

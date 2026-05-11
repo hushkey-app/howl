@@ -1,4 +1,4 @@
-import { Howl, type ListenOptions } from "../core/app.ts";
+import { getBuildCache, Howl, type ListenOptions } from "../core/app.ts";
 import { Builder, type BuildOptions } from "./builder.ts";
 import { cssModulesPlugin } from "./plugins/css_modules.ts";
 import * as path from "@std/path";
@@ -266,6 +266,7 @@ export class HowlBuilder<State = any> {
     await this.#crawlApis();
 
     const app = this.#howl;
+    const ssgBuilders: Builder<State>[] = [];
 
     await Promise.all(
       Array.from(this.#builders.entries()).map(async ([name, builder]) => {
@@ -274,6 +275,7 @@ export class HowlBuilder<State = any> {
           apiEntries: this.#apiEntries,
         });
         applySnapshot(app);
+        if (builder.getSsgPatterns().length > 0) ssgBuilders.push(builder);
         // deno-lint-ignore no-console
         console.log(`_ Built client: ${name}`);
       }),
@@ -281,6 +283,79 @@ export class HowlBuilder<State = any> {
 
     // Register APIs for production
     this.#registerApis(app);
+
+    // Prerender SSG routes — runs after the build cache and APIs are wired so
+    // the app's handler can produce the same HTML a real request would.
+    if (ssgBuilders.length > 0) {
+      await this.#prerenderSsg(app, ssgBuilders);
+    }
+  }
+
+  async #prerenderSsg(app: Howl<State>, ssgBuilders: Builder<State>[]): Promise<void> {
+    const buildCache = getBuildCache(app);
+    if (buildCache === null) return;
+
+    const handler = app.handler();
+    const patterns = new Set<string>();
+    for (const builder of ssgBuilders) {
+      for (const p of builder.getSsgPatterns()) patterns.add(p);
+    }
+
+    for (const pattern of patterns) {
+      // Convert URL pattern back to a concrete pathname. Patterns with
+      // params would need getStaticPaths-style enumeration — skip them in
+      // this pass and surface a warning so the user knows the route fell
+      // through to dynamic SSR.
+      if (/:[A-Za-z_]/.test(pattern)) {
+        // deno-lint-ignore no-console
+        console.warn(
+          `_ SSG: skipping dynamic pattern "${pattern}" — getStaticPaths not yet supported.`,
+        );
+        continue;
+      }
+      const pathname = pattern;
+      const url = `http://ssg.local${pathname}`;
+      try {
+        const res = await handler(new Request(url));
+        if (!res.ok) {
+          // deno-lint-ignore no-console
+          console.warn(
+            `_ SSG: ${pathname} returned ${res.status} during prerender — falling back to dynamic SSR.`,
+          );
+          continue;
+        }
+        const html = await res.text();
+        buildCache.ssgPages.set(pattern, html);
+      } catch (err) {
+        // deno-lint-ignore no-console
+        console.warn(`_ SSG: failed to prerender ${pathname}:`, err);
+      }
+    }
+
+    // Re-serialise the snapshot now that ssgPages has been populated so the
+    // production runtime sees the prerendered HTML.
+    for (const builder of ssgBuilders) {
+      const bc = getBuildCache(app);
+      if (bc !== null) await this.#rewriteSnapshot(builder, bc);
+    }
+
+    // deno-lint-ignore no-console
+    console.log(`_ Prerendered ${buildCache.ssgPages.size} SSG route(s)`);
+  }
+
+  async #rewriteSnapshot(
+    builder: Builder<State>,
+    _buildCache: import("../core/build_cache.ts").BuildCache<State>,
+  ): Promise<void> {
+    // DiskBuildCache.flush walks the static dir + rewrites snapshot.js. It's
+    // safe to call twice — the file maps are idempotent. After our
+    // ssgPages update the second flush picks them up.
+    // deno-lint-ignore no-explicit-any
+    const cache = _buildCache as any;
+    if (typeof cache.flush === "function") {
+      await cache.flush();
+    }
+    void builder;
   }
 
   /**

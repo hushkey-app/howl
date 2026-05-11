@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@deno/esbuild-plugin@^1.2.1": "1.2.1",
     "jsr:@deno/loader@~0.3.10": "0.3.14",
+    "jsr:@hushkey/howl@0.5": "0.5.5",
     "jsr:@std/assert@^1.0.19": "1.0.19",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
     "jsr:@std/cli@1": "1.0.29",
@@ -51,6 +52,29 @@
     },
     "@deno/loader@0.3.14": {
       "integrity": "97bc63a6cc2d27a60bcdc953f588c5213331d866d44212eebb24cebfb9b011ca"
+    },
+    "@hushkey/howl@0.5.5": {
+      "integrity": "fbd08a0bb2433eede8f575400d21d6d6f9d6e5d19e86082b9a76011e8dbcc3db",
+      "dependencies": [
+        "jsr:@deno/esbuild-plugin",
+        "jsr:@std/encoding@1",
+        "jsr:@std/fmt",
+        "jsr:@std/fs",
+        "jsr:@std/html",
+        "jsr:@std/http",
+        "jsr:@std/jsonc",
+        "jsr:@std/media-types",
+        "jsr:@std/path@1",
+        "jsr:@std/uuid",
+        "npm:@opentelemetry/api",
+        "npm:@tailwindcss/postcss",
+        "npm:esbuild-wasm",
+        "npm:esbuild@0.25",
+        "npm:postcss",
+        "npm:preact-render-to-string",
+        "npm:preact@^10.25.0",
+        "npm:zod"
+      ]
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -685,6 +709,17 @@
       "npm:preact@*"
     ],
     "members": {
+      "examples/hybrid-spa": {
+        "dependencies": [
+          "jsr:@hushkey/howl@0.5",
+          "jsr:@std/path@1",
+          "npm:@tailwindcss/typography@~0.5.19",
+          "npm:daisyui@5.5.18",
+          "npm:preact@^10.25.0",
+          "npm:tailwindcss@4.1.18",
+          "npm:zod@4.3.6"
+        ]
+      },
       "examples/software-www": {
         "dependencies": [
           "jsr:@hushkey/howl@0.5",

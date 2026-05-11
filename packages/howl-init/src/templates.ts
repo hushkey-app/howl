@@ -32,6 +32,11 @@ export const templates: readonly TemplateMeta[] = [
     label: "cv",
     description: "Tailwind + daisyUI developer CV / portfolio with project cards",
   },
+  {
+    id: "aot-spa",
+    label: "aot-spa",
+    description: "AOT navigation demo — SSR, AOT, and SSG pages side-by-side with a nav bar to compare them",
+  },
 ] as const;
 
 /** Look up a template by id. Returns `undefined` if unknown. */

@@ -1,0 +1,37 @@
+# Per-Dockerfile ignore (BuildKit picks this up before the root .dockerignore).
+# Strategy: exclude everything, then re-include only what this image needs.
+
+**
+
+# Workspace root config (deno workspace + lockfile)
+!deno.json
+!deno.lock
+!LICENSE
+
+# Framework source + every workspace member (deno workspace resolver walks all
+# members listed in the root deno.json, even ones the app doesn't import).
+!packages
+!packages/**
+
+# This app
+!examples/www
+!examples/www/**
+
+# Other workspace members under examples/ — only the deno.json is needed so the
+# workspace resolver can register them (their source code isn't imported here).
+!examples/*/deno.json
+
+# Build artifacts and caches inside the included paths — re-exclude
+**/node_modules
+**/dist
+**/_howl
+**/.DS_Store
+**/.env
+**/.env.*
+.git
+
+# Heavy/non-runtime trees that the build doesn't need
+packages/howl/tests
+packages/howl-init/templates
+packages/howl-init/tests
+packages/howl-init/scripts

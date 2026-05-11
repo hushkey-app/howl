@@ -27,7 +27,7 @@ import {
 } from "./commands.ts";
 import { MockBuildCache } from "./test_utils.ts";
 import { HowlLogger, type LoggerOptions } from "./logger.ts";
-import { ALIVE_URL } from "./constants.ts";
+import { ALIVE_URL, PARTIAL_SEARCH_PARAM } from "./constants.ts";
 /**
  * Configuration for a registered client app — an isolated build of routes/islands
  * mounted at a path.
@@ -789,6 +789,26 @@ export class Howl<State = any> {
       const method = req.method.toUpperCase() as Method;
       const matched = router.match(method, url);
       let { params, pattern, item: handler, methodMatch } = matched;
+
+      // SSG short-circuit: routes prerendered at build time skip the entire
+      // middleware/handler chain and serve the cached HTML. Limited to GET
+      // (and HEAD, handled below by stripping the body) and full-page
+      // requests — partial nav still needs a live render to produce the
+      // partial fragment response shape.
+      if (
+        (method === "GET" || method === "HEAD") &&
+        pattern !== null &&
+        !url.searchParams.has(PARTIAL_SEARCH_PARAM) &&
+        buildCache!.ssgPages.size > 0
+      ) {
+        const html = buildCache!.ssgPages.get(pattern);
+        if (html !== undefined) {
+          const body = method === "HEAD" ? null : html;
+          return new Response(body, {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+      }
 
       const span = trace.getActiveSpan();
       if (span && pattern) {

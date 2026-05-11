@@ -1,0 +1,44 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.0.1",
+  "tasks": {
+    "dev": "deno run -A --env-file=.env --watch --watch-exclude=dist/,node_modules/ dev.ts",
+    "build": "deno run -A dev.ts build",
+    "start": "deno run -A dist/compiled-entry.js",
+    "compile": "deno compile --output ./dist/bin/{{PROJECT_NAME}} --include dist --include static -A dist/compiled-entry.js"
+  },
+  "exports": "./server/main.ts",
+  "imports": {
+    "@hushkey/howl": "jsr:@hushkey/howl@^{{HOWL_VERSION}}",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "preact": "npm:preact@^10.25.0",
+    "preact/compat": "npm:preact@^10.25.0/compat",
+    "preact/hooks": "npm:preact@^10.25.0/hooks",
+    "preact/jsx-runtime": "npm:preact@^10.25.0/jsx-runtime",
+    "preact/jsx-dev-runtime": "npm:preact@^10.25.0/jsx-dev-runtime",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "daisyui": "npm:daisyui@5.5.18",
+    "zod": "npm:zod@4.3.6"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"],
+    "jsxPrecompileSkipElements": [
+      "a",
+      "img",
+      "source",
+      "body",
+      "html",
+      "head",
+      "title",
+      "meta",
+      "script",
+      "link",
+      "style",
+      "base",
+      "noscript",
+      "template"
+    ]
+  }
+}

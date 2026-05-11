@@ -488,6 +488,61 @@ up before requesting the handler.
 
 ---
 
+## AOT and SSG pages
+
+Two filename prefixes opt a page into client-side navigation and/or
+build-time prerendering. Direct URL hits always get SSR'd HTML (good for SEO
+and first-paint); the prefix changes how *subsequent* navigation works.
+
+| Prefix          | Mode | First paint                                    | Client nav to this page                        |
+| --------------- | ---- | ---------------------------------------------- | ---------------------------------------------- |
+| (none)          | SSR  | Renderer runs per request                      | Partial-nav fetches the partial fragment       |
+| `__page.tsx`    | AOT  | Renderer runs per request                      | Dynamic-imports a client chunk, no server hit  |
+| `___page.tsx`   | SSG  | Prerendered HTML served from snapshot (no JS run) | Dynamic-imports a client chunk, no server hit |
+
+`__` builds an ESM chunk per page that includes the page's ancestor
+`_layout.tsx` chain. On click, the chunk is `import()`-ed and rendered into
+the active `<Partial>` outlet. `___` additionally runs the handler at build
+time, captures the HTML, and bakes it into the production snapshot so
+request-time renders are skipped entirely.
+
+```tsx
+// pages/__dashboard.tsx — dynamic SSR, client-navigable
+export default function Dashboard(ctx) {
+  return <p>Hello, {ctx.state.user?.name}</p>;
+}
+```
+
+```tsx
+// pages/___about.tsx — prerendered once at build time
+import { Head } from "@hushkey/howl/runtime";
+
+export default function About() {
+  return (
+    <>
+      <Head><title>About</title></Head>
+      <p>Static content.</p>
+    </>
+  );
+}
+```
+
+SSG limits and gotchas:
+
+- The build invokes the handler with an empty `ctx` — no `req`, no cookies,
+  no per-user state. Anything user-specific must stay on the dynamic SSR
+  path.
+- Dynamic params (e.g. `/properties/:id`) are not yet enumerated at build
+  time — a `getStaticPaths` API is on the roadmap. SSG-flagged routes with
+  params fall through to dynamic SSR with a build-time warning.
+- Build IDs rotate per build, so AOT chunks are served with
+  `Cache-Control: public, max-age=31536000, immutable` in production.
+- Every SSR response for an AOT/SSG route injects two globals:
+  `window.__HOWL_AOT__` (the route → chunk URL map) and
+  `window.__HOWL_USER_STATE__` (the snapshot of `ctx.state` at SSR time).
+
+---
+
 ## Conventions
 
 | Convention            | Path                                     |

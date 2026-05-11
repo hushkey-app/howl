@@ -25,6 +25,20 @@ export interface IslandModChunk {
 
 export type FsRouteFileNoMod<State> = Omit<FsRouteFile<State>, "mod"> & {
   lazy: boolean;
+  /**
+   * Marks the route as ahead-of-time (AOT) compiled. AOT routes are also
+   * emitted as standalone client chunks so subsequent in-app navigation can
+   * load them without round-tripping the server. The first request to an AOT
+   * route still SSRs the shell.
+   */
+  aot?: boolean;
+  /**
+   * Marks the route for static site generation (SSG). The handler runs once
+   * at build time and the resulting HTML is cached; subsequent requests skip
+   * the renderer entirely. SSG implies {@linkcode aot} — the matching client
+   * chunk still ships so navigation between flagged pages stays seamless.
+   */
+  ssg?: boolean;
 };
 
 export interface FsRoute<State> {
@@ -73,6 +87,8 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   islandRegistry: ServerIslandRegistry = new Map();
   clientEntry: string;
   features = { errorOverlay: false };
+  aotRoutes: Map<string, string> = new Map();
+  ssgPages: Map<string, string> = new Map();
 
   constructor(
     config: ResolvedBuildConfig,
@@ -278,6 +294,9 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   islandRegistry: ServerIslandRegistry = new Map();
   clientEntry: string = "";
   features = { errorOverlay: false };
+  aotRoutes: Map<string, string> = new Map();
+  ssgPages: Map<string, string> = new Map();
+  #commands: Command<State>[] = [];
 
   constructor(
     config: ResolvedBuildConfig,
@@ -291,6 +310,7 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
     this.#transformer = transformer;
     this.#config = config;
     this.root = config.root;
+    this.clientEntry = getClientEntry(config.buildId);
   }
 
   getEntryAssets(): string[] {
@@ -298,7 +318,7 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   }
 
   getFsRoutes(): Command<State>[] {
-    return [];
+    return this.#commands;
   }
 
   getApiRoutes(): unknown[] {
@@ -345,13 +365,49 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
     await Deno.writeFile(filePath, content);
   }
 
-  // deno-lint-ignore require-await
-  async readFile(_pathname: string): Promise<StaticFile | null> {
-    throw new Error("Not implemented in build mode");
+  async readFile(pathname: string): Promise<StaticFile | null> {
+    // Used during the SSG prerender pass — the build cache is otherwise
+    // write-only during production builds, but the prerender invokes the
+    // app's handler which may run staticFiles() middleware and ask for
+    // assets that have already been written to disk.
+    const processed = this.#processedFiles.has(pathname);
+    const unprocessed = this.#unprocessedFiles.get(pathname);
+    let filePath: string | null = null;
+    if (processed) {
+      filePath = path.join(this.#config.outDir, "static", pathname);
+    } else if (unprocessed !== undefined) {
+      filePath = unprocessed;
+    }
+    if (filePath === null) return null;
+    try {
+      const [stat, file] = await Promise.all([
+        Deno.stat(filePath),
+        Deno.open(filePath, { read: true }),
+      ]);
+      return {
+        hash: this.#processedFiles.get(pathname) ?? null,
+        size: stat.size,
+        readable: file.readable,
+        contentType: getContentType(filePath),
+        close: () => file.close(),
+      };
+    } catch {
+      return null;
+    }
   }
 
   async prepare(): Promise<void> {
-    // not needed
+    // Load route modules so `getFsRoutes()` can return real commands. This
+    // is what enables the SSG prerender pass to dispatch through the app
+    // handler during the build itself.
+    const files = await Promise.all(this.#fsRoutes.files.map(async (file) => {
+      const fileUrl = maybeToFileUrl(file.filePath);
+      return {
+        ...file,
+        mod: file.lazy ? () => import(fileUrl) : await import(fileUrl),
+      };
+    }));
+    this.#commands = fsItemsToCommands(files);
   }
 
   async flush(): Promise<void> {
@@ -415,6 +471,8 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
         fsRoutesFiles: this.#fsRoutes.files,
         apiRoutes: this.#apis,
         apiEntries: this.#apiEntries,
+        aotRoutes: this.aotRoutes,
+        ssgPages: this.ssgPages,
         outDir: root,
         entryAssets: [],
       }),
@@ -498,6 +556,8 @@ export async function generateSnapshotServer(
     apiEntries: ApiEntry[];
     staticFiles: PendingStaticFile[];
     entryAssets: string[];
+    aotRoutes: Map<string, string>;
+    ssgPages: Map<string, string>;
     writeSpecifier: (filePath: string) => string;
   },
 ): Promise<string> {
@@ -571,6 +631,18 @@ export async function generateSnapshotServer(
       return JSON.stringify(meta);
     }).join(",\n");
 
+  const serializedAotRoutes = Array.from(options.aotRoutes.entries())
+    .map(([pattern, chunkUrl]) =>
+      `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`
+    )
+    .join("\n");
+
+  const serializedSsgPages = Array.from(options.ssgPages.entries())
+    .map(([pattern, html]) =>
+      `  [${JSON.stringify(pattern)}, ${JSON.stringify(html)}],`
+    )
+    .join("\n");
+
   return `${EDIT_WARNING}
 import { IslandPreparer } from "@hushkey/howl";
 ${islandImports}
@@ -589,6 +661,14 @@ ${staticFiles.map((def) => `  [${JSON.stringify(def.name)}, ${JSON.stringify(def
 ]);
 
 export const entryAssets = [${entryAssets}];
+
+export const aotRoutes = new Map([
+${serializedAotRoutes}
+]);
+
+export const ssgPages = new Map([
+${serializedSsgPages}
+]);
 
 export const fsRoutes = [
 ${serializedFsRoutes}

@@ -27,8 +27,36 @@
             ["Island (.island.tsx)", "Hydrates on the client"],
             ["<Partial>", "Receives DOM swaps from partial nav"],
             ["f-client-nav", "Intercepts links/forms for SPA-style nav"],
-            ["f-view-transition", "Wraps DOM swaps in startViewTransition()"]
+            ["f-view-transition", "Wraps DOM swaps in startViewTransition()"],
+            ["__page.tsx / ___page.tsx", "Ships the AOT navigation chunk + manifest"]
           ]
+        }
+      ]
+    },
+    {
+      "id": "aot-ssg-perf",
+      "heading": "AOT and SSG performance characteristics",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Routing's __ (AOT) and ___ (SSG) prefixes opt pages into client-side navigation and/or build-time prerendering. The performance shape:"
+        },
+        {
+          "type": "table",
+          "headers": ["Mode", "First paint", "Subsequent nav", "Server cost per request"],
+          "rows": [
+            ["SSR (default)", "renderer runs", "partial-nav fetch + DOM swap", "renderer per request"],
+            ["AOT (__page)", "renderer runs", "import() chunk, no network", "renderer per request"],
+            ["SSG (___page)", "cached HTML from snapshot", "import() chunk, no network", "static file read"]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "AOT chunks are hash-isolated under /_howl/js/{BUILD_ID}/ and served with Cache-Control: public, max-age=31536000, immutable in production. BUILD_ID rotates each deploy so the URL is the cache key."
+        },
+        {
+          "type": "tip",
+          "text": "SSG is a render-time optimisation, not a build-time one — your build still has to JSON-stringify each prerendered HTML into the snapshot. For 10k+ dynamic pages, prefer dynamic SSR with CDN edge caching over SSG."
         }
       ]
     },

@@ -1,6 +1,25 @@
 {
-  "howlVersion": "0.5.4",
+  "howlVersion": "0.6.0",
   "templates": {
+    "aot-spa": [
+      "README.md.tpl",
+      "client/pages/___about.tsx.tpl",
+      "client/pages/__dashboard.tsx.tpl",
+      "client/pages/__profile.tsx.tpl",
+      "client/pages/__settings.tsx.tpl",
+      "client/pages/_app.tsx.tpl",
+      "client/pages/_layout.tsx.tpl",
+      "client/pages/index.tsx.tpl",
+      "deno.json.tpl",
+      "dev.ts.tpl",
+      "env.example",
+      "gitignore",
+      "howl.config.ts.tpl",
+      "server/apis/public/ping.api.ts.tpl",
+      "server/main.ts.tpl",
+      "static/style.css",
+      "tailwind.config.ts.tpl"
+    ],
     "backend-only": [
       "README.md.tpl",
       "deno.json.tpl",

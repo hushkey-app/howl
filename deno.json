@@ -4,7 +4,8 @@
     "./packages/howl",
     "./packages/howl-init",
     "./examples/www",
-    "./examples/software-www"
+    "./examples/software-www",
+    "./examples/hybrid-spa"
   ],
   "tasks": {
     "dev:fullstack": "deno run -A --watch examples/fullstack/dev.ts",

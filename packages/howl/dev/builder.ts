@@ -31,6 +31,8 @@ import { devErrorOverlay } from "./middlewares/error_overlay/middleware.tsx";
 import { automaticWorkspaceFolders } from "./middlewares/automatic_workspace_folders.ts";
 import { checkDenoCompilerOptions } from "./check.ts";
 import { crawlFsItem } from "./fs_crawl.ts";
+import { type AotEntry, aotPlugin } from "./plugins/aot.ts";
+import { CommandType } from "../core/commands.ts";
 
 /**
  * Options accepted by the {@linkcode Builder} constructor.
@@ -273,6 +275,60 @@ export class Builder<State = any> {
     };
   }
 
+  /**
+   * URL patterns of routes flagged for SSG (`___page.tsx` prefix). Returned
+   * after {@linkcode build} has crawled the FS; an empty array otherwise.
+   */
+  getSsgPatterns(): string[] {
+    return this.#fsRoutes.files
+      .filter((f) => f.type === CommandType.Route && f.ssg)
+      .map((f) => f.routePattern);
+  }
+
+  #collectAotEntries(namer: UniqueNamer): Map<string, AotEntry> {
+    const entries = new Map<string, AotEntry>();
+
+    const aotFiles = this.#fsRoutes.files.filter((f) =>
+      f.type === CommandType.Route && f.aot
+    );
+    if (aotFiles.length === 0) return entries;
+
+    const appFile = this.#fsRoutes.files.find((f) => f.type === CommandType.App);
+    const layoutsByDir = new Map<string, string>();
+    for (const f of this.#fsRoutes.files) {
+      if (f.type === CommandType.Layout) {
+        layoutsByDir.set(path.dirname(f.filePath), f.filePath);
+      }
+    }
+
+    const routeDir = this.config.routeDir;
+    for (const page of aotFiles) {
+      const layouts: string[] = [];
+      let dir = path.dirname(page.filePath);
+      while (true) {
+        const layoutPath = layoutsByDir.get(dir);
+        if (layoutPath) layouts.unshift(layoutPath);
+        if (dir === routeDir) break;
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+
+      const slug = page.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
+      const name = namer.getUniqueName(`aot_${slug}`);
+
+      entries.set(name, {
+        name,
+        routePattern: page.routePattern,
+        pagePath: page.filePath,
+        layouts,
+        appPath: appFile?.filePath ?? null,
+      });
+    }
+
+    return entries;
+  }
+
   async #crawlFsItems() {
     const { islands, routes } = await crawlFsItem({
       islandDir: this.config.islandDir,
@@ -334,6 +390,11 @@ export class Builder<State = any> {
         });
       }
 
+      const aotEntries = this.#collectAotEntries(namer);
+      for (const entry of aotEntries.values()) {
+        entryPoints[entry.name] = `aot:${entry.name}`;
+      }
+
       const output = await bundleJs({
         cwd: root,
         outDir: staticOutDir,
@@ -345,7 +406,10 @@ export class Builder<State = any> {
         denoJsonPath: denoJson,
         sourceMap: this.config.sourceMap,
         alias: this.config.alias,
-        plugins: this.config.plugins,
+        plugins: [
+          aotPlugin(aotEntries, root),
+          ...(this.config.plugins ?? []),
+        ],
       });
 
       const prefix = `/_howl/js/${BUILD_ID}/`;
@@ -356,6 +420,14 @@ export class Builder<State = any> {
           throw new Error(`Could not find chunk for island: ${name}`);
         }
         buildCache.islandModNameToChunk.get(name)!.browser = `${prefix}${chunkName}`;
+      }
+
+      for (const entry of aotEntries.values()) {
+        const chunkName = output.entryToChunk.get(entry.name);
+        if (chunkName === undefined) {
+          throw new Error(`Could not find chunk for AOT route: ${entry.routePattern}`);
+        }
+        buildCache.aotRoutes.set(entry.routePattern, `${prefix}${chunkName}`);
       }
 
       for (let i = 0; i < output.files.length; i++) {

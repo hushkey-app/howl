@@ -8,7 +8,7 @@
   {
     "slug": "routing",
     "title": "Routing",
-    "description": "File-based routing, layouts, and SPA navigation",
+    "description": "File-based routing, layouts, SPA navigation, AOT chunks, and SSG prerender",
     "order": 2
   },
   {

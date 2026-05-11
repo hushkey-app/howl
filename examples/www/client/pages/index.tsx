@@ -30,22 +30,10 @@ const FEATURES = [
   },
 ];
 
-const CORE: string[] = [
-  "defineApi",
-  "OpenAPI specs",
-  "Unified Context",
-  "Cookie handler",
-  "SSR + Islands",
-  "FS routing",
-  "Zod validation",
-  "RBAC",
-  "Rate limiting",
-  "Cache adapters",
-  "WebSockets",
-  "SSE",
-  "CSRF · CORS · CSP",
-  "Compression",
-  "Request coalescing",
+const RENDERING_MODES: { file: string; mode: string; accent: string }[] = [
+  { file: "index.tsx", mode: "SSR", accent: "text-cyan-400" },
+  { file: "__index.tsx", mode: "AOT", accent: "text-violet-400" },
+  { file: "___index.tsx", mode: "SSG", accent: "text-emerald-400" },
 ];
 
 export default function Index(_ctx: Context<State>): JSX.Element {
@@ -127,6 +115,21 @@ export default function Index(_ctx: Context<State>): JSX.Element {
           >
             GitHub
           </a>
+        </div>
+
+        {/* Rendering modes — compact */}
+        <div class="animate-fade-up-3 w-full px-4 mb-6">
+          <div class="flex justify-center gap-2 flex-wrap">
+            {RENDERING_MODES.map(({ file, mode, accent }) => (
+              <span
+                key={file}
+                class="inline-flex items-baseline gap-1.5 font-mono text-[11px] px-2.5 py-1 rounded-md border border-base-300 bg-base-200/70"
+              >
+                <span class={`font-bold ${accent}`}>{file}</span>
+                <span class={`text-[9px] font-black tracking-widest ${accent}/80`}>{mode}</span>
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Scaffold one-liner */}
@@ -329,6 +332,19 @@ export default function Index(_ctx: Context<State>): JSX.Element {
             framework for Deno. Typed endpoints, SSR islands, built-in RBAC, and middleware that
             propagates to every response.
           </p>
+
+          {/* Rendering modes — compact */}
+          <div class="animate-fade-up-3 w-full max-w-3xl mb-8 flex justify-center gap-3 flex-wrap">
+            {RENDERING_MODES.map(({ file, mode, accent }) => (
+              <span
+                key={file}
+                class="inline-flex items-baseline gap-2 font-mono text-[13px] px-3 py-1.5 rounded-md border border-base-300 bg-base-200/70"
+              >
+                <span class={`font-bold ${accent}`}>{file}</span>
+                <span class={`text-[10px] font-black tracking-widest ${accent}/80`}>{mode}</span>
+              </span>
+            ))}
+          </div>
 
           {/* Scaffold one-liner */}
           <div class="animate-fade-up-3 w-full max-w-3xl">

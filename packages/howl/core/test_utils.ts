@@ -166,6 +166,8 @@ export class MockBuildCache<State> implements BuildCache<State> {
 
   islandRegistry: ServerIslandRegistry = new Map();
   features = { errorOverlay: false };
+  aotRoutes: Map<string, string> = new Map();
+  ssgPages: Map<string, string> = new Map();
 
   constructor(files: FsRouteFile<State>[], mode: "development" | "production") {
     this.features.errorOverlay = mode === "development";

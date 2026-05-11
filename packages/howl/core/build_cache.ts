@@ -40,6 +40,10 @@ export interface BuildSnapshot<State> {
   islands: ServerIslandRegistry;
   /** JS/CSS asset URLs that ship with every page. */
   entryAssets: string[];
+  /** Map of route pattern → AOT chunk URL for ahead-of-time-compiled pages. */
+  aotRoutes?: Map<string, string>;
+  /** Map of route pattern → prerendered HTML for SSG-flagged pages. */
+  ssgPages?: Map<string, string>;
 }
 
 /**
@@ -86,6 +90,18 @@ export interface BuildCache<State = any> {
   readFile(pathname: string): Promise<StaticFile | null>;
   /** Returns the JS/CSS asset URLs that ship with every page. */
   getEntryAssets(): string[];
+  /**
+   * Map of route pattern → AOT chunk URL. Populated for pages opted into
+   * client-side navigation via the `__page.tsx` filename prefix. Empty when
+   * no AOT pages are registered.
+   */
+  aotRoutes: Map<string, string>;
+  /**
+   * Map of route pattern → prerendered HTML string. Populated at build time
+   * for routes flagged with the `___page.tsx` SSG prefix. Looked up before
+   * the dynamic renderer to short-circuit request handling.
+   */
+  ssgPages: Map<string, string>;
 }
 
 /**
@@ -102,6 +118,10 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   apiRegistry: Map<string, unknown> = new Map();
   /** Disabled in production builds. */
   features: { errorOverlay: boolean } = { errorOverlay: false };
+  /** Map of route pattern → AOT chunk URL, populated from the snapshot. */
+  aotRoutes: Map<string, string>;
+  /** Map of route pattern → prerendered HTML, populated from the snapshot. */
+  ssgPages: Map<string, string>;
 
   /** Build a production cache from a serialised snapshot. */
   constructor(public root: string, snapshot: BuildSnapshot<State>) {
@@ -109,6 +129,8 @@ export class ProdBuildCache<State> implements BuildCache<State> {
     this.#snapshot = snapshot;
     this.islandRegistry = snapshot.islands;
     this.clientEntry = snapshot.clientEntry;
+    this.aotRoutes = snapshot.aotRoutes ?? new Map();
+    this.ssgPages = snapshot.ssgPages ?? new Map();
 
     // Populate apiRegistry from snapshot
     for (const api of snapshot.apiRoutes ?? []) {

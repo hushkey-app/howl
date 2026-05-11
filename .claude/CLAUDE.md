@@ -32,6 +32,8 @@ Middleware export path: `"./middleware"` → `packages/core/middlewares/mod.ts` 
 | Item         | Path pattern                          |
 | ------------ | ------------------------------------- |
 | Pages        | `pages/**/*.tsx`                      |
+| AOT pages    | `pages/**/__name.tsx`                 |
+| SSG pages    | `pages/**/___name.tsx`                |
 | Layouts      | `pages/_layout.tsx`                   |
 | App wrapper  | `pages/_app.tsx`                      |
 | Middleware   | `middleware/**/*.middleware.ts`       |
@@ -214,6 +216,65 @@ unset or returns `undefined`, the limiter falls back to the client IP from `x-fo
 - One nested element opt-out: `<ClientOnly>{() => <Component />}</ClientOnly>` — for cases where most of the island SSRs fine but one child can't (e.g. sonner `<Toaster />`)
 - Inline env guards: `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` for branching individual lines
 - Island CSS is automatically preloaded via `Link` response headers
+
+---
+
+## AOT and SSG pages
+
+Page-file prefix opts a route into client-side navigation and/or build-time prerender. The prefix
+is stripped from the URL pattern, so `pages/jobs/__index.tsx` mounts at `/jobs/`.
+
+| Prefix         | Mode | First paint                                      | Client nav to this route                  |
+| -------------- | ---- | ------------------------------------------------ | ----------------------------------------- |
+| (none)         | SSR  | Renderer runs every request                      | Partial-nav fetches the partial fragment  |
+| `__page.tsx`   | AOT  | Renderer runs every request                      | Dynamic-imports a client chunk, no server |
+| `___page.tsx`  | SSG  | Prerendered HTML served from snapshot (no render) | Dynamic-imports a client chunk, no server |
+
+How it's wired:
+
+- **Detection** — `dev/fs_crawl.ts` reads the basename prefix and sets `aot` / `ssg` flags on
+  `FsRouteFileNoMod` (`dev/dev_build_cache.ts`).
+- **AOT chunk emission** — `dev/plugins/aot.ts` is a virtual esbuild plugin that synthesises an
+  entry file per AOT route: imports the page module + its ancestor `_layout.tsx` chain, exports
+  `Component(props)` that wraps the page with the layout chain via `h()`. `dev/builder.ts`
+  registers these entries alongside islands during `bundleJs()`. Chunk URL pattern is
+  `/_howl/js/{BUILD_ID}/aot_{slug}.js`.
+- **Manifest** — `BuildCache.aotRoutes: Map<routePattern, chunkUrl>` is populated by the builder
+  and emitted into the SSR response as `window.__HOWL_AOT__ = { ... }` (inline `<script>` injected
+  by `HowlRuntimeScript` in `runtime/server/preact_hooks.ts`). Also emits
+  `window.__HOWL_USER_STATE__ = JSON.stringify(ctx.state)` so client hooks can read the SSR state.
+- **Client runtime** — `runtime/client/aot.ts` (imported by `runtime/client/mod.ts`) reads the
+  manifest, intercepts `<a>` clicks + popstate, dynamic-imports the matching chunk on AOT-route
+  navigation, and updates the live `PartialComp` via `setState` (keeps `ACTIVE_PARTIALS` intact so
+  partial-nav back to SSR routes still works). Same-URL clicks are no-ops (no duplicate history
+  entries).
+- **SSG prerender** — `HowlBuilder.build()` runs the app handler at build time for each
+  param-less SSG route (`/properties/:id` falls through with a warning until `getStaticPaths` is
+  built). Captured HTML is stored in `BuildCache.ssgPages: Map<routePattern, html>`. Snapshot is
+  re-flushed so the production runtime sees it. Request-time short-circuit lives in
+  `core/app.ts handler()` — checks `ssgPages.get(pattern)` for `GET`/`HEAD` non-partial requests
+  before dispatching the middleware/handler chain.
+- **Cache headers** — AOT chunks are served with `Cache-Control: public, max-age=31536000,
+  immutable` in production. `BUILD_ID` rotates per build, so each deploy gets unique chunk URLs
+  → automatic cache invalidation. Build-ID lives in `packages/utils/build-id.ts` (UUID or
+  `DENO_DEPLOYMENT_ID` / `GITHUB_SHA`).
+- **Head component** — `runtime/head.ts` mounts a `ClientHead` on the browser that imperatively
+  syncs `document.head` after each render commit. SSR-emitted Head elements carry
+  `data-howl-head` markers (server adds the attribute in `runtime/server/preact_hooks.ts`).
+  `<title>` is written via `document.title` directly (no DOM-element race during transitions);
+  meta / link upsert by their natural key (`name`, `property`, `rel`); other elements append and
+  track for clean unmount.
+
+Limits / gotchas:
+
+- SSG handlers run with an empty `ctx` — no `req`, no cookies, no per-user state. Anything
+  per-user must stay on dynamic SSR.
+- Dynamic params on SSG fall through with a `console.warn` until `getStaticPaths` is built.
+- AOT chunk re-uses one cached `createRootFragment` outlet across renders — preact reconciles
+  the same container rather than fresh-mounting against preact-tagged DOM.
+- AOT pages currently hydrate via the partial-nav path on first paint. The page function isn't
+  re-invoked client-side until a subsequent AOT click; `useEffect` inside the page won't fire on
+  direct URL landings (auto-promote-on-paint is a roadmap item).
 
 ---
 

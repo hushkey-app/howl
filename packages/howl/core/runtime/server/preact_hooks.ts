@@ -420,6 +420,13 @@ options[OptionsType.DIFF] = (vnode) => {
                 props["data-key"] = originalKey;
               }
 
+              if (value) {
+                // Mark elements that flow through <Head> so the client-side
+                // ClientHead can adopt + clear them on hydration. Without
+                // this marker the first SSR-emitted Head element and the
+                // client-added one would coexist as duplicates.
+                props["data-howl-head"] = "";
+              }
               const vnode = h(originalType, props);
               PATCHED.add(vnode);
 
@@ -670,11 +677,14 @@ function HowlRuntimeScript() {
       })
     );
   } else {
+    const hasAot = buildCache.aotRoutes.size > 0;
     // Zero-JS default: page renders nothing that needs the client runtime
     // (no island, no <Partial>, no f-client-nav, no f-view-transition) →
     // skip the bootloader script entirely. The error overlay (dev-only)
-    // renders independently as an iframe and stays available.
-    if (!RENDER_STATE!.needsClientRuntime) {
+    // renders independently as an iframe and stays available. Pages with
+    // AOT routes registered always need the runtime so client navigation
+    // can hand off to a chunk.
+    if (!RENDER_STATE!.needsClientRuntime && !hasAot) {
       return buildCache.features.errorOverlay ? h(ShowErrorOverlay, null) : null;
     }
     const islandImports = islandArr.map((island) => {
@@ -703,10 +713,40 @@ function HowlRuntimeScript() {
     const scriptContent =
       `import { boot } from "${basePath}${runtimeUrl}";${islandImports}boot(${islandObj},${serializedProps});`;
 
+    const aotManifest = hasAot
+      ? Object.fromEntries(buildCache.aotRoutes.entries())
+      : null;
+
+    // Snapshot the request-scoped state into a global script so AOT chunks
+    // and client-side hooks can read what SSR rendered with. Public-facing
+    // only — anything in ctx.state is exposed in HTML, so don't put secrets
+    // there. Plain JSON for the MVP — signals/dates would need jsonify
+    // round-trip both sides.
+    const userStateBlob = hasAot
+      ? escapeScript(JSON.stringify(ctx.state ?? {}), { json: true })
+      : null;
+
     return (
       h(
         Fragment,
         null,
+        aotManifest || userStateBlob !== null
+          ? h("script", {
+            nonce,
+            dangerouslySetInnerHTML: {
+              __html: [
+                userStateBlob !== null
+                  ? `window.__HOWL_USER_STATE__=${userStateBlob};`
+                  : "",
+                aotManifest
+                  ? `window.__HOWL_AOT__=${
+                    escapeScript(JSON.stringify(aotManifest), { json: true })
+                  };`
+                  : "",
+              ].join(""),
+            },
+          })
+          : null,
         h("script", {
           type: "module",
           nonce,
