@@ -9,7 +9,7 @@
   },
   "exports": "./server/main.ts",
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.5.0",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.6.0",
     "@std/path": "jsr:@std/path@^1.0.0",
     "preact": "npm:preact@^10.25.0",
     "preact/compat": "npm:preact@^10.25.0/compat",
