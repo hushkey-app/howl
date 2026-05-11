@@ -270,7 +270,7 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
-function updateLinks(url: URL) {
+export function updateLinks(url: URL): void {
   document.querySelectorAll("a").forEach((link) => {
     // Don't touch user-set `aria-current` — only update attributes Howl
     // marked itself (data-current / data-ancestor on the previous render).

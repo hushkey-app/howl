@@ -1,6 +1,6 @@
 import { type ComponentType, h } from "preact";
 import { ACTIVE_PARTIALS } from "./reviver.ts";
-import type { HowlHistoryState } from "./partials.ts";
+import { type HowlHistoryState, updateLinks } from "./partials.ts";
 
 interface AotChunk {
   Component: ComponentType<
@@ -10,12 +10,18 @@ interface AotChunk {
 }
 
 declare global {
-  // deno-lint-ignore no-var
   var __HOWL_AOT__: Record<string, string> | undefined;
 }
 
 const manifest = (typeof globalThis !== "undefined" && globalThis.__HOWL_AOT__) || {};
 const chunkCache = new Map<string, Promise<AotChunk>>();
+
+// Monotonic token: each call to tryAotNavigate stamps its token, and any
+// awaited chunk-load that resolves with an out-of-date token is dropped on
+// the floor. Without this, fast clicks while a previous chunk is still
+// loading cause a flicker — the earlier setState commits *after* the user
+// has already moved on, briefly showing stale page content.
+let navToken = 0;
 
 function normalizePath(p: string): string {
   if (p.length > 1 && p.endsWith("/")) return p.slice(0, -1);
@@ -64,12 +70,20 @@ export async function tryAotNavigate(nextUrl: URL): Promise<boolean> {
   const matched = matchRoute(nextUrl.pathname);
   if (!matched) return false;
 
+  // Stamp this navigation. A later click bumps the token, and once we resume
+  // from `await loadChunk` we bail if the token's moved on — so the user's
+  // most recent destination always wins instead of being overwritten by a
+  // slow-loading earlier chunk.
+  const myToken = ++navToken;
+
   // Pick any active partial — convention is one Partial per page (typically
   // named "main"); grab the first to stay name-agnostic.
   const partial = ACTIVE_PARTIALS.values().next().value;
   if (!partial) return false;
 
   const chunk = await loadChunk(matched.pattern);
+  if (myToken !== navToken) return false; // superseded by a later click
+
   const tree = h(chunk.Component, {
     url: nextUrl,
     params: matched.params,
@@ -77,7 +91,11 @@ export async function tryAotNavigate(nextUrl: URL): Promise<boolean> {
       .__HOWL_USER_STATE__ ?? {},
   });
   partial.props.children = tree;
-  partial.setState({});
+  // setState is async (preact commits on a microtask). Re-stamp data-current
+  // / data-ancestor in the commit callback so we run after the chunk's new
+  // <a> vnodes — which carry no data attributes — have replaced the old DOM.
+  // Running before commit would let preact overwrite our stamps.
+  partial.setState({}, () => updateLinks(nextUrl));
   return true;
 }
 

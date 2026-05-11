@@ -2,6 +2,8 @@ import type { JSX } from "preact/jsx-runtime";
 import type { PageProps } from "@hushkey/howl";
 import { Partial } from "@hushkey/howl/runtime";
 import type { State } from "../../howl.config.ts";
+import SetStore from "../islands/set-store.island.tsx";
+import ToastsHandler from "../islands/toasts.island.tsx";
 
 const TITLE = "Howl — Deno-native fullstack framework";
 const DESCRIPTION =
@@ -33,8 +35,12 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
         <meta name="twitter:image" content={OG_IMAGE} />
       </head>
       <body f-client-nav>
+        {/* Reproducing hushkey: utility islands inside <Partial> so each nav
+            re-mounts them. Move outside to keep state across nav. */}
         <Partial name="main">
           <Component />
+          <SetStore state={state} />
+          <ToastsHandler />
         </Partial>
       </body>
     </html>
