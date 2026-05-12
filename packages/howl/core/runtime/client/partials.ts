@@ -134,7 +134,11 @@ document.addEventListener("click", async (e) => {
           location.href,
         );
         await fetchPartials(nextUrl, partialUrl, true);
-        updateLinks(nextUrl);
+        // `fetchPartials` follows server redirects and updates history
+        // itself, so the URL bar may differ from the clicked `nextUrl`.
+        // Re-read from `location.href` to stamp active-link state against
+        // the actual destination — otherwise data-current never matches.
+        updateLinks(new URL(location.href));
         scrollTo({ left: 0, top: 0, behavior: "instant" });
       } finally {
         if (indicator !== undefined) {
@@ -194,7 +198,9 @@ addEventListener("popstate", async (e) => {
   const url = new URL(location.href, location.origin);
   try {
     await fetchPartials(url, url, true);
-    updateLinks(url);
+    // Same redirect caveat as the click handler — server may have changed
+    // the URL; trust `location.href` for active-link stamping.
+    updateLinks(new URL(location.href));
     scrollTo({
       left: state.scrollX ?? 0,
       top: state.scrollY ?? 0,

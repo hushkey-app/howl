@@ -8,7 +8,7 @@
  */
 
 import type { Middleware } from "./mod.ts";
-import { ASSET_CACHE_BUST_KEY } from "../constants.ts";
+import { ASSET_CACHE_BUST_KEY, INTERNAL_PREFIX } from "../constants.ts";
 import { BUILD_ID } from "../../utils/build-id.ts";
 import { tracer } from "../otel.ts";
 import { getBuildCache } from "../context.ts";
@@ -43,6 +43,13 @@ export function staticFiles<T>(): Middleware<T> {
 
     if (pathname === "/" || file === null) {
       if (pathname === "/favicon.ico") {
+        return new Response(null, { status: 404 });
+      }
+      // Reserved framework namespace — stale clients still request orphaned
+      // `/_howl/js/{old-BUILD_ID}/...` chunks after a deploy rotates the build
+      // id. Short-circuit with a clean 404 so the request never reaches user
+      // middleware (and never produces a noisy error log via DEFAULT_NOT_FOUND).
+      if (pathname.startsWith(`${INTERNAL_PREFIX}/`)) {
         return new Response(null, { status: 404 });
       }
       return await ctx.next();
