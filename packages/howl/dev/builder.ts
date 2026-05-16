@@ -1,6 +1,6 @@
 import {
-  Howl,
   fsAdapter,
+  Howl,
   type ListenOptions,
   parseDirPath,
   pathToExportName,
@@ -128,6 +128,11 @@ export type ResolvedBuildConfig =
     /** Additional esbuild plugins. */
     plugins?: EsbuildPlugin[];
   };
+
+export interface SsgRouteEntry {
+  routePattern: string;
+  filePath: string;
+}
 
 /**
  * Lower-level build pipeline — drives esbuild, file transforms, FS crawling,
@@ -277,21 +282,21 @@ export class Builder<State = any> {
   }
 
   /**
-   * URL patterns of routes flagged for SSG (`___page.tsx` prefix). Returned
-   * after {@linkcode build} has crawled the FS; an empty array otherwise.
+   * Route entries flagged for SSG (`___page.tsx` prefix), including both the
+   * route pattern and source file path (for `getStaticPaths` lookup).
+   * Returned after {@linkcode build} has crawled the FS; an empty array
+   * otherwise.
    */
-  getSsgPatterns(): string[] {
+  getSsgRoutes(): SsgRouteEntry[] {
     return this.#fsRoutes.files
       .filter((f) => f.type === CommandType.Route && f.ssg)
-      .map((f) => f.routePattern);
+      .map((f) => ({ routePattern: f.routePattern, filePath: f.filePath }));
   }
 
   async #collectAotEntries(namer: UniqueNamer): Promise<Map<string, AotEntry>> {
     const entries = new Map<string, AotEntry>();
 
-    const aotFiles = this.#fsRoutes.files.filter((f) =>
-      f.type === CommandType.Route && f.aot
-    );
+    const aotFiles = this.#fsRoutes.files.filter((f) => f.type === CommandType.Route && f.aot);
     if (aotFiles.length === 0) return entries;
 
     const appFile = this.#fsRoutes.files.find((f) => f.type === CommandType.App);

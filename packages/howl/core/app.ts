@@ -797,11 +797,10 @@ export class Howl<State = any> {
       // partial fragment response shape.
       if (
         (method === "GET" || method === "HEAD") &&
-        pattern !== null &&
         !url.searchParams.has(PARTIAL_SEARCH_PARAM) &&
         buildCache!.ssgPages.size > 0
       ) {
-        const html = buildCache!.ssgPages.get(pattern);
+        const html = buildCache!.ssgPages.get(url.pathname);
         if (html !== undefined) {
           const body = method === "HEAD" ? null : html;
           return new Response(body, {

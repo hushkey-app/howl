@@ -193,7 +193,11 @@
           "headers": ["File", "Mode", "Behaviour"],
           "rows": [
             ["pages/__jobs.tsx", "AOT", "Dynamic SSR + client chunk for instant in-app nav"],
-            ["pages/___about.tsx", "SSG", "Prerendered HTML at build (served instantly) + client chunk"],
+            [
+              "pages/___about.tsx",
+              "SSG",
+              "Prerendered HTML at build (served instantly) + client chunk"
+            ],
             ["pages/index.tsx", "—", "Dynamic SSR every request"]
           ]
         },
@@ -224,7 +228,7 @@
         },
         {
           "type": "p",
-          "text": "Dynamic params (e.g. /properties/:id) are not yet prerendered automatically — a getStaticPaths-style API for enumerating param tuples is on the roadmap. Until then, dynamic-param routes flagged with ___ silently fall through to dynamic SSR with a build-time warning."
+          "text": "Dynamic SSG routes (e.g. pages/properties/___[id].tsx) must export getStaticPaths() and return param tuples (for example [{ id: \"abc\" }, { id: \"def\" }]). Each tuple becomes a prerendered concrete pathname. Without getStaticPaths(), dynamic-param ___ routes fall through to dynamic SSR with a build-time warning. Optional ([[id]]) and wildcard params are not supported by getStaticPaths yet."
         },
         {
           "type": "p",

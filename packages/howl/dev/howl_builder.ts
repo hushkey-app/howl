@@ -1,17 +1,22 @@
 import { getBuildCache, Howl, type ListenOptions } from "../core/app.ts";
-import { Builder, type BuildOptions } from "./builder.ts";
+import { Builder, type BuildOptions, type SsgRouteEntry } from "./builder.ts";
 import { cssModulesPlugin } from "./plugins/css_modules.ts";
 import * as path from "@std/path";
 import type { AnyApiDefinition, HowlApiConfig } from "../api/types.ts";
 import { buildApiCommands } from "../api/api-handler.ts";
 import type { ApiEntry } from "./dev_build_cache.ts";
+import type { GetStaticPaths, StaticPathParams } from "../core/types.ts";
+import { getPathParamNames, hasDynamicParams, materializeSsgPathname } from "./ssg_paths.ts";
 
 /**
  * Options accepted by {@linkcode HowlBuilder}. Extends {@linkcode BuildOptions}
  * minus the per-client directory fields (resolved per registered client).
  */
-export interface HowlDevOptions<State = any>
-  extends Omit<BuildOptions, "routeDir" | "islandDir" | "staticDir"> {
+export interface HowlDevOptions<State = any> extends
+  Omit<
+    BuildOptions,
+    "routeDir" | "islandDir" | "staticDir"
+  > {
   /**
    * Lazy app loader — invoked when the dev server starts. Accepts either the
    * {@linkcode Howl} instance directly or a `{ app }` module shape so users can
@@ -43,7 +48,7 @@ export class HowlBuilder<State = any> {
 
   #defaultAlias(): Record<string, string> {
     return {
-      "react": "npm:preact/compat",
+      react: "npm:preact/compat",
       "react-dom": "npm:preact/compat",
       "react/jsx-runtime": "npm:preact/jsx-runtime",
       "react/jsx-dev-runtime": "npm:preact/jsx-dev-runtime",
@@ -57,10 +62,7 @@ export class HowlBuilder<State = any> {
         ...this.#defaultAlias(),
         ...this.#options.alias,
       },
-      plugins: [
-        cssModulesPlugin(),
-        ...(this.#options.plugins ?? []),
-      ],
+      plugins: [cssModulesPlugin(), ...(this.#options.plugins ?? [])],
       ...overrides,
     };
   }
@@ -71,9 +73,11 @@ export class HowlBuilder<State = any> {
     if (clients.length === 0) {
       this.#builders.set(
         "default",
-        new Builder<State>(this.#makeBuilderOptions({
-          routeDir: "pages",
-        })),
+        new Builder<State>(
+          this.#makeBuilderOptions({
+            routeDir: "pages",
+          }),
+        ),
       );
       return;
     }
@@ -81,12 +85,14 @@ export class HowlBuilder<State = any> {
     for (const client of clients) {
       this.#builders.set(
         client.name,
-        new Builder<State>(this.#makeBuilderOptions({
-          routeDir: `${client.dir}/pages`,
-          islandDir: `${client.dir}/islands`,
-          staticDir: `${client.dir}/static`,
-          outDir: `${this.#options.outDir ?? "_howl"}/${client.name}`,
-        })),
+        new Builder<State>(
+          this.#makeBuilderOptions({
+            routeDir: `${client.dir}/pages`,
+            islandDir: `${client.dir}/islands`,
+            staticDir: `${client.dir}/static`,
+            outDir: `${this.#options.outDir ?? "_howl"}/${client.name}`,
+          }),
+        ),
       );
     }
   }
@@ -197,7 +203,10 @@ export class HowlBuilder<State = any> {
     if (this.#apis.length === 0) return;
 
     const config = (app.getApiConfig() ?? null) as
-      | HowlApiConfig<State, string>
+      | HowlApiConfig<
+        State,
+        string
+      >
       | null;
     const commands = buildApiCommands(app, this.#apis, config);
     app.setApiRouteItems(commands);
@@ -228,12 +237,15 @@ export class HowlBuilder<State = any> {
     await this.#crawlApis();
 
     if (this.#builders.size === 1) {
-      await this.#builders.values().next().value!.listen(async () => {
-        const result = await Promise.resolve(importApp());
-        const app = result instanceof Howl ? result : result.app;
-        this.#registerApis(app);
-        return app;
-      }, options);
+      await this.#builders
+        .values()
+        .next()
+        .value!.listen(async () => {
+          const result = await Promise.resolve(importApp());
+          const app = result instanceof Howl ? result : result.app;
+          this.#registerApis(app);
+          return app;
+        }, options);
       return;
     }
 
@@ -275,7 +287,7 @@ export class HowlBuilder<State = any> {
           apiEntries: this.#apiEntries,
         });
         applySnapshot(app);
-        if (builder.getSsgPatterns().length > 0) ssgBuilders.push(builder);
+        if (builder.getSsgRoutes().length > 0) ssgBuilders.push(builder);
         // deno-lint-ignore no-console
         console.log(`_ Built client: ${name}`);
       }),
@@ -291,44 +303,42 @@ export class HowlBuilder<State = any> {
     }
   }
 
-  async #prerenderSsg(app: Howl<State>, ssgBuilders: Builder<State>[]): Promise<void> {
+  async #prerenderSsg(
+    app: Howl<State>,
+    ssgBuilders: Builder<State>[],
+  ): Promise<void> {
     const buildCache = getBuildCache(app);
     if (buildCache === null) return;
 
     const handler = app.handler();
-    const patterns = new Set<string>();
+    const routes: SsgRouteEntry[] = [];
     for (const builder of ssgBuilders) {
-      for (const p of builder.getSsgPatterns()) patterns.add(p);
+      routes.push(...builder.getSsgRoutes());
     }
 
-    for (const pattern of patterns) {
-      // Convert URL pattern back to a concrete pathname. Patterns with
-      // params would need getStaticPaths-style enumeration — skip them in
-      // this pass and surface a warning so the user knows the route fell
-      // through to dynamic SSR.
-      if (/:[A-Za-z_]/.test(pattern)) {
-        // deno-lint-ignore no-console
-        console.warn(
-          `_ SSG: skipping dynamic pattern "${pattern}" — getStaticPaths not yet supported.`,
-        );
-        continue;
-      }
-      const pathname = pattern;
-      const url = `http://ssg.local${pathname}`;
-      try {
-        const res = await handler(new Request(url));
-        if (!res.ok) {
+    const seen = new Set<string>();
+    for (const route of routes) {
+      const pathnames = await this.#resolveSsgPathnames(route);
+      for (const pathname of pathnames) {
+        if (seen.has(pathname)) continue;
+        seen.add(pathname);
+
+        const url = `http://ssg.local${pathname}`;
+        try {
+          const res = await handler(new Request(url));
+          if (!res.ok) {
+            // deno-lint-ignore no-console
+            console.warn(
+              `_ SSG: ${pathname} returned ${res.status} during prerender — falling back to dynamic SSR.`,
+            );
+            continue;
+          }
+          const html = await res.text();
+          buildCache.ssgPages.set(pathname, html);
+        } catch (err) {
           // deno-lint-ignore no-console
-          console.warn(
-            `_ SSG: ${pathname} returned ${res.status} during prerender — falling back to dynamic SSR.`,
-          );
-          continue;
+          console.warn(`_ SSG: failed to prerender ${pathname}:`, err);
         }
-        const html = await res.text();
-        buildCache.ssgPages.set(pattern, html);
-      } catch (err) {
-        // deno-lint-ignore no-console
-        console.warn(`_ SSG: failed to prerender ${pathname}:`, err);
       }
     }
 
@@ -341,6 +351,73 @@ export class HowlBuilder<State = any> {
 
     // deno-lint-ignore no-console
     console.log(`_ Prerendered ${buildCache.ssgPages.size} SSG route(s)`);
+  }
+
+  async #resolveSsgPathnames(route: SsgRouteEntry): Promise<string[]> {
+    const { routePattern: pattern, filePath } = route;
+
+    if (!hasDynamicParams(pattern)) return [pattern];
+
+    if (
+      pattern.includes("{") ||
+      pattern.includes("}") ||
+      pattern.includes("*")
+    ) {
+      // deno-lint-ignore no-console
+      console.warn(
+        `_ SSG: skipping dynamic pattern "${pattern}" from ${filePath} — optional/wildcard params are not supported by getStaticPaths yet.`,
+      );
+      return [];
+    }
+
+    const getStaticPaths = await this.#loadGetStaticPaths(filePath);
+    if (getStaticPaths === null) {
+      // deno-lint-ignore no-console
+      console.warn(
+        `_ SSG: skipping dynamic pattern "${pattern}" from ${filePath} — export getStaticPaths() to enumerate params.`,
+      );
+      return [];
+    }
+
+    const list = await Promise.resolve(getStaticPaths());
+    if (!Array.isArray(list) || list.length === 0) {
+      // deno-lint-ignore no-console
+      console.warn(
+        `_ SSG: skipping dynamic pattern "${pattern}" from ${filePath} — getStaticPaths() must return a non-empty array.`,
+      );
+      return [];
+    }
+
+    const names = getPathParamNames(pattern);
+    const pathnames: string[] = [];
+    for (const params of list) {
+      const ok = params !== null && typeof params === "object";
+      if (!ok) continue;
+
+      const concrete = materializeSsgPathname(
+        pattern,
+        params as StaticPathParams,
+      );
+      if (concrete === null) {
+        // deno-lint-ignore no-console
+        console.warn(
+          `_ SSG: ignoring one getStaticPaths() entry for "${pattern}" from ${filePath} — expected params for [${
+            names.join(", ")
+          }].`,
+        );
+        continue;
+      }
+      pathnames.push(concrete);
+    }
+
+    return pathnames;
+  }
+
+  async #loadGetStaticPaths(filePath: string): Promise<GetStaticPaths | null> {
+    const mod = await import(path.toFileUrl(filePath).href);
+    const maybe = mod.getStaticPaths;
+    if (typeof maybe !== "function") return null;
+    return maybe as GetStaticPaths;
   }
 
   async #rewriteSnapshot(

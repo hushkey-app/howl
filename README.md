@@ -118,9 +118,9 @@ app.fsClientRoutes(); // crawls client/pages/, mounts all routes
 export default { app };
 ```
 
-> `app.configure(fn)` returns `this` synchronously when `fn` is sync, and
-> `Promise<this>` when `fn` is async — so you can `await app.configure(async (a) => { await db(); })`
-> for boot-time async work and keep chaining sync calls below it.
+> `app.configure(fn)` returns `this` synchronously when `fn` is sync, and `Promise<this>` when `fn`
+> is async — so you can `await app.configure(async (a) => { await db(); })` for boot-time async work
+> and keep chaining sync calls below it.
 
 **`dev.ts`**
 
@@ -331,17 +331,16 @@ Response caching is configured once in `howl.config.ts` and applied per-endpoint
 
 Three adapters ship out of the box:
 
-| Adapter                       | Use case                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------- |
-| `memoryCache()`               | Default. In-process LRU, zero deps                                        |
-| `redisCache(client)`          | Shared cache across instances. Accepts any ioredis-compatible client      |
-| `kvCache(kv)`                 | Deno KV — globally consistent on Deno Deploy, SQLite-backed locally       |
-| `tryCache(primary, fallback)` | Tries primary first, falls back on miss or error                          |
+| Adapter                       | Use case                                                             |
+| ----------------------------- | -------------------------------------------------------------------- |
+| `memoryCache()`               | Default. In-process LRU, zero deps                                   |
+| `redisCache(client)`          | Shared cache across instances. Accepts any ioredis-compatible client |
+| `kvCache(kv)`                 | Deno KV — globally consistent on Deno Deploy, SQLite-backed locally  |
+| `tryCache(primary, fallback)` | Tries primary first, falls back on miss or error                     |
 
-All built-in adapters expose an atomic `incr(key, ttl)` op which the rate
-limiter uses to count requests safely under concurrent load on shared
-backends. Custom adapters that omit `incr` fall back to a non-atomic
-read-modify-write path — safe only when the backend isn't shared.
+All built-in adapters expose an atomic `incr(key, ttl)` op which the rate limiter uses to count
+requests safely under concurrent load on shared backends. Custom adapters that omit `incr` fall back
+to a non-atomic read-modify-write path — safe only when the backend isn't shared.
 
 ```typescript
 import { memoryCache, redisCache, tryCache } from "@hushkey/howl/api";
@@ -365,16 +364,15 @@ unhandled crashes — errors are logged via `console.warn` so they remain visibl
 
 ### Atomic rate limiting
 
-Rate limit counters are written via `cache.incr(key, ttl)`. Redis maps this to
-`INCR` + `EXPIRE` (atomic server-side); Deno KV uses an `atomic().check().set()`
-CAS loop; the in-memory adapter is trivially atomic. Custom adapters without
-`incr` fall back to read-modify-write — don't use that on a shared backend.
+Rate limit counters are written via `cache.incr(key, ttl)`. Redis maps this to `INCR` + `EXPIRE`
+(atomic server-side); Deno KV uses an `atomic().check().set()` CAS loop; the in-memory adapter is
+trivially atomic. Custom adapters without `incr` fall back to read-modify-write — don't use that on
+a shared backend.
 
 ### Rate limit identifier
 
-Counters key on whatever `getRateLimitIdentifier(ctx)` returns on
-`HowlApiConfig` — Howl doesn't assume a `State` shape. Falls back to the
-client IP when unset or `undefined`.
+Counters key on whatever `getRateLimitIdentifier(ctx)` returns on `HowlApiConfig` — Howl doesn't
+assume a `State` shape. Falls back to the client IP when unset or `undefined`.
 
 ```ts
 defineConfig({
@@ -384,16 +382,14 @@ defineConfig({
 
 ### Error envelope
 
-API errors are returned as `{ error, correlationId }` plus an
-`X-Howl-Correlation-Id` response header. The full route descriptor is logged
-server-side only — it is no longer leaked on the wire.
+API errors are returned as `{ error, correlationId }` plus an `X-Howl-Correlation-Id` response
+header. The full route descriptor is logged server-side only — it is no longer leaked on the wire.
 
 ### Response redaction is your job
 
-Howl does not auto-mutate response payloads. The previous "redact any field
-named `password`" behaviour was security theatre (`apiKey`, `token`, `secret`,
-`pwd`, etc. all leaked) and has been removed. Strip sensitive fields in your
-handler before returning.
+Howl does not auto-mutate response payloads. The previous "redact any field named `password`"
+behaviour was security theatre (`apiKey`, `token`, `secret`, `pwd`, etc. all leaked) and has been
+removed. Strip sensitive fields in your handler before returning.
 
 ---
 
@@ -445,21 +441,22 @@ export default function ToastIsland() {
 
 Three escape hatches for browser-only code, ordered from coarse to fine:
 
-| Tool                                              | Scope                          | Use when                                                                                  |
-| ------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------- |
-| `export const howl = { ssr: false }`              | Whole island                   | The component itself can't SSR (Mapbox, WebGL, libs that touch `window` on import)        |
-| `<ClientOnly>{() => <X />}</ClientOnly>`          | One nested element             | Most of the island SSRs fine but one child crashes (sonner `<Toaster />`)                 |
-| `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` | One branch in code              | Need a different value or skip a side-effect on the server                                |
+| Tool                                                    | Scope              | Use when                                                                           |
+| ------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `export const howl = { ssr: false }`                    | Whole island       | The component itself can't SSR (Mapbox, WebGL, libs that touch `window` on import) |
+| `<ClientOnly>{() => <X />}</ClientOnly>`                | One nested element | Most of the island SSRs fine but one child crashes (sonner `<Toaster />`)          |
+| `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` | One branch in code | Need a different value or skip a side-effect on the server                         |
 
 ```tsx
 // One nested widget
-<ClientOnly>{() => <ThirdPartyWidget />}</ClientOnly>
+<ClientOnly>{() => <ThirdPartyWidget />}</ClientOnly>;
 
 // Inline guard
 const stored = IS_BROWSER ? localStorage.getItem("prefs") : null;
 ```
 
-For islands that opt out of SSR you can render a layout-matching placeholder so the page doesn't shift while the JS loads:
+For islands that opt out of SSR you can render a layout-matching placeholder so the page doesn't
+shift while the JS loads:
 
 ```tsx
 export const howl = {
@@ -468,7 +465,8 @@ export const howl = {
 };
 ```
 
-The skeleton receives the same props as the island and is replaced by the real component on hydration.
+The skeleton receives the same props as the island and is replaced by the real component on
+hydration.
 
 > Default islands (`ssr: true`, no directive) hydrate against their SSR output — no flash, no wipe.
 > The hydrate switch is automatic; nothing to configure.
@@ -477,55 +475,48 @@ The skeleton receives the same props as the island and is replaced by the real c
 
 ## File-system conventions (build-time enforcement)
 
-Island files **must** be named `*.island.tsx` — both inside `islands/`
-directories and inside `(_islands)` route groups. The crawler now throws on
-mismatch instead of warning; this surfaced silent hydration bugs in prior
-releases.
+Island files **must** be named `*.island.tsx` — both inside `islands/` directories and inside
+`(_islands)` route groups. The crawler now throws on mismatch instead of warning; this surfaced
+silent hydration bugs in prior releases.
 
-`Howl#handler()` is built lazily on first call and cached per listener.
-Registering routes after `handler()` has been built throws — wire everything
-up before requesting the handler.
+`Howl#handler()` is built lazily on first call and cached per listener. Registering routes after
+`handler()` has been built throws — wire everything up before requesting the handler.
 
 ---
 
 ## AOT and SSG pages
 
-Two filename prefixes opt a page into client-side navigation and/or
-build-time prerendering. Direct URL hits always get SSR'd HTML (good for SEO
-and first-paint); the prefix changes how *subsequent* navigation works.
+Two filename prefixes opt a page into client-side navigation and/or build-time prerendering. Direct
+URL hits always get SSR'd HTML (good for SEO and first-paint); the prefix changes how _subsequent_
+navigation works.
 
-| Prefix          | Mode | First paint                                    | Client nav to this page                        |
-| --------------- | ---- | ---------------------------------------------- | ---------------------------------------------- |
-| (none)          | SSR  | Renderer runs per request                      | Partial-nav fetches the partial fragment       |
-| `__page.tsx`    | AOT  | Renderer runs per request                      | Dynamic-imports a client chunk, no server hit  |
-| `___page.tsx`   | SSG  | Prerendered HTML served from snapshot (no JS run) | Dynamic-imports a client chunk, no server hit |
+| Prefix        | Mode | First paint                                       | Client nav to this page                       |
+| ------------- | ---- | ------------------------------------------------- | --------------------------------------------- |
+| (none)        | SSR  | Renderer runs per request                         | Partial-nav fetches the partial fragment      |
+| `__page.tsx`  | AOT  | Renderer runs per request                         | Dynamic-imports a client chunk, no server hit |
+| `___page.tsx` | SSG  | Prerendered HTML served from snapshot (no JS run) | Dynamic-imports a client chunk, no server hit |
 
-`__` builds an ESM chunk per page that contains everything that would appear
-**inside** the active `<Partial>` markers on an SSR response — inner layouts
-(if any) plus the page. Files above the partial in the chain (the `_app.tsx`
-shell and any outer `_layout.tsx`) are not bundled: they're already in the
-DOM on first paint and stay there across AOT navs, so layout-level islands
-(navbars, sidebars) keep their state across page changes. On click, the
-chunk is `import()`-ed and rendered into the active `<Partial>` outlet. `___`
-additionally runs the handler at build time, captures the HTML, and bakes it
-into the production snapshot so request-time renders are skipped entirely.
+`__` builds an ESM chunk per page that contains everything that would appear **inside** the active
+`<Partial>` markers on an SSR response — inner layouts (if any) plus the page. Files above the
+partial in the chain (the `_app.tsx` shell and any outer `_layout.tsx`) are not bundled: they're
+already in the DOM on first paint and stay there across AOT navs, so layout-level islands (navbars,
+sidebars) keep their state across page changes. On click, the chunk is `import()`-ed and rendered
+into the active `<Partial>` outlet. `___` additionally runs the handler at build time, captures the
+HTML, and bakes it into the production snapshot so request-time renders are skipped entirely.
 
-AOT chunks need a `<Partial>` in `_app.tsx` or the layout chain to mount
-into. The boundary is detected by a static scan of each file's source for
-the literal `Partial` identifier in JSX (`<Partial …>`) or `h`/`jsx`-call
-form (`h(Partial, …)`). Aliased imports (`{ Partial as P }`) are not
-detected — use the literal `Partial` name. When no `<Partial>` is found in
-an AOT page's chain, chunk emission is silently skipped: the route still
-SSRs (or serves prerendered HTML for `___`-prefixed SSG pages), and
-in-app navigation to it falls through to a full document load. This makes
-it safe to keep `__`/`___` prefixes when you intentionally don't use
-`f-client-nav` / `<Partial>`.
+AOT chunks need a `<Partial>` in `_app.tsx` or the layout chain to mount into. The boundary is
+detected by a static scan of each file's source for the literal `Partial` identifier in JSX
+(`<Partial …>`) or `h`/`jsx`-call form (`h(Partial, …)`). Aliased imports (`{ Partial as P }`) are
+not detected — use the literal `Partial` name. When no `<Partial>` is found in an AOT page's chain,
+chunk emission is silently skipped: the route still SSRs (or serves prerendered HTML for
+`___`-prefixed SSG pages), and in-app navigation to it falls through to a full document load. This
+makes it safe to keep `__`/`___` prefixes when you intentionally don't use `f-client-nav` /
+`<Partial>`.
 
-AOT navigation honours `f-client-nav` the same way SSR partial nav does. Drop
-the attribute from `<body>` (or set it to `"false"`) and clicks on AOT links
-fall through to full document navigation — same behaviour as SSR routes. Use
-`f-client-nav="false"` on a nested element to opt out a single subtree (e.g.
-external dashboards) while leaving the rest of the app on SPA-style routing.
+AOT navigation honours `f-client-nav` the same way SSR partial nav does. Drop the attribute from
+`<body>` (or set it to `"false"`) and clicks on AOT links fall through to full document navigation —
+same behaviour as SSR routes. Use `f-client-nav="false"` on a nested element to opt out a single
+subtree (e.g. external dashboards) while leaving the rest of the app on SPA-style routing.
 
 ```tsx
 // pages/__dashboard.tsx — dynamic SSR, client-navigable
@@ -541,7 +532,9 @@ import { Head } from "@hushkey/howl/runtime";
 export default function About() {
   return (
     <>
-      <Head><title>About</title></Head>
+      <Head>
+        <title>About</title>
+      </Head>
       <p>Static content.</p>
     </>
   );
@@ -550,17 +543,24 @@ export default function About() {
 
 SSG limits and gotchas:
 
-- The build invokes the handler with an empty `ctx` — no `req`, no cookies,
-  no per-user state. Anything user-specific must stay on the dynamic SSR
-  path.
-- Dynamic params (e.g. `/properties/:id`) are not yet enumerated at build
-  time — a `getStaticPaths` API is on the roadmap. SSG-flagged routes with
-  params fall through to dynamic SSR with a build-time warning.
+- The build invokes the handler with an empty `ctx` — no `req`, no cookies, no per-user state.
+  Anything user-specific must stay on the dynamic SSR path.
+- Dynamic SSG routes (e.g. `pages/properties/___[id].tsx`) must export `getStaticPaths()` returning
+  param tuples:
+
+  ```tsx
+  export async function getStaticPaths() {
+    return [{ id: "abc" }, { id: "def" }];
+  }
+  ```
+
+  Each entry is prerendered to a concrete pathname (`/properties/abc`, `/properties/def`). Without
+  `getStaticPaths()`, the route falls back to dynamic SSR with a build-time warning. Optional
+  (`[[id]]`) and wildcard params are not supported by `getStaticPaths` yet.
 - Build IDs rotate per build, so AOT chunks are served with
   `Cache-Control: public, max-age=31536000, immutable` in production.
-- Every SSR response for an AOT/SSG route injects two globals:
-  `window.__HOWL_AOT__` (the route → chunk URL map) and
-  `window.__HOWL_USER_STATE__` (the snapshot of `ctx.state` at SSR time).
+- Every SSR response for an AOT/SSG route injects two globals: `window.__HOWL_AOT__` (the route →
+  chunk URL map) and `window.__HOWL_USER_STATE__` (the snapshot of `ctx.state` at SSR time).
 
 ---
 
