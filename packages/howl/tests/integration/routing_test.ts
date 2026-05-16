@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { makeApp, text } from "../harness.ts";
+import { getBuildCache } from "../../core/app.ts";
 
 Deno.test("routing — GET handler responds", async () => {
   const t = makeApp();
@@ -24,6 +25,22 @@ Deno.test("routing — unknown path returns 404", async () => {
 
   const res = await t.fetch("/missing");
   expect(res.status).toBe(404);
+});
+
+Deno.test("routing — SSG cache uses concrete pathname for dynamic routes", async () => {
+  const t = makeApp();
+  const cache = getBuildCache(t.app)!;
+  cache.ssgPages.set("/properties/abc", "<p>static abc</p>");
+
+  t.app.get("/properties/:id", (ctx) => ctx.text(`dynamic ${ctx.params.id}`));
+
+  const hit = await t.fetch("/properties/abc");
+  expect(hit.status).toBe(200);
+  expect(await text(hit)).toBe("<p>static abc</p>");
+
+  const miss = await t.fetch("/properties/def");
+  expect(miss.status).toBe(200);
+  expect(await text(miss)).toBe("dynamic def");
 });
 
 Deno.test("routing — path params decode into ctx.params", async () => {

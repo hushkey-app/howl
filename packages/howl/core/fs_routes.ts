@@ -1,5 +1,5 @@
 import type { AnyComponent } from "preact";
-import type { MaybeLazy, Route, RouteConfig } from "./types.ts";
+import type { GetStaticPaths, MaybeLazy, Route, RouteConfig } from "./types.ts";
 import type { HandlerByMethod, RouteHandler } from "./handlers.ts";
 import type { Middleware } from "./middlewares/mod.ts";
 import type { AsyncAnyComponent, PageProps } from "./render.ts";
@@ -33,6 +33,8 @@ export interface HowlFsMod<State> {
     | AsyncAnyComponent<PageProps<unknown, State>>;
   /** CSS asset URLs to preload alongside the route. */
   css?: string[];
+  /** Build-time enumerator for SSG dynamic params (for `___` pages). */
+  getStaticPaths?: GetStaticPaths;
 }
 
 /**

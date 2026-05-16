@@ -19,6 +19,28 @@ export interface RouteConfig {
 }
 
 /**
+ * Primitive value accepted for a dynamic segment in
+ * {@linkcode GetStaticPaths}.
+ */
+export type StaticPathParam = string | number | boolean;
+
+/**
+ * Param tuple for a dynamic route pattern. Keys map to route param names
+ * (e.g. `{ id: "abc" }` for `/properties/:id`).
+ */
+export type StaticPathParams = Record<string, StaticPathParam>;
+
+/**
+ * Build-time dynamic-param enumerator for SSG routes.
+ *
+ * Export this from an `___` page file to tell the builder which concrete URLs
+ * should be prerendered.
+ */
+export type GetStaticPaths =
+  | (() => StaticPathParams[])
+  | (() => Promise<StaticPathParams[]>);
+
+/**
  * Per-layout configuration that mirrors the layout-relevant subset of
  * {@linkcode RouteConfig}.
  */

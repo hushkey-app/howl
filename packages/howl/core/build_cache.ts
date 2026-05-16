@@ -42,7 +42,7 @@ export interface BuildSnapshot<State> {
   entryAssets: string[];
   /** Map of route pattern → AOT chunk URL for ahead-of-time-compiled pages. */
   aotRoutes?: Map<string, string>;
-  /** Map of route pattern → prerendered HTML for SSG-flagged pages. */
+  /** Map of concrete pathname → prerendered HTML for SSG pages. */
   ssgPages?: Map<string, string>;
 }
 
@@ -97,7 +97,7 @@ export interface BuildCache<State = any> {
    */
   aotRoutes: Map<string, string>;
   /**
-   * Map of route pattern → prerendered HTML string. Populated at build time
+   * Map of concrete pathname → prerendered HTML string. Populated at build time
    * for routes flagged with the `___page.tsx` SSG prefix. Looked up before
    * the dynamic renderer to short-circuit request handling.
    */
@@ -120,7 +120,7 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   features: { errorOverlay: boolean } = { errorOverlay: false };
   /** Map of route pattern → AOT chunk URL, populated from the snapshot. */
   aotRoutes: Map<string, string>;
-  /** Map of route pattern → prerendered HTML, populated from the snapshot. */
+  /** Map of concrete pathname → prerendered HTML, populated from the snapshot. */
   ssgPages: Map<string, string>;
 
   /** Build a production cache from a serialised snapshot. */
