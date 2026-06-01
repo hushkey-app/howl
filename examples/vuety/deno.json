@@ -2,7 +2,7 @@
   "name": "@howl/vuety",
   "version": "0.0.1",
   "tasks": {
-    "dev": "deno run -A --watch=*.vue --watch-exclude=dist/,node_modules/ dev.ts",
+    "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/ dev.ts",
     "build": "deno run -A dev.ts build",
     "start": "deno run -A dist/compiled-entry.js"
   },
@@ -11,33 +11,14 @@
     "@hushkey/howl": "jsr:@hushkey/howl@^0.6.2",
     "@hushkey/howl-vue": "jsr:@hushkey/howl-vue@^0.0.1",
     "@std/path": "jsr:@std/path@^1.0.0",
-    "preact": "npm:preact@^10.25.0",
-    "preact/compat": "npm:preact@^10.25.0/compat",
-    "preact/hooks": "npm:preact@^10.25.0/hooks",
-    "preact/jsx-runtime": "npm:preact@^10.25.0/jsx-runtime",
-    "preact/jsx-dev-runtime": "npm:preact@^10.25.0/jsx-dev-runtime",
     "vue": "npm:vue@^3.5.13",
-    "vue/server-renderer": "npm:vue@^3.5.13/server-renderer"
+    "vue/server-renderer": "npm:vue@^3.5.13/server-renderer",
+    "@vue/runtime-dom": "npm:@vue/runtime-dom@^3.5.13",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "daisyui": "npm:daisyui@5.5.18"
   },
   "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "preact",
-    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"],
-    "jsxPrecompileSkipElements": [
-      "a",
-      "img",
-      "source",
-      "body",
-      "html",
-      "head",
-      "title",
-      "meta",
-      "script",
-      "link",
-      "style",
-      "base",
-      "noscript",
-      "template"
-    ]
+    "jsxImportSource": "precompiled",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
   }
 }

@@ -5,7 +5,9 @@
   "exports": {
     ".": "./mod.ts",
     "./plugin": "./plugin.ts",
-    "./boot": "./runtime/boot.ts"
+    "./boot": "./runtime/boot.ts",
+    "./head": "./runtime/head.ts",
+    "./pinia": "./runtime/pinia.ts"
   },
   "imports": {
     "@hushkey/howl": "jsr:@hushkey/howl@^0.6.2",
@@ -17,6 +19,10 @@
     "linkedom": "npm:linkedom@^0.18.12",
     "vue": "npm:vue@^3.5.13",
     "vue/server-renderer": "npm:vue@^3.5.13/server-renderer",
-    "@vue/compiler-sfc": "npm:@vue/compiler-sfc@^3.5.13"
+    "@vue/compiler-sfc": "npm:@vue/compiler-sfc@^3.5.13",
+    "@unhead/vue": "npm:@unhead/vue@^2.0.0",
+    "@unhead/vue/server": "npm:@unhead/vue@^2.0.0/server",
+    "@unhead/vue/client": "npm:@unhead/vue@^2.0.0/client",
+    "pinia": "npm:pinia@^2.2.0"
   }
 }

@@ -15,6 +15,9 @@ export { mountVueIsland } from "./runtime/mount.ts";
 export { VUE_ISLAND_ATTR, VUE_ISLAND_PROPS_ATTR, VueIsland } from "./runtime/host.ts";
 export type { VueIslandProps } from "./runtime/host.ts";
 export { bootVueIslands, hydrateVuePage } from "./runtime/boot.ts";
+// Head/SEO composables (`useHead`, `useSeoMeta`) are exposed via the lightweight
+// `@hushkey/howl-vue/head` entry — NOT here — so importing them into a `.vue`
+// page doesn't pull this module's build-time deps (compiler-sfc, esbuild).
 export type { ChunkImporter, IslandMounter } from "./runtime/boot.ts";
 export { vueEngine } from "./engine.ts";
 export type { VueEngineOptions, VuePageProps } from "./engine.ts";

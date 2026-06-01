@@ -31,6 +31,15 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
   return {
     name: "howl-vue",
     setup(build) {
+      // Vue's esm-bundler build expects these compile-time flags to be defined
+      // by the bundler (better tree-shaking + no console warning).
+      build.initialOptions.define = {
+        __VUE_OPTIONS_API__: "true",
+        __VUE_PROD_DEVTOOLS__: "false",
+        __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
+        ...build.initialOptions.define,
+      };
+
       // Styles compiled per-file, keyed by absolute path, read back by the
       // virtual-module loader below.
       const styleStore = new Map<string, string[]>();

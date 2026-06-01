@@ -14,6 +14,8 @@ export interface RenderEngineRenderOptions {
   chunkUrl?: string;
   /** CSS bundle URL for this route, if the page (or its wrappers) have styles. */
   cssUrl?: string;
+  /** Whether the server is running in development mode (enables live-reload). */
+  dev?: boolean;
 }
 
 /**

@@ -14,19 +14,38 @@
         clicked {{ count }} times
       </button>
     </section>
+    <section>
+      <p>
+        Pinia store <code>count</code> = <strong>{{ store.count }}</strong> —
+        increment it, go to About and back: it persists (no reload).
+      </p>
+      <button class="cta" type="button" @click="store.inc()">store.inc()</button>
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useHead } from "@hushkey/howl-vue/head";
+import { useStore } from "../store/index.store.ts";
+
+const store = useStore();
 
 const props = defineProps<{
   url: string;
   state: { client?: { title?: string } };
 }>();
 
+useHead({
+  title: "Home · Vuety",
+  meta: [
+    { name: "description", content: "The Vuety home page — full Vue SSR on Howl." },
+  ],
+});
+
 const title = computed(() => props.state?.client?.title ?? "unknown");
 const count = ref(0);
+
 </script>
 
 <style scoped>

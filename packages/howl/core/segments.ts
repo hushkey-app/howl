@@ -233,6 +233,7 @@ export async function renderRoute<State>(
       status,
       chunkUrl,
       cssUrl,
+      dev: buildCache.features.errorOverlay,
     });
   }
 

@@ -18,9 +18,15 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import { useHead } from "@hushkey/howl-vue/head";
 
 defineProps<{ url: string }>();
 const count = ref(0);
+
+useHead({
+  title: "About · Vuety",
+  meta: [{ name: "description", content: "About this Vue-on-Howl demo." }],
+});
 </script>
 
 <style scoped>

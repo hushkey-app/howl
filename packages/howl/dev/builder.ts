@@ -453,18 +453,24 @@ export class Builder<State = any> {
           const name = namer.getUniqueName(`vuepage_${slug}`);
           const wrapperPath = path.join(wrapperDir, `${name}.ts`);
           // Only [..Layouts, Page] hydrate inside `#howl-app`; `_app.vue` is
-          // rendered server-side and stays static, so it's excluded here.
-          const layouts = await discoverVuePageChain(f.filePath);
+          // rendered server-side and stays static, so it's not in the chain.
+          const { app, layouts } = await discoverVuePageChain(f.filePath);
           const comps = [...layouts, f.filePath];
           const imports = comps
             .map((p, i) => `import _c${i} from ${JSON.stringify(p)};`)
             .join("\n");
           const arr = comps.map((_, i) => `_c${i}`).join(", ");
+          // Side-effect import of `_app.vue` purely to bundle its scoped CSS
+          // (it owns the document but isn't hydrated, so its styles would
+          // otherwise be missing from the page's CSS chunk).
+          const appCss = app !== null ? `import ${JSON.stringify(app)};\n` : "";
+          // Export `hydrate()` (rather than auto-running) so the same chunk URL
+          // can be preloaded + imported on every visit without a cache-bust.
           await Deno.writeTextFile(
             wrapperPath,
-            `${imports}\n` +
+            `${appCss}${imports}\n` +
               `import { hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
-              `hydrateVuePage([${arr}]);\n`,
+              `export function hydrate() { hydrateVuePage([${arr}]); }\n`,
           );
           entryPoints[name] = wrapperPath;
           vuePageEntryToPath.set(name, f.filePath);
@@ -566,13 +572,17 @@ function vueIslandName(spec: string): string {
 }
 
 /**
- * Discover a `.vue` page's `_layout.vue` chain (outer → inner) by walking up
- * from the page directory, stopping at the first `_app.vue`. Returns only the
- * layouts — `_app.vue` owns the document server-side and isn't hydrated, so it
- * isn't part of the client chunk. Mirrors the engine's runtime discovery.
+ * Discover a `.vue` page's wrappers by walking up from the page directory:
+ * collect `_layout.vue` at each level (outer → inner), stop at the first
+ * `_app.vue`. Returns `{ app, layouts }` — `_app.vue` owns the document and is
+ * imported only for its CSS (not hydrated). Mirrors the engine's runtime
+ * discovery.
  */
-async function discoverVuePageChain(pageFilePath: string): Promise<string[]> {
+async function discoverVuePageChain(
+  pageFilePath: string,
+): Promise<{ app: string | null; layouts: string[] }> {
   const layouts: string[] = [];
+  let app: string | null = null;
   let dir = path.dirname(pageFilePath);
   for (let depth = 0; depth < 16; depth++) {
     const layout = path.join(dir, "_layout.vue");
@@ -582,8 +592,10 @@ async function discoverVuePageChain(pageFilePath: string): Promise<string[]> {
     } catch {
       // no layout at this level
     }
+    const appPath = path.join(dir, "_app.vue");
     try {
-      await Deno.stat(path.join(dir, "_app.vue"));
+      await Deno.stat(appPath);
+      app = appPath;
       break;
     } catch {
       // no app at this level
@@ -592,7 +604,7 @@ async function discoverVuePageChain(pageFilePath: string): Promise<string[]> {
     if (parent === dir) break;
     dir = parent;
   }
-  return layouts;
+  return { app, layouts };
 }
 
 export function specToName(spec: string): string {

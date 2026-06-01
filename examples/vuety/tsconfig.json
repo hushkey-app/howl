@@ -1,0 +1,29 @@
+{
+  "// note": "For the VSCode Vue (Volar) language server ONLY. Deno ignores tsconfig.json and uses deno.json for the real build. This maps Howl's JSR/workspace specifiers to local source so `.vue` files get type resolution — Volar can't read Deno's import map.",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@howl/config": ["./howl.config.ts"],
+      "@hushkey/howl": ["../../packages/howl/core/mod.ts"],
+      "@hushkey/howl/dev": ["../../packages/howl/dev/mod.ts"],
+      "@hushkey/howl/api": ["../../packages/howl/api/mod.ts"],
+      "@hushkey/howl/runtime": ["../../packages/howl/core/runtime/shared.ts"],
+      "@hushkey/howl-vue": ["../../packages/howl-vue/mod.ts"],
+      "@hushkey/howl-vue/plugin": ["../../packages/howl-vue/plugin.ts"],
+      "@hushkey/howl-vue/boot": ["../../packages/howl-vue/runtime/boot.ts"],
+      "@hushkey/howl-vue/head": ["../../packages/howl-vue/runtime/head.ts"]
+    }
+  },
+  "vueCompilerOptions": {
+    "target": 3.5
+  },
+  "include": ["client/**/*.vue", "client/**/*.ts"]
+}

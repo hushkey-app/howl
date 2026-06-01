@@ -18,8 +18,9 @@ unchanged.
 | Howl build wiring — crawl `.island.vue`, bundle chunks, emit `window.__HOWL_VUE__` manifest          | ✅ done, tested |
 | **Full Vue pages** (`.vue` routes) — `RenderEngine` seam, SSR first paint + hydrate                  | ✅ done, tested |
 | **`_app.vue` + `_layout.vue`** composition (wrap the page, SSR + hydrate)                            | ✅ done, tested |
+| **Client-nav** — `client-nav` link/back-forward, DOM swap + re-hydrate, hover prefetch, no reload    | ✅ done, tested |
 | Vue island SSR (no flash, async pre-pass)                                                            | ⬜ later        |
-| Vue pages: head/SEO API, SPA nav, prod snapshot                                                      | ⬜ later        |
+| Vue pages: head/SEO API, prod snapshot                                                               | ⬜ later        |
 
 Vue islands **and** full Vue pages both work end-to-end (browser-verified in `examples/www` `/vue`
 and `examples/vuety` `/page`).
@@ -59,10 +60,27 @@ hydration to an inner `#howl-app` holding the `[layouts, page]` tree, then injec
 `<link>` into `<head>` and the hydration scripts before `</body>`. With no `_app.vue`, Howl falls
 back to a minimal shell (`<title>` from `state.client.title`).
 
-**Current limits:** dedicated head/SEO API for *pages* (today only `_app.vue` controls `<head>`, and
-its content is static); SPA navigation is per-request SSR (Vue Router vs Howl fetch-and-swap is a
-later decision); prod snapshot of `vuePages`/`vuePagesCss` is still to wire (page hydration + CSS
-work in `dev` only).
+**Client navigation.** Put `client-nav` on `<body>` in `_app.vue`. Link clicks and back/forward
+inside that boundary are intercepted: Howl fetches the destination's SSR HTML, swaps the `#howl-app`
+region + its props/styles/title **in place**, and re-hydrates — no full reload. Everything outside
+`#howl-app` (the `_app.vue` shell, plus any module-level singleton like a store) stays alive across
+navigations. Howl still owns the router (it's fetch-and-swap, not Vue Router); each route is a
+normal `.vue` page that also works on a cold load for SEO.
+
+**Prefetch on intent.** Add a `client-prefetch` boundary (e.g. `<body client-nav client-prefetch>`)
+to warm links inside it on hover (after a brief dwell), touch, or keyboard focus — the destination's
+SSR HTML is fetched ahead so the click swap is instant. **Opt-in** (off without the attribute);
+respects `Save-Data` / `prefers-reduced-data`; exclude a link or subtree with
+`client-prefetch="false"`.
+
+Scoped CSS for the whole chain is **inlined** into the document as one `<style data-howl-vue-css>`
+(no extra request, no stale-chunk 404, and it travels with the client-nav swap) — so styling works
+on both dev and prod. In dev, Vue pages also get a small live-reload script (they don't load Howl's
+Preact runtime).
+
+**Current limits:** dedicated head/SEO API for _pages_ (today only `_app.vue` controls `<head>`, and
+its content is static); the prod snapshot of `vuePages` (the JS hydration chunk map) is still to
+wire, so on a production build pages SSR + style correctly but **hydration** runs in `dev` only.
 
 **Island model (client-only, mirrors AOT).** A `.vue` component can't be a Preact `vnode.type`,
 can't be imported by Deno on the server, and SSRs asynchronously — so Vue islands don't ride Howl's
