@@ -23,6 +23,11 @@ Tracking the remaining work on the Vue engine. Status as of the current branch.
   SSR-serializes state to `window.__PINIA__`; client is a singleton hydrated once + **persisted
   across client-nav** (no reset). `defineStore` via `@hushkey/howl-vue/pinia`. Pages can import
   relative store/util `.ts` (engine rewrites `./`,`../` → `file://` for the SSR compile)
+- **`useState()` ↔ `ctx.state` auto-sync** — dedicated Pinia store id `"state"` (not `main`);
+  engine seeds `pinia.state.value.state = ctx.state` on SSR and serializes it to
+  `window.__PINIA__`; `useState<State>()` (from `@hushkey/howl-vue/state`) reads it anywhere with no
+  prop-drilling. On client-nav the engine re-emits a `data-howl-pinia` script and boot re-syncs
+  **only** the `state` store from the new request's `ctx.state` (other stores persist)
 - **Prod asset cache-bust** — engine appends the build-id to user `href`/`src` in prod
   (`immutable`); dev stays `no-store`
 - **IDE** — tsconfig `paths` for `@hushkey/*`; `client-nav`/`client-prefetch` typed via a `.d.ts`
@@ -58,13 +63,22 @@ Tracking the remaining work on the Vue engine. Status as of the current branch.
    global CSS (Tailwind/daisyUI) is build-managed + hashed instead of a hand-dropped `/style.css`.
    Pairs with adding `tailwindPlugin()` to the example.
 
-5. **`<Head>` / `<Title>` / `<Meta>` component sugar** on top of `useHead` (unhead ships them).
+4. **`<Head>` / `<Title>` / `<Meta>` component sugar** on top of `useHead` (unhead ships them).
 
-6. **Vue island SSR** (no flash) — async pre-pass; islands are client-only today.
+5. **Vue island SSR** (no flash) — async pre-pass; islands are client-only today.
 
-7. **Colocated `(_islands)/*.vue`** — only top-level `.island.vue` is crawled today.
+6. **Colocated `(_islands)/*.vue`** — only top-level `.island.vue` is crawled today.
 
-8. **Cleanup:** remove the now-dormant `vuePagesCss` / esbuild `entryToCss` plumbing (CSS is inlined
+7. **Cleanup:** remove the now-dormant `vuePagesCss` / esbuild `entryToCss` plumbing (CSS is inlined
    now, so the per-page `.vue` CSS chunk is built but unreferenced).
 
-9. **Promote out of experimental** — finalize READMEs, JSR publish metadata, doc-lint coverage.
+8. **Promote out of experimental** — finalize READMEs, JSR publish metadata, doc-lint coverage.
+
+9. **Type imports from bare aliases must be `import type`.** The SSR compile imports each page via a
+   `data:` URL; only `npm:` / `file:` / the engine's known specifiers (`vue`, `@hushkey/howl-vue/*`,
+   relative `./`,`../`) get rewritten. A plain `import { State } from "@howl/config"` used only as a
+   type is emitted by the Vue compiler as a **runtime** import and 500s
+   (`not a dependency … from
+   data:`). Workaround today: write `import type { State }` (idiomatic
+   anyway — Vue elides it). A nicer fix would read the user's import map so value imports of aliased
+   modules resolve too.

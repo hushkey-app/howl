@@ -7,7 +7,8 @@
     "./plugin": "./plugin.ts",
     "./boot": "./runtime/boot.ts",
     "./head": "./runtime/head.ts",
-    "./pinia": "./runtime/pinia.ts"
+    "./pinia": "./runtime/pinia.ts",
+    "./state": "./runtime/state.ts"
   },
   "imports": {
     "@hushkey/howl": "jsr:@hushkey/howl@^0.6.2",

@@ -13,15 +13,26 @@
         clicked {{ count }} times
       </button>
     </section>
+    <section>
+      <p>
+        From the auto-synced <code>state</code> store (mirrors server
+        <code>ctx.state</code>, no prop-drilling): app title =
+        <strong>{{ state.client?.title }}</strong>.
+        <strong>{{ state.user }}</strong>.
+      </p>
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
 import { useHead } from "@hushkey/howl-vue/head";
+import { useState } from "@hushkey/howl-vue/state";
+import type { State } from "@howl/config";
 
 defineProps<{ url: string }>();
 const count = ref(0);
+const state = useState<State>();
 
 useHead({
   title: "About · Vuety",

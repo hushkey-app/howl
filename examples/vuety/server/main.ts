@@ -10,6 +10,7 @@ export const app = new Howl<State>({
 
 app.use((ctx) => {
   ctx.state.client = { title: "HUSHKEY - Vuety" };
+  ctx.state.user = { first_name: "leo", last_name: "termine" };
   return ctx.next();
 });
 

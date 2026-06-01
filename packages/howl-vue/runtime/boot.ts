@@ -205,6 +205,23 @@ async function navigateVuePage(url: URL, push: boolean): Promise<void> {
   el.innerHTML = incoming.innerHTML;
   globalThis.__VUE_PAGE_PROPS__ = nextProps;
 
+  // Re-sync the `state` store with the new request's ctx.state (other stores
+  // persist across nav — only this one tracks the server context).
+  if (document.body.hasAttribute("pinia")) {
+    const piniaText = doc.querySelector("script[data-howl-pinia]")?.textContent ?? "";
+    const prefix = "window.__PINIA__=";
+    if (piniaText.startsWith(prefix)) {
+      try {
+        const next = JSON.parse(piniaText.slice(prefix.length));
+        if (next !== null && typeof next === "object" && "state" in next) {
+          getPinia().state.value.state = next.state;
+        }
+      } catch {
+        // keep existing state
+      }
+    }
+  }
+
   // Swap the inlined page CSS (`<style data-howl-vue-css>`) with the new page's.
   const nextCss = doc.querySelector("style[data-howl-vue-css]");
   const prevCss = document.head.querySelector("style[data-howl-vue-css]");

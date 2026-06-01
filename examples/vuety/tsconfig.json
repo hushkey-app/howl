@@ -19,7 +19,9 @@
       "@hushkey/howl-vue": ["../../packages/howl-vue/mod.ts"],
       "@hushkey/howl-vue/plugin": ["../../packages/howl-vue/plugin.ts"],
       "@hushkey/howl-vue/boot": ["../../packages/howl-vue/runtime/boot.ts"],
-      "@hushkey/howl-vue/head": ["../../packages/howl-vue/runtime/head.ts"]
+      "@hushkey/howl-vue/head": ["../../packages/howl-vue/runtime/head.ts"],
+      "@hushkey/howl-vue/pinia": ["../../packages/howl-vue/runtime/pinia.ts"],
+      "@hushkey/howl-vue/state": ["../../packages/howl-vue/runtime/state.ts"]
     }
   },
   "vueCompilerOptions": {

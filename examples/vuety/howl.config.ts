@@ -5,6 +5,10 @@ export interface State {
   client: {
     title: string;
   };
+  user: {
+    first_name: string;
+    last_name: string;
+  };
 }
 
 export const roles = ["USER"] as const;

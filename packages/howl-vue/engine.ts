@@ -14,10 +14,14 @@ const NPM_VUE = "npm:vue@^3.5.13";
  * them to the npm package so a page's import resolves from the SSR data URL. */
 const NPM_UNHEAD = "npm:@unhead/vue@^2.0.0";
 const NPM_PINIA = "npm:pinia@^2.2.0";
+/** `@hushkey/howl-vue/state` is a howl-vue module (the `ctx.state` store), so it
+ * rewrites to its `file://` path (not npm) for the SSR data-URL compile. */
+const STATE_MOD = new URL("./runtime/state.ts", import.meta.url).href;
 
 /** Rewrite a compiled page's imports so they resolve from a `data:` URL module:
- * bare framework specifiers → npm, and **relative** imports → absolute `file://`
- * (data URLs have no base, so relative/bare specifiers wouldn't resolve). */
+ * bare framework specifiers → npm, howl-vue runtime → `file://`, and **relative**
+ * imports → absolute `file://` (data URLs have no base, so relative/bare
+ * specifiers wouldn't resolve). */
 function rewriteForSsr(code: string, fromFile: string): string {
   const dir = path.dirname(fromFile);
   const withFileUrls = code.replace(
@@ -32,7 +36,9 @@ function rewriteForSsr(code: string, fromFile: string): string {
     .replaceAll('from "@hushkey/howl-vue/head"', `from "${NPM_UNHEAD}"`)
     .replaceAll("from '@hushkey/howl-vue/head'", `from "${NPM_UNHEAD}"`)
     .replaceAll('from "@hushkey/howl-vue/pinia"', `from "${NPM_PINIA}"`)
-    .replaceAll("from '@hushkey/howl-vue/pinia'", `from "${NPM_PINIA}"`);
+    .replaceAll("from '@hushkey/howl-vue/pinia'", `from "${NPM_PINIA}"`)
+    .replaceAll('from "@hushkey/howl-vue/state"', `from "${STATE_MOD}"`)
+    .replaceAll("from '@hushkey/howl-vue/state'", `from "${STATE_MOD}"`);
 }
 
 interface CacheEntry {
@@ -271,12 +277,17 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
         let pinia: Pinia | null = null;
         if (await appUsesPinia(app)) {
           pinia = createPinia();
+          // Seed the built-in `state` store with ctx.state so `useState()`
+          // mirrors the request context (server-rendered + serialized).
+          if (props.state !== null && typeof props.state === "object") {
+            pinia.state.value.state = props.state as Record<string, unknown>;
+          }
           ssrApp.use(pinia);
         }
         const doc = await renderToString(ssrApp);
         const { headTags, bodyTags } = await resolveHeadTags();
         const piniaScript = pinia === null ? "" : (
-          `<script>window.__PINIA__=${
+          `<script data-howl-pinia>window.__PINIA__=${
             JSON.stringify(pinia.state.value).replaceAll("<", "\\u003c")
           }</script>`
         );

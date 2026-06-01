@@ -17,5 +17,12 @@ declare module "@vue/runtime-dom" {
      * to exclude a link or region.
      */
     "client-prefetch"?: boolean | "true" | "false";
+
+    /**
+     * Opt a pinia store
+     * Automatically sync state and serialiase from the server on rendering
+     * Killer Feature.
+     */
+    "pinia"?: boolean | "true" | "false";
   }
 }
