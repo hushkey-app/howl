@@ -31,7 +31,9 @@ const DEFAULT_RENDER = <State>(): Promise<PageResponse<State>> =>
 
 function ensureHandler<State>(route: Route<State>) {
   if (route.handler === undefined) {
-    route.handler = route.component !== undefined ? DEFAULT_RENDER : DEFAULT_NOT_FOUND;
+    route.handler = route.component !== undefined || route.engine !== undefined
+      ? DEFAULT_RENDER
+      : DEFAULT_NOT_FOUND;
   } else if (isHandlerByMethod(route.handler)) {
     if (route.component !== undefined && !route.handler.GET) {
       route.handler.GET = DEFAULT_RENDER;

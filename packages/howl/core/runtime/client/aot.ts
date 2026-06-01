@@ -61,6 +61,20 @@ function loadChunk(pattern: string): Promise<AotChunk> {
 }
 
 /**
+ * Warm the chunk cache for an AOT-registered destination without navigating.
+ * Called by the hover/focus prefetcher. Returns `true` when `url` matched an
+ * AOT route (so the caller can skip SSR-partial prefetch), `false` otherwise.
+ */
+export function prefetchAotRoute(url: URL): boolean {
+  if (Object.keys(manifest).length === 0) return false;
+  const matched = matchRoute(url.pathname);
+  if (!matched) return false;
+  // Fire-and-forget; the import is memoised in chunkCache for the eventual click.
+  loadChunk(matched.pattern).catch(() => {});
+  return true;
+}
+
+/**
  * Resolve the destination URL to an AOT chunk, load it, and swap the page tree
  * into the existing hydrated PartialComp via setState. Reusing the same
  * PartialComp instance keeps the partials.ts machinery intact for subsequent

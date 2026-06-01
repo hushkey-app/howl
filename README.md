@@ -206,6 +206,22 @@ export default function ({ Component }: { Component: FunctionComponent }): JSX.E
 > to apply the response as a partial. API routes are not the intended target for `<a href>` — use
 > `fetch()` for those — but the same fallback applies if you accidentally link to one.
 
+### Link prefetching
+
+Links inside an `f-client-nav` boundary are **prefetched on intent** — when the pointer hovers
+(after a brief ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals
+intent. AOT routes pre-`import()` their JS chunk; SSR routes pre-fetch their partial response. The
+eventual click reuses the warmed result, so navigation feels instant — the same idea as Hotwired
+Turbo / instant.page.
+
+It's on by default and respects the user's data-saver preference (`Save-Data` /
+`prefers-reduced-data`). Opt a link or whole subtree out with `f-prefetch="false"`:
+
+```tsx
+<a href="/huge-report" f-prefetch="false">Report</a>
+<nav f-prefetch="false"> … </nav>   {/* opt out an entire region */}
+```
+
 **`client/pages/index.tsx`**
 
 ```tsx
@@ -481,6 +497,12 @@ Island files **must** be named `*.island.tsx` — both inside `islands/`
 directories and inside `(_islands)` route groups. The crawler now throws on
 mismatch instead of warning; this surfaced silent hydration bugs in prior
 releases.
+
+> **Vue islands (experimental).** Top-level `*.island.vue` files are recognised
+> by the crawler and handled by the optional [`@hushkey/howl-vue`](packages/howl-vue)
+> package — author an island as a Vue SFC and drop it in with
+> `<VueIsland name="…" />`. It uses Howl's existing esbuild toolchain (no Vite).
+> Requires `vuePlugin()` in your builder; see the package README.
 
 `Howl#handler()` is built lazily on first call and cached per listener.
 Registering routes after `handler()` has been built throws — wire everything

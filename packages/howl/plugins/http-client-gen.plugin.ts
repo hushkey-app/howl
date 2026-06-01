@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-import path from 'node:path';
-import { z } from 'zod';
+import path from "node:path";
+import { z } from "zod";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,14 +38,14 @@ const activeAliases: Record<string, string> = {};
 function isRequestBodySchema(
   schema: unknown,
 ): schema is z.ZodObject<any, any> | z.ZodUnion<any> {
-  if (!schema || typeof schema !== 'object') return false;
+  if (!schema || typeof schema !== "object") return false;
   if (schema instanceof z.ZodObject) return true;
   const s = schema as {
     _def?: { typeName?: string; options?: unknown[] };
     def?: { typeName?: string; options?: unknown[] };
   };
   const def = s._def ?? s.def;
-  return def?.typeName === 'ZodUnion' || (Array.isArray(def?.options) && def.options.length > 0);
+  return def?.typeName === "ZodUnion" || (Array.isArray(def?.options) && def.options.length > 0);
 }
 
 function addToTree(tree: any, pathArr: string[], method: string, apiPath: string, name: string) {
@@ -72,34 +72,34 @@ async function* walkDirectory(
 }
 
 const ZOD_BUILTINS = new Set([
-  'z',
-  'string',
-  'number',
-  'boolean',
-  'object',
-  'array',
-  'enum',
-  'optional',
-  'default',
-  'any',
-  'literal',
-  'union',
-  'null',
-  'undefined',
-  'describe',
-  'min',
-  'max',
-  'email',
-  'toLowerCase',
-  'nullable',
-  'nullish',
-  'transform',
-  'refine',
-  'pipe',
-  'strict',
-  'catch',
-  'brand',
-  'readonly',
+  "z",
+  "string",
+  "number",
+  "boolean",
+  "object",
+  "array",
+  "enum",
+  "optional",
+  "default",
+  "any",
+  "literal",
+  "union",
+  "null",
+  "undefined",
+  "describe",
+  "min",
+  "max",
+  "email",
+  "toLowerCase",
+  "nullable",
+  "nullish",
+  "transform",
+  "refine",
+  "pipe",
+  "strict",
+  "catch",
+  "brand",
+  "readonly",
 ]);
 
 function extractRequestBodySource(fileContent: string): string | null {
@@ -108,16 +108,16 @@ function extractRequestBodySource(fileContent: string): string | null {
   let i = match.index + match[0].length;
   while (i < fileContent.length && /[\s\n\r]/.test(fileContent[i])) i++;
   if (i >= fileContent.length) return null;
-  if (fileContent.slice(i, i + 9) === 'undefined') return null;
+  if (fileContent.slice(i, i + 9) === "undefined") return null;
   const start = i;
-  while (i < fileContent.length && fileContent[i] !== '(') i++;
+  while (i < fileContent.length && fileContent[i] !== "(") i++;
   if (i >= fileContent.length) return null;
   let depth = 1;
   i++;
   while (i < fileContent.length && depth > 0) {
     const c = fileContent[i];
-    if (c === '(') depth++;
-    else if (c === ')') depth--;
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
     i++;
   }
   return fileContent.slice(start, i).trim() || null;
@@ -129,24 +129,24 @@ function extractSchemaRefsFromSource(source: string): string[] {
 }
 
 function extractExportConstSource(fileContent: string, exportName: string): string | null {
-  const pattern = new RegExp(`\\bexport\\s+const\\s+${exportName}\\s*=\\s*`, 'g');
+  const pattern = new RegExp(`\\bexport\\s+const\\s+${exportName}\\s*=\\s*`, "g");
   const match = pattern.exec(fileContent);
   if (!match || match.index === undefined) return null;
   let i = match.index + match[0].length;
   const start = i;
-  const open = ['(', '[', '{'];
-  const close = [')', ']', '}'];
+  const open = ["(", "[", "{"];
+  const close = [")", "]", "}"];
   const stack: string[] = [];
   let inString: string | null = null;
   while (i < fileContent.length) {
     const c = fileContent[i];
     if (inString) {
-      if (c === '\\') i++;
+      if (c === "\\") i++;
       else if (c === inString) inString = null;
       i++;
       continue;
     }
-    if (c === '"' || c === "'" || c === '`') {
+    if (c === '"' || c === "'" || c === "`") {
       inString = c;
       i++;
       continue;
@@ -162,7 +162,7 @@ function extractExportConstSource(fileContent: string, exportName: string): stri
       i++;
       continue;
     }
-    if (stack.length === 0 && (c === ';' || c === '\n')) return fileContent.slice(start, i).trim();
+    if (stack.length === 0 && (c === ";" || c === "\n")) return fileContent.slice(start, i).trim();
     i++;
   }
   return stack.length === 0 ? fileContent.slice(start, i).trim() : null;
@@ -178,24 +178,24 @@ function resolveSchemaRef(
   if (visited.has(identifier)) return null;
   visited.add(identifier);
 
-  const constMatch = apiFileContent.match(new RegExp(`\\bconst\\s+${identifier}\\s*=\\s*`, 'g'));
+  const constMatch = apiFileContent.match(new RegExp(`\\bconst\\s+${identifier}\\s*=\\s*`, "g"));
   if (constMatch) {
     const idx = apiFileContent.indexOf(constMatch[0]);
     let i = idx + constMatch[0].length;
     const start = i;
-    const open = ['(', '[', '{'];
-    const close = [')', ']', '}'];
+    const open = ["(", "[", "{"];
+    const close = [")", "]", "}"];
     const stack: string[] = [];
     let inString: string | null = null;
     while (i < apiFileContent.length) {
       const c = apiFileContent[i];
       if (inString) {
-        if (c === '\\') i++;
+        if (c === "\\") i++;
         else if (c === inString) inString = null;
         i++;
         continue;
       }
-      if (c === '"' || c === "'" || c === '`') {
+      if (c === '"' || c === "'" || c === "`") {
         inString = c;
         i++;
         continue;
@@ -211,7 +211,7 @@ function resolveSchemaRef(
         i++;
         continue;
       }
-      if (stack.length === 0 && (c === ';' || c === '\n')) {
+      if (stack.length === 0 && (c === ";" || c === "\n")) {
         const src = apiFileContent.slice(start, i).trim();
         // Only treat as a schema dep if it looks like a Zod expression
         return /^z\./.test(src) ? src : null;
@@ -229,10 +229,10 @@ function resolveSchemaRef(
     new RegExp(`import\\s+\\{[^}]*\\b${identifier}\\b[^}]*\\}\\s+from\\s+['"]([^'"]+)['"]`),
   );
   if (importMatch) {
-    const rawPath = importMatch[1].replace(/\.ts$/, '') + '.ts';
+    const rawPath = importMatch[1].replace(/\.ts$/, "") + ".ts";
     const aliasEntry = Object.entries(activeAliases).find(([prefix]) => rawPath.startsWith(prefix));
-    const absPath = rawPath.startsWith('@server/')
-      ? path.join(currentDir, rawPath.replace(/^@server\/?/, 'server/'))
+    const absPath = rawPath.startsWith("@server/")
+      ? path.join(currentDir, rawPath.replace(/^@server\/?/, "server/"))
       : aliasEntry
       ? path.join(aliasEntry[1], rawPath.slice(aliasEntry[0].length))
       : path.resolve(apiFileDir, rawPath);
@@ -257,112 +257,112 @@ function resolveSchemaRef(
 // ─── Zod → TypeScript type string ────────────────────────────────────────────
 
 function zodSchemaToTypeString(schema: z.ZodTypeAny | null | undefined): string {
-  if (!schema) return 'any';
+  if (!schema) return "any";
   try {
     const def = (schema as any)._def ?? (schema as any).def;
-    if (!def) return 'any';
+    if (!def) return "any";
     const type = def.type ?? def.typeName;
 
-    if (type === 'ZodObject' || type === 'object') {
+    if (type === "ZodObject" || type === "object") {
       let shape = def.shape;
-      if (typeof shape === 'function') shape = shape();
+      if (typeof shape === "function") shape = shape();
       if (!shape && (schema as any).shape) {
         shape = (schema as any).shape;
-        if (typeof shape === 'function') shape = shape();
+        if (typeof shape === "function") shape = shape();
       }
-      if (!shape || Object.keys(shape).length === 0) return 'Record<string, any>';
+      if (!shape || Object.keys(shape).length === 0) return "Record<string, any>";
       const props = Object.keys(shape).map((key) => {
         const v = shape[key] as any;
         const vDef = v._def ?? v.def;
         const vType = vDef?.type ?? vDef?.typeName;
-        const isOpt = vType === 'ZodOptional' || vType === 'ZodDefault' || vType === 'optional' ||
-          vType === 'default';
+        const isOpt = vType === "ZodOptional" || vType === "ZodDefault" || vType === "optional" ||
+          vType === "default";
         const inner = isOpt ? (vDef?.innerType ?? v) : v;
         return isOpt
           ? `${key}?: ${zodSchemaToTypeString(inner)}`
           : `${key}: ${zodSchemaToTypeString(inner)}`;
       });
-      return `{ ${props.join('; ')} }`;
+      return `{ ${props.join("; ")} }`;
     }
-    if (type === 'ZodString' || type === 'string') return 'string';
-    if (type === 'ZodNumber' || type === 'number') return 'number';
-    if (type === 'ZodBoolean' || type === 'boolean') return 'boolean';
-    if (type === 'ZodArray' || type === 'array') {
+    if (type === "ZodString" || type === "string") return "string";
+    if (type === "ZodNumber" || type === "number") return "number";
+    if (type === "ZodBoolean" || type === "boolean") return "boolean";
+    if (type === "ZodArray" || type === "array") {
       return `Array<${zodSchemaToTypeString(def.element ?? def.type)}>`;
     }
-    if (type === 'ZodOptional') return zodSchemaToTypeString(def.innerType);
-    if (type === 'ZodDefault') return zodSchemaToTypeString(def.innerType);
-    if (type === 'ZodEnum') return (def.values as string[]).map((v) => `'${v}'`).join(' | ');
-    if (type === 'ZodUnion') {
-      return (def.options as z.ZodTypeAny[]).map(zodSchemaToTypeString).join(' | ');
+    if (type === "ZodOptional") return zodSchemaToTypeString(def.innerType);
+    if (type === "ZodDefault") return zodSchemaToTypeString(def.innerType);
+    if (type === "ZodEnum") return (def.values as string[]).map((v) => `'${v}'`).join(" | ");
+    if (type === "ZodUnion") {
+      return (def.options as z.ZodTypeAny[]).map(zodSchemaToTypeString).join(" | ");
     }
-    if (type === 'ZodLiteral') {
-      return typeof def.value === 'string' ? `'${def.value}'` : String(def.value);
+    if (type === "ZodLiteral") {
+      return typeof def.value === "string" ? `'${def.value}'` : String(def.value);
     }
-    if (type === 'ZodAny' || type === 'any') return 'any';
-    return 'any';
+    if (type === "ZodAny" || type === "any") return "any";
+    return "any";
   } catch {
-    return 'any';
+    return "any";
   }
 }
 
 // ─── Zod → standalone z.*() source code ──────────────────────────────────────
 
 function zodSchemaToSourceCode(schema: z.ZodTypeAny | null | undefined): string {
-  if (!schema) return 'z.any()';
+  if (!schema) return "z.any()";
   try {
     const def = (schema as any)._def ?? (schema as any).def;
-    if (!def) return 'z.any()';
+    if (!def) return "z.any()";
     const type = def.type ?? def.typeName;
 
-    if (type === 'ZodObject' || type === 'object') {
+    if (type === "ZodObject" || type === "object") {
       let shape = def.shape;
-      if (typeof shape === 'function') shape = shape();
-      if (!shape || Object.keys(shape).length === 0) return 'z.record(z.any())';
+      if (typeof shape === "function") shape = shape();
+      if (!shape || Object.keys(shape).length === 0) return "z.record(z.any())";
       const entries = Object.entries(shape)
         .filter(([, v]) => v != null)
         .map(([k, v]) => {
           const vAny = v as any;
           const vDef = vAny._def ?? vAny.def;
           const vType = vDef?.type ?? vDef?.typeName;
-          const isOpt = vType === 'ZodOptional' || vType === 'ZodDefault' || vType === 'optional' ||
-            vType === 'default';
+          const isOpt = vType === "ZodOptional" || vType === "ZodDefault" || vType === "optional" ||
+            vType === "default";
           const inner = isOpt ? (vDef?.innerType ?? v) : v;
           return isOpt
             ? `${JSON.stringify(k)}: z.optional(${zodSchemaToSourceCode(inner)})`
             : `${JSON.stringify(k)}: ${zodSchemaToSourceCode(inner)}`;
         });
-      return `z.object({ ${entries.join(', ')} })`;
+      return `z.object({ ${entries.join(", ")} })`;
     }
-    if (type === 'ZodString' || type === 'string') return 'z.string()';
-    if (type === 'ZodNumber' || type === 'number') return 'z.number()';
-    if (type === 'ZodBoolean' || type === 'boolean') return 'z.boolean()';
-    if (type === 'ZodAny' || type === 'any') return 'z.any()';
-    if (type === 'ZodArray' || type === 'array') {
+    if (type === "ZodString" || type === "string") return "z.string()";
+    if (type === "ZodNumber" || type === "number") return "z.number()";
+    if (type === "ZodBoolean" || type === "boolean") return "z.boolean()";
+    if (type === "ZodAny" || type === "any") return "z.any()";
+    if (type === "ZodArray" || type === "array") {
       return `z.array(${zodSchemaToSourceCode(def.element ?? def.type)})`;
     }
-    if (type === 'ZodOptional') return `z.optional(${zodSchemaToSourceCode(def.innerType)})`;
-    if (type === 'ZodDefault') {
+    if (type === "ZodOptional") return `z.optional(${zodSchemaToSourceCode(def.innerType)})`;
+    if (type === "ZodDefault") {
       const inner = zodSchemaToSourceCode(def.innerType);
       const dv = def.defaultValue;
-      if (typeof dv === 'string') return `z.default(${inner}, ${JSON.stringify(dv)})`;
-      if (typeof dv === 'number' || typeof dv === 'boolean') return `z.default(${inner}, ${dv})`;
+      if (typeof dv === "string") return `z.default(${inner}, ${JSON.stringify(dv)})`;
+      if (typeof dv === "number" || typeof dv === "boolean") return `z.default(${inner}, ${dv})`;
       return `z.default(${inner})`;
     }
-    if (type === 'ZodEnum') {
-      return `z.enum([${(def.values as string[]).map((v) => JSON.stringify(v)).join(', ')}])`;
+    if (type === "ZodEnum") {
+      return `z.enum([${(def.values as string[]).map((v) => JSON.stringify(v)).join(", ")}])`;
     }
-    if (type === 'ZodUnion') {
-      return `z.union([${(def.options as z.ZodTypeAny[]).map(zodSchemaToSourceCode).join(', ')}])`;
+    if (type === "ZodUnion") {
+      return `z.union([${(def.options as z.ZodTypeAny[]).map(zodSchemaToSourceCode).join(", ")}])`;
     }
-    if (type === 'ZodLiteral') {
-      return typeof def.value === 'string'
+    if (type === "ZodLiteral") {
+      return typeof def.value === "string"
         ? `z.literal(${JSON.stringify(def.value)})`
         : `z.literal(${def.value})`;
     }
-    return 'z.any()';
+    return "z.any()";
   } catch {
-    return 'z.any()';
+    return "z.any()";
   }
 }
 
@@ -372,17 +372,17 @@ function generateFetchFn(method: string, apiPath: string, name: string): string 
   const spec = apiSpecs.get(name);
   if (!spec) throw new Error(`API spec not found for: ${name}`);
 
-  let paramsType = 'params?: Record<string, string>';
-  if (apiPath.includes(':') || (spec.params instanceof z.ZodObject)) {
+  let paramsType = "params?: Record<string, string>";
+  if (apiPath.includes(":") || (spec.params instanceof z.ZodObject)) {
     paramsType = `params?: __${name}_params_type`;
   }
 
-  let bodyType = 'body?: Record<string, any>';
+  let bodyType = "body?: Record<string, any>";
   if (spec.requestBody && isRequestBodySchema(spec.requestBody)) {
     bodyType = `body?: __${name}_requestBody_type`;
   }
 
-  let responseType = 'any';
+  let responseType = "any";
   if (spec.responses) {
     const firstKey = Object.keys(spec.responses)[0];
     if (firstKey && spec.responses[Number(firstKey)] instanceof z.ZodObject) {
@@ -414,18 +414,18 @@ function generateTypeDefs(): string {
       }
     }
   }
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 function generateSchemaDepsCode(): string {
-  if (schemaDeps.size === 0) return '';
-  return [...schemaDeps.entries()].map(([n, src]) => `const ${n} = ${src};`).join('\n') + '\n';
+  if (schemaDeps.size === 0) return "";
+  return [...schemaDeps.entries()].map(([n, src]) => `const ${n} = ${src};`).join("\n") + "\n";
 }
 
 function toCamelCase(name: string): string {
-  return name.split('_').map((p, i) =>
+  return name.split("_").map((p, i) =>
     i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()
-  ).join('');
+  ).join("");
 }
 
 function generateValidationsCode(): string {
@@ -435,7 +435,7 @@ function generateValidationsCode(): string {
     const code = spec.requestBodySource ?? zodSchemaToSourceCode(spec.requestBody);
     entries.push(`  "${toCamelCase(name)}": ${code}`);
   }
-  return entries.length === 0 ? '{}' : `{\n${entries.join(',\n')}\n}`;
+  return entries.length === 0 ? "{}" : `{\n${entries.join(",\n")}\n}`;
 }
 
 function generateValidationsTypeInterface(): string {
@@ -445,17 +445,17 @@ function generateValidationsTypeInterface(): string {
     entries.push(`  ${toCamelCase(name)}: __${name}_requestBody_type;`);
   }
   return entries.length === 0
-    ? ''
-    : `\nexport interface HttpValidationTypes {\n${entries.join('\n')}\n}\n`;
+    ? ""
+    : `\nexport interface HttpValidationTypes {\n${entries.join("\n")}\n}\n`;
 }
 
 function treeToCode(tree: any): string {
-  let code = '{\n';
+  let code = "{\n";
   for (const key in tree) {
     const safeKey = `"${key}"`;
     const val = tree[key];
-    if (typeof val === 'string' && val.startsWith('__FETCH__')) {
-      const [method, apiPath, name] = val.replace('__FETCH__', '').split('__');
+    if (typeof val === "string" && val.startsWith("__FETCH__")) {
+      const [method, apiPath, name] = val.replace("__FETCH__", "").split("__");
       try {
         code += `  ${safeKey}: ${generateFetchFn(method, apiPath, name)},\n`;
       } catch (err) {
@@ -467,7 +467,7 @@ function treeToCode(tree: any): string {
       code += `  ${safeKey}: ${treeToCode(val)},\n`;
     }
   }
-  return code + '}';
+  return code + "}";
 }
 
 // ─── Core build function ──────────────────────────────────────────────────────
@@ -481,7 +481,7 @@ function treeToCode(tree: any): string {
  * Safe to call repeatedly — internal state is reset on each invocation.
  */
 export async function buildHttpClient(config: BuildHttpClientConfig): Promise<void> {
-  const { apiDir, outputFile = 'packages/http-client/mod.ts' } = config;
+  const { apiDir, outputFile = "packages/http-client/mod.ts" } = config;
   const start = Date.now();
   const cwd = Deno.cwd();
   const apiDirPath = path.isAbsolute(apiDir) ? apiDir : path.join(cwd, apiDir);
@@ -510,9 +510,9 @@ export async function buildHttpClient(config: BuildHttpClientConfig): Promise<vo
   let processed = 0, skipped = 0;
 
   for await (const entry of walkDirectory(apiDirPath)) {
-    if (!entry.isFile || !entry.name.endsWith('.api.ts')) continue;
+    if (!entry.isFile || !entry.name.endsWith(".api.ts")) continue;
     try {
-      const fileUrl = `file://${path.resolve(entry.path).replace(/\\/g, '/')}`;
+      const fileUrl = `file://${path.resolve(entry.path).replace(/\\/g, "/")}`;
       const api = await import(fileUrl);
 
       if (!api.default) {
@@ -529,20 +529,20 @@ export async function buildHttpClient(config: BuildHttpClientConfig): Promise<vo
         continue;
       }
 
-      const name = apiName.toLowerCase().replace(/\s+/g, '_');
+      const name = apiName.toLowerCase().replace(/\s+/g, "_");
 
       // Use explicit path if provided, otherwise derive from file location
       const relFromApiDir = path.relative(apiDirPath, entry.path);
-      const fsPath = '/api/' + relFromApiDir
-        .replace(/\\/g, '/')
-        .replace(/\.api\.ts$/, '')
-        .split('/')
-        .filter((s) => s !== 'index')
-        .map((s) => s.replace(/^\[(.+)\]$/, ':$1'))
-        .join('/');
+      const fsPath = "/api/" + relFromApiDir
+        .replace(/\\/g, "/")
+        .replace(/\.api\.ts$/, "")
+        .split("/")
+        .filter((s) => s !== "index")
+        .map((s) => s.replace(/^\[(.+)\]$/, ":$1"))
+        .join("/");
 
       const rel = path.relative(cwd, entry.path);
-      const importPath = `@server/apis/${rel.replace(/\\/g, '/').replace(/^server\/apis\//, '')}`;
+      const importPath = `@server/apis/${rel.replace(/\\/g, "/").replace(/^server\/apis\//, "")}`;
 
       let requestBodySource: string | null = null;
       if (requestBody) {
@@ -575,8 +575,8 @@ export async function buildHttpClient(config: BuildHttpClientConfig): Promise<vo
         : [fsPath];
 
       for (const p of resolvedPaths) {
-        if (typeof p !== 'string') continue;
-        addToTree(apiTree, p.split('/').filter(Boolean), method, p, name);
+        if (typeof p !== "string") continue;
+        addToTree(apiTree, p.split("/").filter(Boolean), method, p, name);
       }
       processed++;
     } catch (err) {
@@ -641,7 +641,7 @@ export const http = (() => {
 `;
 
   await Deno.mkdir(path.dirname(outputPath), { recursive: true });
-  await Deno.writeTextFile(outputPath, clientCode.trim() + '\n');
+  await Deno.writeTextFile(outputPath, clientCode.trim() + "\n");
   console.log(`[http-client] Generated in ${Date.now() - start}ms → ${outputPath}`);
 }
 
@@ -666,13 +666,13 @@ export function httpClientGenPlugin(config: BuildHttpClientConfig): {
   setup: (build: { onStart: (cb: () => Promise<void> | void) => void }) => void;
 } {
   return {
-    name: 'build-http-client',
+    name: "build-http-client",
     setup(build: { onStart: (cb: () => Promise<void> | void) => void }) {
       build.onStart(async () => {
         try {
           await buildHttpClient(config);
         } catch (err) {
-          console.error('[http-client] Build failed:', err);
+          console.error("[http-client] Build failed:", err);
         }
       });
     },

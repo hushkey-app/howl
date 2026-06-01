@@ -1,9 +1,4 @@
-import {
-  type ComponentChildren,
-  createContext,
-  h,
-  render,
-} from "preact";
+import { type ComponentChildren, createContext, h, render } from "preact";
 import { useLayoutEffect } from "preact/hooks";
 
 /**

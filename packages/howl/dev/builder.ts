@@ -1,6 +1,6 @@
 import {
-  Howl,
   fsAdapter,
+  Howl,
   type ListenOptions,
   parseDirPath,
   pathToExportName,
@@ -141,6 +141,7 @@ export class Builder<State = any> {
   /** Resolved build configuration. */
   config: ResolvedBuildConfig;
   #islandSpecifiers = new Set<string>();
+  #vueIslandSpecifiers = new Set<string>();
   #fsRoutes: FsRoute<State>;
   #ready = Promise.withResolvers<void>();
 
@@ -289,9 +290,7 @@ export class Builder<State = any> {
   async #collectAotEntries(namer: UniqueNamer): Promise<Map<string, AotEntry>> {
     const entries = new Map<string, AotEntry>();
 
-    const aotFiles = this.#fsRoutes.files.filter((f) =>
-      f.type === CommandType.Route && f.aot
-    );
+    const aotFiles = this.#fsRoutes.files.filter((f) => f.type === CommandType.Route && f.aot);
     if (aotFiles.length === 0) return entries;
 
     const appFile = this.#fsRoutes.files.find((f) => f.type === CommandType.App);
@@ -354,7 +353,7 @@ export class Builder<State = any> {
   }
 
   async #crawlFsItems() {
-    const { islands, routes } = await crawlFsItem({
+    const { islands, vueIslands, routes } = await crawlFsItem({
       islandDir: this.config.islandDir,
       routeDir: this.config.routeDir,
       ignore: this.config.ignore,
@@ -362,6 +361,10 @@ export class Builder<State = any> {
 
     for (let i = 0; i < islands.length; i++) {
       this.registerIsland(islands[i]);
+    }
+
+    for (let i = 0; i < vueIslands.length; i++) {
+      this.#vueIslandSpecifiers.add(vueIslands[i]);
     }
 
     this.#fsRoutes.files = routes;
@@ -372,6 +375,7 @@ export class Builder<State = any> {
     const staticOutDir = path.join(outDir, "static");
 
     const hasClientArtifacts = this.#islandSpecifiers.size > 0 ||
+      this.#vueIslandSpecifiers.size > 0 ||
       this.#fsRoutes.files.length > 0;
 
     await Deno.mkdir(outDir, { recursive: true });
@@ -419,6 +423,54 @@ export class Builder<State = any> {
         entryPoints[entry.name] = `aot:${entry.name}`;
       }
 
+      // Vue islands: each `.island.vue` is bundled to a client chunk (compiled
+      // by the user-supplied vuePlugin), plus the `@hushkey/howl-vue` boot
+      // runtime once. `splitting` dedupes the shared `vue` runtime across them.
+      const vueEntryToName = new Map<string, string>();
+      let vueBootEntry = "";
+      if (this.#vueIslandSpecifiers.size > 0) {
+        for (const spec of this.#vueIslandSpecifiers) {
+          const islandName = vueIslandName(spec);
+          const name = namer.getUniqueName(`vue_${islandName}`);
+          entryPoints[name] = spec;
+          vueEntryToName.set(name, islandName);
+        }
+        vueBootEntry = namer.getUniqueName("howl_vue_boot");
+        entryPoints[vueBootEntry] = VUE_BOOT_SPECIFIER;
+      }
+
+      // Vue pages: each `.vue` page route gets a client hydration chunk that
+      // re-renders the page tree over the server-rendered markup.
+      const vuePageEntryToPath = new Map<string, string>();
+      const vuePageFiles = this.#fsRoutes.files.filter(
+        (f) => f.engine === "vue" && f.type === CommandType.Route,
+      );
+      if (vuePageFiles.length > 0) {
+        const wrapperDir = path.join(outDir, ".vue-pages");
+        await Deno.mkdir(wrapperDir, { recursive: true });
+        for (const f of vuePageFiles) {
+          const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
+          const name = namer.getUniqueName(`vuepage_${slug}`);
+          const wrapperPath = path.join(wrapperDir, `${name}.ts`);
+          // Only [..Layouts, Page] hydrate inside `#howl-app`; `_app.vue` is
+          // rendered server-side and stays static, so it's excluded here.
+          const layouts = await discoverVuePageChain(f.filePath);
+          const comps = [...layouts, f.filePath];
+          const imports = comps
+            .map((p, i) => `import _c${i} from ${JSON.stringify(p)};`)
+            .join("\n");
+          const arr = comps.map((_, i) => `_c${i}`).join(", ");
+          await Deno.writeTextFile(
+            wrapperPath,
+            `${imports}\n` +
+              `import { hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
+              `hydrateVuePage([${arr}]);\n`,
+          );
+          entryPoints[name] = wrapperPath;
+          vuePageEntryToPath.set(name, f.filePath);
+        }
+      }
+
       const output = await bundleJs({
         cwd: root,
         outDir: staticOutDir,
@@ -454,6 +506,33 @@ export class Builder<State = any> {
         buildCache.aotRoutes.set(entry.routePattern, `${prefix}${chunkName}`);
       }
 
+      for (const [entryName, islandName] of vueEntryToName) {
+        const chunkName = output.entryToChunk.get(entryName);
+        if (chunkName === undefined) {
+          throw new Error(`Could not find chunk for Vue island: ${islandName}`);
+        }
+        buildCache.vueIslands.set(islandName, `${prefix}${chunkName}`);
+      }
+      if (vueBootEntry !== "") {
+        const bootChunk = output.entryToChunk.get(vueBootEntry);
+        if (bootChunk === undefined) {
+          throw new Error(`Could not find chunk for Vue island boot runtime`);
+        }
+        buildCache.vueBoot = `${prefix}${bootChunk}`;
+      }
+
+      for (const [name, filePath] of vuePageEntryToPath) {
+        const chunkName = output.entryToChunk.get(name);
+        if (chunkName === undefined) {
+          throw new Error(`Could not find chunk for Vue page: ${filePath}`);
+        }
+        buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
+        const cssName = output.entryToCss.get(name);
+        if (cssName !== undefined) {
+          buildCache.vuePagesCss.set(filePath, `${prefix}${cssName}`);
+        }
+      }
+
       for (let i = 0; i < output.files.length; i++) {
         const file = output.files[i];
         await buildCache.addProcessedFile(
@@ -472,6 +551,48 @@ export class Builder<State = any> {
 
     this.#ready.resolve();
   }
+}
+
+/**
+ * Specifier of the Vue island boot runtime, bundled when a project contains
+ * `.island.vue` files. Provided by the optional `@hushkey/howl-vue` package;
+ * Howl core stays Vue-agnostic apart from this string and the manifest globals.
+ */
+const VUE_BOOT_SPECIFIER = "@hushkey/howl-vue/boot";
+
+/** Derive a Vue island's public name from its `*.island.vue` file path. */
+function vueIslandName(spec: string): string {
+  return path.basename(spec).replace(/\.island\.vue$/, "");
+}
+
+/**
+ * Discover a `.vue` page's `_layout.vue` chain (outer → inner) by walking up
+ * from the page directory, stopping at the first `_app.vue`. Returns only the
+ * layouts — `_app.vue` owns the document server-side and isn't hydrated, so it
+ * isn't part of the client chunk. Mirrors the engine's runtime discovery.
+ */
+async function discoverVuePageChain(pageFilePath: string): Promise<string[]> {
+  const layouts: string[] = [];
+  let dir = path.dirname(pageFilePath);
+  for (let depth = 0; depth < 16; depth++) {
+    const layout = path.join(dir, "_layout.vue");
+    try {
+      await Deno.stat(layout);
+      layouts.unshift(layout);
+    } catch {
+      // no layout at this level
+    }
+    try {
+      await Deno.stat(path.join(dir, "_app.vue"));
+      break;
+    } catch {
+      // no app at this level
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return layouts;
 }
 
 export function specToName(spec: string): string {

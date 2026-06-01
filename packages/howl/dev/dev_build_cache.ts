@@ -89,6 +89,10 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   features = { errorOverlay: false };
   aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
+  vueIslands: Map<string, string> = new Map();
+  vueBoot = "";
+  vuePages: Map<string, string> = new Map();
+  vuePagesCss: Map<string, string> = new Map();
 
   constructor(
     config: ResolvedBuildConfig,
@@ -270,6 +274,11 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
 
   async prepare(): Promise<void> {
     const files = await Promise.all(this.#fsRoutes.files.map(async (file) => {
+      if (file.engine !== undefined) {
+        // `.vue` (and other engine) routes aren't importable by Deno; the
+        // render engine compiles + loads them at request time.
+        return { ...file, mod: { default: undefined } };
+      }
       const fileUrl = maybeToFileUrl(file.filePath);
       return {
         ...file,
@@ -296,6 +305,10 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   features = { errorOverlay: false };
   aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
+  vueIslands: Map<string, string> = new Map();
+  vueBoot = "";
+  vuePages: Map<string, string> = new Map();
+  vuePagesCss: Map<string, string> = new Map();
   #commands: Command<State>[] = [];
 
   constructor(
@@ -401,6 +414,11 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
     // is what enables the SSG prerender pass to dispatch through the app
     // handler during the build itself.
     const files = await Promise.all(this.#fsRoutes.files.map(async (file) => {
+      if (file.engine !== undefined) {
+        // `.vue` (and other engine) routes aren't importable by Deno; the
+        // render engine compiles + loads them at request time.
+        return { ...file, mod: { default: undefined } };
+      }
       const fileUrl = maybeToFileUrl(file.filePath);
       return {
         ...file,
@@ -473,6 +491,8 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
         apiEntries: this.#apiEntries,
         aotRoutes: this.aotRoutes,
         ssgPages: this.ssgPages,
+        vueIslands: this.vueIslands,
+        vueBoot: this.vueBoot,
         outDir: root,
         entryAssets: [],
       }),
@@ -558,6 +578,8 @@ export async function generateSnapshotServer(
     entryAssets: string[];
     aotRoutes: Map<string, string>;
     ssgPages: Map<string, string>;
+    vueIslands: Map<string, string>;
+    vueBoot: string;
     writeSpecifier: (filePath: string) => string;
   },
 ): Promise<string> {
@@ -632,15 +654,15 @@ export async function generateSnapshotServer(
     }).join(",\n");
 
   const serializedAotRoutes = Array.from(options.aotRoutes.entries())
-    .map(([pattern, chunkUrl]) =>
-      `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`
-    )
+    .map(([pattern, chunkUrl]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
   const serializedSsgPages = Array.from(options.ssgPages.entries())
-    .map(([pattern, html]) =>
-      `  [${JSON.stringify(pattern)}, ${JSON.stringify(html)}],`
-    )
+    .map(([pattern, html]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(html)}],`)
+    .join("\n");
+
+  const serializedVueIslands = Array.from(options.vueIslands.entries())
+    .map(([name, chunkUrl]) => `  [${JSON.stringify(name)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
   return `${EDIT_WARNING}
@@ -669,6 +691,12 @@ ${serializedAotRoutes}
 export const ssgPages = new Map([
 ${serializedSsgPages}
 ]);
+
+export const vueIslands = new Map([
+${serializedVueIslands}
+]);
+
+export const vueBoot = ${JSON.stringify(options.vueBoot)};
 
 export const fsRoutes = [
 ${serializedFsRoutes}

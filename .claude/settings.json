@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import json,sys; d=json.load\\(open\\('examples/www/server/docs/routing.json'\\)\\); print\\('top keys:', list\\(d.keys\\(\\)\\)\\); print\\(json.dumps\\(d, indent=1\\)[:1200]\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('examples/www/server/docs/routing.json'\\)\\); print\\('valid JSON,', len\\(d['sections']\\), 'sections'\\); print\\('has link-prefetching:', any\\(s['id']=='link-prefetching' for s in d['sections']\\)\\)\")",
+      "Bash(sed -n '78,95p' packages/howl/dev/dev_build_cache.ts)",
+      "Bash(sed -n '290,300p' packages/howl/dev/dev_build_cache.ts)",
+      "Bash(sed -n '160,180p' packages/howl/core/test_utils.ts)",
+      "Bash(awk 'NR>=425 && NR<=500 && /^#+ /' README.md)",
+      "Bash(grep -nE \"must.*island\\\\.tsx|named \\\\`\\\\*\\\\.island|\\\\*\\\\.island\\\\.tsx\" packages/howl/README.md)",
+      "Bash(sed -n \"/interface FsRouteFile/,/^}/p\" packages/howl/core/fs_routes.ts)",
+      "Bash(sed -n \"/export function newRouteCmd/,/^}/p\" packages/howl/core/commands.ts)"
+    ]
+  }
+}

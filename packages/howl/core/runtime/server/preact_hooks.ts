@@ -678,13 +678,14 @@ function HowlRuntimeScript() {
     );
   } else {
     const hasAot = buildCache.aotRoutes.size > 0;
+    const hasVue = buildCache.vueIslands.size > 0;
     // Zero-JS default: page renders nothing that needs the client runtime
     // (no island, no <Partial>, no f-client-nav, no f-view-transition) →
     // skip the bootloader script entirely. The error overlay (dev-only)
     // renders independently as an iframe and stays available. Pages with
-    // AOT routes registered always need the runtime so client navigation
-    // can hand off to a chunk.
-    if (!RENDER_STATE!.needsClientRuntime && !hasAot) {
+    // AOT routes or Vue islands registered always need the runtime so client
+    // navigation / island mounting can hand off to a chunk.
+    if (!RENDER_STATE!.needsClientRuntime && !hasAot && !hasVue) {
       return buildCache.features.errorOverlay ? h(ShowErrorOverlay, null) : null;
     }
     const islandImports = islandArr.map((island) => {
@@ -713,9 +714,9 @@ function HowlRuntimeScript() {
     const scriptContent =
       `import { boot } from "${basePath}${runtimeUrl}";${islandImports}boot(${islandObj},${serializedProps});`;
 
-    const aotManifest = hasAot
-      ? Object.fromEntries(buildCache.aotRoutes.entries())
-      : null;
+    const aotManifest = hasAot ? Object.fromEntries(buildCache.aotRoutes.entries()) : null;
+
+    const vueManifest = hasVue ? Object.fromEntries(buildCache.vueIslands.entries()) : null;
 
     // Snapshot the request-scoped state into a global script so AOT chunks
     // and client-side hooks can read what SSR rendered with. Public-facing
@@ -730,17 +731,20 @@ function HowlRuntimeScript() {
       h(
         Fragment,
         null,
-        aotManifest || userStateBlob !== null
+        aotManifest || userStateBlob !== null || vueManifest
           ? h("script", {
             nonce,
             dangerouslySetInnerHTML: {
               __html: [
-                userStateBlob !== null
-                  ? `window.__HOWL_USER_STATE__=${userStateBlob};`
-                  : "",
+                userStateBlob !== null ? `window.__HOWL_USER_STATE__=${userStateBlob};` : "",
                 aotManifest
                   ? `window.__HOWL_AOT__=${
                     escapeScript(JSON.stringify(aotManifest), { json: true })
+                  };`
+                  : "",
+                vueManifest
+                  ? `window.__HOWL_VUE__=${
+                    escapeScript(JSON.stringify(vueManifest), { json: true })
                   };`
                   : "",
               ].join(""),
@@ -752,6 +756,18 @@ function HowlRuntimeScript() {
           nonce,
           dangerouslySetInnerHTML: { __html: scriptContent },
         }),
+        // Load the Vue island boot runtime; it reads window.__HOWL_VUE__ and
+        // mounts each `<div data-howl-vue>` placeholder. Runs after the inline
+        // manifest script above sets the global.
+        hasVue
+          ? h("script", {
+            type: "module",
+            nonce,
+            dangerouslySetInnerHTML: {
+              __html: `import(${JSON.stringify(basePath + buildCache.vueBoot)});`,
+            },
+          })
+          : null,
         buildCache.features.errorOverlay ? h(ShowErrorOverlay, null) : null,
       )
     );

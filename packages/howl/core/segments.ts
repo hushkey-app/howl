@@ -2,7 +2,7 @@ import type { AnyComponent } from "preact";
 import type { MaybeLazyMiddleware, Middleware } from "./middlewares/mod.ts";
 import { type Method, patternToSegments } from "./router.ts";
 import type { LayoutConfig, Route } from "./types.ts";
-import { type Context, getInternals } from "./context.ts";
+import { type Context, getBuildCache, getInternals } from "./context.ts";
 import { recordSpanError, tracer } from "./otel.ts";
 import { type HandlerFn, isHandlerByMethod } from "./handlers.ts";
 import { type AsyncAnyComponent, type PageProps, renderRouteComponent } from "./render.ts";
@@ -207,6 +207,33 @@ export async function renderRoute<State>(
         headers.set(name, value);
       }
     }
+  }
+
+  // Pluggable render engines (e.g. Vue) own the whole response and bypass the
+  // Preact app/layout/`ctx.render` path entirely.
+  if (route.engine !== undefined) {
+    const engine = ctx.config.engines[route.engine];
+    if (engine === undefined) {
+      throw new Error(
+        `Route "${route.filePath ?? ""}" requires the "${route.engine}" render ` +
+          `engine, but it isn't registered in the Howl \`engines\` option.`,
+      );
+    }
+    const buildCache = getBuildCache(ctx);
+    const chunkUrl = route.filePath !== undefined
+      ? buildCache.vuePages.get(route.filePath)
+      : undefined;
+    const cssUrl = route.filePath !== undefined
+      ? buildCache.vuePagesCss.get(route.filePath)
+      : undefined;
+    return await engine.render(ctx, {
+      filePath: route.filePath!,
+      data: res.data,
+      headers,
+      status,
+      chunkUrl,
+      cssUrl,
+    });
   }
 
   let vnode = null;

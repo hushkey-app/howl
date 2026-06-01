@@ -4,7 +4,7 @@ import { defineConfig } from "../../api/define-api.ts";
 import { apiHandler } from "../../api/api-handler.ts";
 import { memoryCache } from "../../api/cache/memory.ts";
 import errors from "../../api/errors.ts";
-import { makeApp, json } from "../harness.ts";
+import { json, makeApp } from "../harness.ts";
 
 interface State {
   userContext?: { id: string; roles: string[] };

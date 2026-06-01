@@ -348,6 +348,7 @@ export class Howl<State = any> {
       root: ".",
       basePath: options.basePath ?? "",
       mode: options.mode ?? "production",
+      engines: options.engines ?? {},
     };
 
     if (options.logger) {

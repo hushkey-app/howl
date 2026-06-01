@@ -94,6 +94,8 @@ export interface HowlBundleOptions {
 
 export interface BuildOutput {
   entryToChunk: Map<string, string>;
+  /** Maps an entry name to its associated CSS bundle filename, when esbuild emitted one. */
+  entryToCss: Map<string, string>;
   dependencies: Map<string, string[]>;
   files: Array<{ hash: string | null; contents: Uint8Array; path: string }>;
 }
@@ -186,6 +188,7 @@ export async function bundleJs(
   });
 
   const entryToChunk = new Map<string, string>();
+  const entryToCss = new Map<string, string>();
   const dependencies = new Map<string, string[]>();
 
   const entryToName = new Map(
@@ -208,6 +211,11 @@ export async function bundleJs(
         const filePath = options.entryPoints[basename];
         const name = entryToName.get(filePath)!;
         entryToChunk.set(name, entryPath);
+        // deno-lint-ignore no-explicit-any
+        const cssBundle = (entry as any).cssBundle as string | undefined;
+        if (cssBundle !== undefined) {
+          entryToCss.set(name, path.basename(cssBundle));
+        }
       }
     }
   }
@@ -216,7 +224,7 @@ export async function bundleJs(
     esbuild = null;
   }
 
-  return { files, entryToChunk, dependencies };
+  return { files, entryToChunk, entryToCss, dependencies };
 }
 
 let initialized = false;

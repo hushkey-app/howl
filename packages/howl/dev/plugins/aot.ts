@@ -101,9 +101,7 @@ export function _generateAotSource(entry: AotEntry): string {
     // Middle wrappers (if any) chain layout[i+1] into layout[i]'s Component
     // prop. The chain is built from innermost (closest to Page) outward.
     for (let i = entry.layouts.length - 1; i >= 1; i--) {
-      const inner = i === entry.layouts.length - 1
-        ? "PageOutlet"
-        : `Inner${i + 1}`;
+      const inner = i === entry.layouts.length - 1 ? "PageOutlet" : `Inner${i + 1}`;
       lines.push(``);
       lines.push(`function Inner${i}() {`);
       lines.push(
@@ -112,9 +110,7 @@ export function _generateAotSource(entry: AotEntry): string {
       lines.push(`}`);
     }
     lines.push(``);
-    const outermostInner = entry.layouts.length === 1
-      ? "PageOutlet"
-      : "Inner1";
+    const outermostInner = entry.layouts.length === 1 ? "PageOutlet" : "Inner1";
     lines.push(`export function Component(props) {`);
     lines.push(`  _props = props;`);
     lines.push(

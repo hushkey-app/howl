@@ -1,0 +1,22 @@
+{
+  "name": "@hushkey/howl-vue",
+  "version": "0.0.1",
+  "license": "MIT",
+  "exports": {
+    ".": "./mod.ts",
+    "./plugin": "./plugin.ts",
+    "./boot": "./runtime/boot.ts"
+  },
+  "imports": {
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.6.2",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@std/expect": "jsr:@std/expect@^1.0.18",
+    "esbuild": "npm:esbuild@^0.25.0",
+    "preact": "npm:preact@^10.25.0",
+    "preact-render-to-string": "npm:preact-render-to-string@^6.0.0",
+    "linkedom": "npm:linkedom@^0.18.12",
+    "vue": "npm:vue@^3.5.13",
+    "vue/server-renderer": "npm:vue@^3.5.13/server-renderer",
+    "@vue/compiler-sfc": "npm:@vue/compiler-sfc@^3.5.13"
+  }
+}

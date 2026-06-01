@@ -67,6 +67,7 @@ const DEFAULT_CONFIG: ResolvedHowlConfig = {
   root: "",
   mode: "production",
   basePath: "",
+  engines: {},
 };
 
 export function serveMiddleware<T>(
@@ -168,6 +169,10 @@ export class MockBuildCache<State> implements BuildCache<State> {
   features = { errorOverlay: false };
   aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
+  vueIslands: Map<string, string> = new Map();
+  vueBoot = "";
+  vuePages: Map<string, string> = new Map();
+  vuePagesCss: Map<string, string> = new Map();
 
   constructor(files: FsRouteFile<State>[], mode: "development" | "production") {
     this.features.errorOverlay = mode === "development";

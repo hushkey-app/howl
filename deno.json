@@ -2,10 +2,12 @@
   "nodeModulesDir": "auto",
   "workspace": [
     "./packages/howl",
+    "./packages/howl-vue",
     "./packages/howl-init",
     "./examples/www",
     "./examples/software-www",
-    "./examples/hybrid-spa"
+    "./examples/hybrid-spa",
+    "./examples/vuety"
   ],
   "tasks": {
     "dev:fullstack": "deno run -A --watch examples/fullstack/dev.ts",
@@ -14,10 +16,14 @@
     "dev:www": "deno run -A --watch examples/www/dev.ts",
     "build:www": "deno run -A examples/www/dev.ts build",
     "start:www": "deno run -A examples/www/dist/compiled-entry.js",
+    "dev:vuety": "deno run -A --watch examples/vuety/dev.ts",
+    "build:vuety": "deno run -A examples/vuety/dev.ts build",
+    "start:vuety": "deno run -A examples/vuety/dist/compiled-entry.js",
     "lint": "deno lint",
     "fmt": "deno fmt",
     "check": "deno check packages/howl/core/mod.ts packages/howl/dev/mod.ts",
-    "test": "deno test -A --no-check packages/howl/tests/ packages/howl-init/tests/",
+    "test": "deno test -A --no-check packages/howl/tests/ packages/howl-init/tests/ packages/howl-vue/tests/",
+    "test:vue": "deno test -A --no-check packages/howl-vue/tests/",
     "test:integration": "deno test -A --no-check packages/howl/tests/integration/",
     "test:api": "deno test -A --no-check packages/howl/tests/api/",
     "test:unit": "deno test -A --no-check packages/howl/tests/unit/",

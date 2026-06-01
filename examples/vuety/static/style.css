@@ -1,0 +1,48 @@
+:root {
+  color-scheme: light dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  color: #0f172a;
+  background: #f8fafc;
+}
+.container {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+}
+header p {
+  color: #64748b;
+  margin-top: 0;
+}
+header code {
+  background: #e2e8f0;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.3rem;
+}
+section {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+}
+section h2 {
+  margin: 0 0 0.85rem;
+  font-size: 1.05rem;
+}
+section h2 small {
+  font-weight: 400;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}

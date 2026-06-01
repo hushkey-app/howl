@@ -56,6 +56,8 @@ export interface FsRouteFile<State> {
   overrideConfig: RouteConfig | undefined;
   /** CSS assets emitted by the build for this route. */
   css: string[];
+  /** Render-engine name for non-Preact routes (e.g. `"vue"` for `.vue` pages). */
+  engine?: string;
 }
 
 function isHowlFile<State>(
@@ -101,6 +103,13 @@ export function fsItemsToCommands<State>(
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const { filePath, type, mod: rawMod, pattern, routePattern } = item;
+
+    // Engine-owned non-route files (e.g. `_app.vue`, `_layout.vue`) are
+    // resolved by the render engine straight from the filesystem; they're not
+    // registered as Howl commands.
+    if (item.engine !== undefined && type !== CommandType.Route) {
+      continue;
+    }
 
     switch (type) {
       case CommandType.Middleware: {
@@ -170,6 +179,24 @@ export function fsItemsToCommands<State>(
         continue;
       }
       case CommandType.Route: {
+        // Engine-owned routes (e.g. `.vue` pages) carry no Preact component —
+        // the render engine loads + renders the file at request time.
+        if (item.engine !== undefined) {
+          const engineConfig: RouteConfig = {
+            methods: item.overrideConfig?.methods ?? "ALL",
+            routeOverride: routePattern,
+          };
+          commands.push(
+            newRouteCmd(
+              pattern,
+              { engine: item.engine, filePath, config: engineConfig },
+              engineConfig,
+              false,
+            ),
+          );
+          continue;
+        }
+
         let normalized;
         // Merge configs
         let config: RouteConfig = {};

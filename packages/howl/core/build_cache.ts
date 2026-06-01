@@ -44,6 +44,14 @@ export interface BuildSnapshot<State> {
   aotRoutes?: Map<string, string>;
   /** Map of route pattern → prerendered HTML for SSG-flagged pages. */
   ssgPages?: Map<string, string>;
+  /** Map of Vue island name → client chunk URL (`@hushkey/howl-vue`). */
+  vueIslands?: Map<string, string>;
+  /** Client chunk URL of the Vue island boot runtime; absent when no Vue islands. */
+  vueBoot?: string;
+  /** Map of `.vue` page file path → client hydration chunk URL. */
+  vuePages?: Map<string, string>;
+  /** Map of `.vue` page file path → its CSS bundle URL, when it has styles. */
+  vuePagesCss?: Map<string, string>;
 }
 
 /**
@@ -102,6 +110,26 @@ export interface BuildCache<State = any> {
    * the dynamic renderer to short-circuit request handling.
    */
   ssgPages: Map<string, string>;
+  /**
+   * Map of Vue island name (the `.island.vue` basename) → client chunk URL.
+   * Empty unless the project contains `.island.vue` files built with
+   * `@hushkey/howl-vue`'s `vuePlugin`. Emitted to the page as
+   * `window.__HOWL_VUE__` so the Vue boot runtime can mount each island.
+   */
+  vueIslands: Map<string, string>;
+  /**
+   * Client chunk URL of the Vue island boot runtime (`@hushkey/howl-vue/boot`),
+   * or `""` when the project has no Vue islands.
+   */
+  vueBoot: string;
+  /**
+   * Map of `.vue` page source-file path → client hydration chunk URL. Looked up
+   * by the Vue render engine to inject the right hydration script. Empty unless
+   * the project contains `.vue` page routes.
+   */
+  vuePages: Map<string, string>;
+  /** Map of `.vue` page file path → CSS bundle URL, linked in the SSR `<head>`. */
+  vuePagesCss: Map<string, string>;
 }
 
 /**
@@ -122,6 +150,14 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   aotRoutes: Map<string, string>;
   /** Map of route pattern → prerendered HTML, populated from the snapshot. */
   ssgPages: Map<string, string>;
+  /** Map of Vue island name → client chunk URL, populated from the snapshot. */
+  vueIslands: Map<string, string>;
+  /** Vue island boot runtime chunk URL, populated from the snapshot. */
+  vueBoot: string;
+  /** Map of `.vue` page file path → hydration chunk URL, from the snapshot. */
+  vuePages: Map<string, string>;
+  /** Map of `.vue` page file path → CSS bundle URL, from the snapshot. */
+  vuePagesCss: Map<string, string>;
 
   /** Build a production cache from a serialised snapshot. */
   constructor(public root: string, snapshot: BuildSnapshot<State>) {
@@ -131,6 +167,10 @@ export class ProdBuildCache<State> implements BuildCache<State> {
     this.clientEntry = snapshot.clientEntry;
     this.aotRoutes = snapshot.aotRoutes ?? new Map();
     this.ssgPages = snapshot.ssgPages ?? new Map();
+    this.vueIslands = snapshot.vueIslands ?? new Map();
+    this.vueBoot = snapshot.vueBoot ?? "";
+    this.vuePages = snapshot.vuePages ?? new Map();
+    this.vuePagesCss = snapshot.vuePagesCss ?? new Map();
 
     // Populate apiRegistry from snapshot
     for (const api of snapshot.apiRoutes ?? []) {

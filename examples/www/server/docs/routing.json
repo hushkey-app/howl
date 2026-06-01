@@ -181,6 +181,33 @@
       ]
     },
     {
+      "id": "link-prefetching",
+      "heading": "Link prefetching",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Links inside an f-client-nav boundary are prefetched on intent. When the pointer hovers a link (after a brief ~65ms dwell so quick pass-overs don't fire), or a touch or keyboard focus signals intent, Howl warms the destination ahead of the click."
+        },
+        {
+          "type": "p",
+          "text": "AOT routes pre-import() their JS chunk; SSR routes pre-fetch their partial response. The eventual click reuses the warmed result, so navigation feels instant — the same idea as Hotwired Turbo or instant.page."
+        },
+        {
+          "type": "p",
+          "text": "Prefetching is on by default and respects the user's data-saver preference (Save-Data and prefers-reduced-data). Opt a single link or a whole subtree out with f-prefetch=\"false\":"
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "<a href=\"/huge-report\" f-prefetch=\"false\">Report</a>\n\n<nav f-prefetch=\"false\">\n  {/* every link in here is excluded */}\n</nav>"
+        },
+        {
+          "type": "tip",
+          "text": "Prefetch reuses the same partial response a click would request, so warmed navigations also benefit from server-side response caching and request coalescing."
+        }
+      ]
+    },
+    {
       "id": "aot-ssg",
       "heading": "AOT pages and SSG",
       "blocks": [

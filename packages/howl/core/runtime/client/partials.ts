@@ -28,6 +28,43 @@ export const PARTIAL_ATTR = "f-partial";
 
 class NoPartialsError extends Error {}
 
+/**
+ * Speculative partial responses warmed by the hover/focus prefetcher, keyed by
+ * the partial-fetch URL (i.e. with {@link PARTIAL_SEARCH_PARAM} applied). Each
+ * entry is consumed at most once by {@link fetchPartials}.
+ */
+const PREFETCH_CACHE = new Map<string, { res: Promise<Response>; ts: number }>();
+
+/** How long a warmed partial response stays usable before it's re-fetched. */
+const PREFETCH_TTL_MS = 10_000;
+
+/**
+ * Warm the partial-navigation cache for `url` without navigating. Invoked by
+ * the hover/focus prefetcher in `prefetch.ts`. The next client navigation to
+ * the same destination reuses the in-flight (or completed) response instead of
+ * issuing a fresh request, making the click feel instant.
+ */
+export function prefetchPartial(url: URL): void {
+  if (url.href === globalThis.location.href) return;
+  const partialUrl = new URL(url);
+  partialUrl.searchParams.set(PARTIAL_SEARCH_PARAM, "true");
+  const key = partialUrl.href;
+  const existing = PREFETCH_CACHE.get(key);
+  if (existing !== undefined && Date.now() - existing.ts < PREFETCH_TTL_MS) {
+    return;
+  }
+  const res = fetch(partialUrl, {
+    redirect: "follow",
+    headers: { "X-Howl-Prefetch": "1" },
+    // Deprioritise speculative loads behind real traffic where supported.
+    // deno-lint-ignore no-explicit-any
+    ...({ priority: "low" } as any),
+  });
+  PREFETCH_CACHE.set(key, { res, ts: Date.now() });
+  // Drop failed prefetches so the real click retries cleanly.
+  res.catch(() => PREFETCH_CACHE.delete(key));
+}
+
 // Howl partials history updates set the fClientNav flag
 // and prevent reloads in the popstate handler when
 // user-code triggers history navigation events.
@@ -309,7 +346,25 @@ async function fetchPartials(
   init.redirect = "follow";
   partialUrl = new URL(partialUrl);
   partialUrl.searchParams.set(PARTIAL_SEARCH_PARAM, "true");
-  const res = await fetch(partialUrl, init);
+
+  // Reuse a hover-warmed response when one exists for this exact URL and the
+  // request carries no body (GET nav). Consumed once, then re-fetched on miss.
+  let res: Response;
+  const cacheKey = partialUrl.href;
+  const cached = PREFETCH_CACHE.get(cacheKey);
+  if (
+    cached !== undefined && init.body === undefined &&
+    Date.now() - cached.ts < PREFETCH_TTL_MS
+  ) {
+    PREFETCH_CACHE.delete(cacheKey);
+    try {
+      res = await cached.res;
+    } catch {
+      res = await fetch(partialUrl, init);
+    }
+  } else {
+    res = await fetch(partialUrl, init);
+  }
 
   if (res.redirected) {
     const nextUrl = new URL(res.url);
