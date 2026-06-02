@@ -233,6 +233,7 @@ export async function renderRoute<State>(
       status,
       chunkUrl,
       module,
+      aot: buildCache.vueAot.size > 0 ? Object.fromEntries(buildCache.vueAot) : undefined,
       dev: buildCache.features.errorOverlay,
     });
   }

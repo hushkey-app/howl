@@ -297,6 +297,13 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           `<script type="module" data-howl-vue-page data-chunk="${chunkHref}">` +
           `import(${JSON.stringify(chunkHref)}).then(function(m){m.hydrate();})</script>`
         );
+        // AOT manifest (route pattern → client chunk) so the client runtime can
+        // render `__`-prefixed routes on nav without a server round-trip.
+        const aotScript = opts.aot === undefined || Object.keys(opts.aot).length === 0
+          ? ""
+          : `<script data-howl-vue-aot>window.__HOWL_VUE_AOT__=${
+            JSON.stringify(prefixManifest(opts.aot, base)).replaceAll("<", "\\u003c")
+          }</script>`;
         // Preload the hydration chunk (and, via its static imports, the shared Vue
         // runtime) so the browser fetches it in parallel with parsing the body —
         // the JS is ready the moment hydration kicks off.
@@ -386,7 +393,11 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
               JSON.stringify(pinia.state.value).replaceAll("<", "\\u003c")
             }</script>`
           );
-          html = injectBefore(doc, "</body>", piniaScript + hydration + live + bodyTags);
+          html = injectBefore(
+            doc,
+            "</body>",
+            piniaScript + aotScript + hydration + live + bodyTags,
+          );
           html = injectBefore(html, "</head>", preload + styleTag + headTags);
           // `_app.vue` may render a full `<html>` or just `<head>`+`<body>`.
           html = html.includes("<html")
@@ -404,7 +415,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
             `<meta name="viewport" content="width=device-width, initial-scale=1">` +
             `${preload}${styleTag}${headTags}</head>` +
-            `<body><div id="howl-app">${appHtml}</div>${hydration}${live}${bodyTags}</body></html>`;
+            `<body><div id="howl-app">${appHtml}</div>${aotScript}${hydration}${live}${bodyTags}</body></html>`;
         }
 
         // In prod, cache-bust user-authored local assets so they're served
@@ -470,6 +481,14 @@ function mergeCtxHeaders(ctx: Context<unknown>, headers: Headers): void {
       headers.set(key, value);
     }
   });
+}
+
+/** Prefix each AOT chunk URL with the app's base path (no-op when base is ""). */
+function prefixManifest(manifest: Record<string, string>, base: string): Record<string, string> {
+  if (base === "") return manifest;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(manifest)) out[k] = `${base}${v}`;
+  return out;
 }
 
 function escapeHtml(s: string): string {

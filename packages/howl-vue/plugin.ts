@@ -14,6 +14,14 @@ const STYLE_QUERY = "?howl-vue-style=";
 const SSR_QUERY = "?howl-ssr";
 
 /**
+ * Like {@linkcode SSR_QUERY} but emits a **client** (browser) render function —
+ * used by AOT page chunks, which render a route on the client during navigation.
+ * Exposes scoped CSS as a `__howlStyles` JS array so the chunk is self-contained
+ * (no CSS refetch when navigating to the route).
+ */
+const AOT_QUERY = "?howl-aot";
+
+/**
  * Options for {@linkcode vuePlugin}.
  */
 export interface VuePluginOptions {
@@ -68,6 +76,26 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
           await prepareTypeResolution();
           const source = await Deno.readTextFile(args.path);
           const { code, styles } = compileSfc(source, args.path, { ssr: true });
+          const contents = `${code}\nexport const __howlStyles = ${JSON.stringify(styles)};\n`;
+          return { contents, loader: "ts", resolveDir: path.dirname(args.path) };
+        },
+      );
+
+      // AOT client chunk: `import x from "./Foo.vue?howl-aot"` → a browser render
+      // function plus `__howlStyles`, so an AOT route can be rendered client-side
+      // on navigation with its scoped CSS, no SSR-HTML refetch.
+      build.onResolve({ filter: /\.vue\?howl-aot$/ }, (args) => {
+        const real = args.path.slice(0, -AOT_QUERY.length);
+        const abs = path.isAbsolute(real) ? real : path.join(args.resolveDir, real);
+        return { path: abs, namespace: "howl-vue-aot" };
+      });
+
+      build.onLoad(
+        { filter: /.*/, namespace: "howl-vue-aot" },
+        async (args) => {
+          await prepareTypeResolution();
+          const source = await Deno.readTextFile(args.path);
+          const { code, styles } = compileSfc(source, args.path, { ssr: false });
           const contents = `${code}\nexport const __howlStyles = ${JSON.stringify(styles)};\n`;
           return { contents, loader: "ts", resolveDir: path.dirname(args.path) };
         },

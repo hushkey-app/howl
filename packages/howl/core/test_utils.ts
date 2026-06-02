@@ -171,6 +171,7 @@ export class MockBuildCache<State> implements BuildCache<State> {
   ssgPages: Map<string, string> = new Map();
   vueIslands: Map<string, string> = new Map();
   vueBoot = "";
+  vueAot: Map<string, string> = new Map();
   vuePages: Map<string, string> = new Map();
   vueSsrModules: Map<string, unknown> = new Map();
 

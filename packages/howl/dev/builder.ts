@@ -449,6 +449,7 @@ export class Builder<State = any> {
           f.engine === "vue" &&
           (f.type === CommandType.Route || f.type === CommandType.Error),
       );
+      const vueAotEntryToPattern = new Map<string, string>();
       if (vuePageFiles.length > 0) {
         const wrapperDir = path.join(outDir, ".vue-pages");
         await Deno.remove(wrapperDir, { recursive: true }).catch(() => {});
@@ -461,22 +462,51 @@ export class Builder<State = any> {
           // rendered server-side and stays static, so it's not in the chain.
           const { app, layouts } = await discoverVuePageChain(f.filePath);
           const comps = [...layouts, f.filePath];
-          const imports = comps
-            .map((p, i) => `import _c${i} from ${JSON.stringify(p)};`)
-            .join("\n");
           const arr = comps.map((_, i) => `_c${i}`).join(", ");
-          // Side-effect import of `_app.vue` purely to bundle its scoped CSS
-          // (it owns the document but isn't hydrated, so its styles would
-          // otherwise be missing from the page's CSS chunk).
-          const appCss = app !== null ? `import ${JSON.stringify(app)};\n` : "";
-          // Export `hydrate()` (rather than auto-running) so the same chunk URL
-          // can be preloaded + imported on every visit without a cache-bust.
-          await Deno.writeTextFile(
-            wrapperPath,
-            `${appCss}${imports}\n` +
-              `import { hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
-              `export function hydrate() { hydrateVuePage([${arr}]); }\n`,
-          );
+
+          if (f.aot === true) {
+            // AOT route: the chunk carries **client** render fns + scoped CSS as
+            // JS, so it can render client-side on navigation (no SSR-HTML fetch).
+            // `_styles` spans the whole chain (app + layouts + page) so the
+            // persistent shell keeps its CSS when the inner tree re-renders.
+            const compImports = comps
+              .map((p, i) =>
+                `import _c${i}, { __howlStyles as _cs${i} } from ${
+                  JSON.stringify(`${p}?howl-aot`)
+                };`
+              )
+              .join("\n");
+            const appStyle = app !== null
+              ? `import { __howlStyles as _sapp } from ${JSON.stringify(`${app}?howl-aot`)};\n`
+              : "";
+            const styleArr = (app !== null ? ["..._sapp"] : [])
+              .concat(comps.map((_, i) => `..._cs${i}`)).join(", ");
+            await Deno.writeTextFile(
+              wrapperPath,
+              `${appStyle}${compImports}\n` +
+                `import { aotMountVuePage, hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
+                `const _comps = [${arr}];\nconst _styles = [${styleArr}];\n` +
+                `export function hydrate() { hydrateVuePage(_comps); }\n` +
+                `export function aotMount(props) { aotMountVuePage(_comps, _styles, props); }\n`,
+            );
+            vueAotEntryToPattern.set(name, f.routePattern);
+          } else {
+            const imports = comps
+              .map((p, i) => `import _c${i} from ${JSON.stringify(p)};`)
+              .join("\n");
+            // Side-effect import of `_app.vue` purely to bundle its scoped CSS
+            // (it owns the document but isn't hydrated, so its styles would
+            // otherwise be missing from the page's CSS chunk).
+            const appCss = app !== null ? `import ${JSON.stringify(app)};\n` : "";
+            // Export `hydrate()` (rather than auto-running) so the same chunk URL
+            // can be preloaded + imported on every visit without a cache-bust.
+            await Deno.writeTextFile(
+              wrapperPath,
+              `${appCss}${imports}\n` +
+                `import { hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
+                `export function hydrate() { hydrateVuePage([${arr}]); }\n`,
+            );
+          }
           entryPoints[name] = wrapperPath;
           vuePageEntryToPath.set(name, f.filePath);
         }
@@ -538,6 +568,15 @@ export class Builder<State = any> {
           throw new Error(`Could not find chunk for Vue page: ${filePath}`);
         }
         buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
+      }
+
+      // AOT manifest: route pattern → client chunk URL. Emitted to the page as
+      // `window.__HOWL_VUE_AOT__` so the client renders these routes on nav.
+      for (const [name, routePattern] of vueAotEntryToPattern) {
+        const chunkName = output.entryToChunk.get(name);
+        if (chunkName !== undefined) {
+          buildCache.vueAot.set(routePattern, `${prefix}${chunkName}`);
+        }
       }
 
       // Prod only: precompile each `.vue` page (its `_app.vue` + `_layout.vue`

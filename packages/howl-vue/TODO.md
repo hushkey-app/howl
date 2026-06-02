@@ -114,6 +114,19 @@ Tracking the remaining work on the Vue engine. Status as of the current branch.
   `howl-partial=true` (boot `partialFetchUrl`, cache/history stay clean) → server `ctx.isPartial`
   true; engine strips the marker off the page's `url`/`query`. Verified: initial load
   `isPartial:false`, client-nav `isPartial:true`, `url` clean both ways.
+- **AOT navigation (`__`-prefixed `.vue` routes) — zero round-trip nav.** First paint still SSRs;
+  navigating **to** a `__` route client-renders its precompiled chunk with props derived on the
+  client (URL, route params from a `:param`→regex match, `state` from the persisted Pinia store) — no
+  SSR-HTML fetch. Pieces: `?howl-aot` plugin path (client render fn + scoped CSS as `__howlStyles`);
+  builder emits an AOT wrapper (`hydrate()` + `aotMount(props)`) for `f.aot` routes and a
+  `vueAot` (pattern→chunk) map; serialized into the snapshot; engine injects
+  `window.__HOWL_VUE_AOT__` (via `opts.aot` from `segments`); boot matches the clicked URL, derives
+  props, imports the chunk, `aotMount`s (atomic style-inject + reactive re-render). Hover prefetch
+  modulepreloads the chunk for AOT routes (no HTML fetch). Same `__` convention as Preact. Demo:
+  `about/__[id].vue`. Verified (Astral): nav to `/about/12345` ×2 → renders, **0 server HTML
+  fetches**, params/state correct, no errors; direct landing still SSRs. Deferred: per-route **data
+  loader** (AOT pages needing fresh server data — today state/param pages only); `deno compile`
+  binary not re-verified for AOT (same snapshot+static path).
 
 ## 🔜 TODO (roughly prioritized)
 
@@ -129,12 +142,13 @@ Tracking the remaining work on the Vue engine. Status as of the current branch.
    CSS is build-managed + content-hashed and injected into `<head>` automatically — drop the manual
    `<link>`. (Was item #3.)
 
-2. **Vue AOT nav** (`__index.vue`) — on nav, client-render the precompiled per-route chunk instead
-   of re-fetching SSR HTML; zero round-trip for state/param pages (the persistent `state` store
-   already survives nav). Flags are already in the snapshot.
+2. ~~Per-route data loader for AOT~~ — **not wanted** (2026-06-02). User fetches data client-side
+   directly (in the page, no server loader), so AOT's state/param model is sufficient. Don't
+   re-propose server loaders.
 
-3. **Vue SSG** (`___index.vue`) — build-time prerender static pages to HTML (run the engine with an
-   empty ctx at build, store HTML, serve before the handler chain — mirrors the Preact SSG path).
+3. **Vue SSG** (`___index.vue`) — AOT + build-time prerender: run the engine once with an empty ctx
+   at build, cache the HTML, serve it before the handler chain (mirrors the Preact SSG path). Reuses
+   the AOT chunk + manifest for nav.
 
 4. **Ship the attribute `.d.ts` inside the package.** The `client-nav` / `client-prefetch`
    autocomplete augmentation lives in `examples/vuety/client/howl-vue.d.ts` — move it into

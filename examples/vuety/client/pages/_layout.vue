@@ -3,6 +3,8 @@
     <nav class="navbar">
       <a href="/" :class="{ active: url.pathname === '/' }">Home</a>
       <a href="/about" :class="{ active: url.pathname === '/about' }">About</a>
+      <a href="/about/12345" :class="{ active: route === '/about/:id' }">ID (AOT)</a>
+      <a href="/ssg" :class="{ active: url.pathname === '/ssg' }">Static (SSG)</a>
       <span class="here">· routed at {{ url.pathname }}</span>
     </nav>
     <slot />

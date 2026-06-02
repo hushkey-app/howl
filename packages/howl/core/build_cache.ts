@@ -48,6 +48,8 @@ export interface BuildSnapshot<State> {
   vueIslands?: Map<string, string>;
   /** Client chunk URL of the Vue island boot runtime; absent when no Vue islands. */
   vueBoot?: string;
+  /** Map of AOT `.vue` route pattern → client chunk URL (client-rendered on nav). */
+  vueAot?: Map<string, string>;
   /** Map of `.vue` page file path → client hydration chunk URL. */
   vuePages?: Map<string, string>;
   /** Map of `.vue` page file path → precompiled SSR module namespace (prod). */
@@ -123,6 +125,12 @@ export interface BuildCache<State = any> {
    */
   vueBoot: string;
   /**
+   * Map of AOT `.vue` route pattern (`/about/:id`) → client chunk URL. Populated
+   * for `__`-prefixed `.vue` routes; emitted as `window.__HOWL_VUE_AOT__` so the
+   * client renders these routes on navigation without a server round-trip.
+   */
+  vueAot: Map<string, string>;
+  /**
    * Map of `.vue` page source-file path → client hydration chunk URL. Looked up
    * by the Vue render engine to inject the right hydration script. Empty unless
    * the project contains `.vue` page routes.
@@ -159,6 +167,8 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   vueIslands: Map<string, string>;
   /** Vue island boot runtime chunk URL, populated from the snapshot. */
   vueBoot: string;
+  /** Map of AOT `.vue` route pattern → client chunk URL, from the snapshot. */
+  vueAot: Map<string, string>;
   /** Map of `.vue` page file path → hydration chunk URL, from the snapshot. */
   vuePages: Map<string, string>;
   /** Map of `.vue` page file path → precompiled SSR module, from the snapshot. */
@@ -174,6 +184,7 @@ export class ProdBuildCache<State> implements BuildCache<State> {
     this.ssgPages = snapshot.ssgPages ?? new Map();
     this.vueIslands = snapshot.vueIslands ?? new Map();
     this.vueBoot = snapshot.vueBoot ?? "";
+    this.vueAot = snapshot.vueAot ?? new Map();
     this.vuePages = snapshot.vuePages ?? new Map();
     this.vueSsrModules = snapshot.vueSsrModules ?? new Map();
 

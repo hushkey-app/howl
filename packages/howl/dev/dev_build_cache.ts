@@ -93,6 +93,7 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   ssgPages: Map<string, string> = new Map();
   vueIslands: Map<string, string> = new Map();
   vueBoot = "";
+  vueAot: Map<string, string> = new Map();
   vuePages: Map<string, string> = new Map();
   vueSsrModules: Map<string, unknown> = new Map();
   vueSsrPages: Map<string, string> = new Map();
@@ -310,6 +311,7 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   ssgPages: Map<string, string> = new Map();
   vueIslands: Map<string, string> = new Map();
   vueBoot = "";
+  vueAot: Map<string, string> = new Map();
   vuePages: Map<string, string> = new Map();
   vueSsrModules: Map<string, unknown> = new Map();
   /** Build artifact: `.vue` page file path → SSR module path (relative to dist). */
@@ -498,6 +500,7 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
         ssgPages: this.ssgPages,
         vueIslands: this.vueIslands,
         vueBoot: this.vueBoot,
+        vueAot: this.vueAot,
         vuePages: this.vuePages,
         vueSsrPages: this.vueSsrPages,
         outDir: root,
@@ -587,6 +590,7 @@ export async function generateSnapshotServer(
     ssgPages: Map<string, string>;
     vueIslands: Map<string, string>;
     vueBoot: string;
+    vueAot: Map<string, string>;
     vuePages: Map<string, string>;
     vueSsrPages: Map<string, string>;
     writeSpecifier: (filePath: string) => string;
@@ -720,6 +724,10 @@ export async function generateSnapshotServer(
     .map(([name, chunkUrl]) => `  [${JSON.stringify(name)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
+  const serializedVueAot = Array.from(options.vueAot.entries())
+    .map(([pattern, chunkUrl]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`)
+    .join("\n");
+
   // `vuePages` is keyed by the page's absolute source path. Re-key through
   // `fileUrlExpr` so the keys resolve to the same runtime path as each engine
   // route's `filePath` — otherwise the hydration-chunk lookup in `segments.ts`
@@ -772,6 +780,10 @@ ${serializedVueIslands}
 ]);
 
 export const vueBoot = ${JSON.stringify(options.vueBoot)};
+
+export const vueAot = new Map([
+${serializedVueAot}
+]);
 
 export const vuePages = new Map([
 ${serializedVuePages}

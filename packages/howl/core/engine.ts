@@ -13,6 +13,12 @@ export interface RenderEngineRenderOptions {
   /** Client hydration chunk URL for this route, if the build produced one. */
   chunkUrl?: string;
   /**
+   * AOT manifest: route pattern → client chunk URL, for routes the engine can
+   * render client-side on navigation. Emitted into the page so the client
+   * runtime can intercept nav to these routes. Empty/undefined when none.
+   */
+  aot?: Record<string, string>;
+  /**
    * Precompiled SSR module for this route, when the build produced one (prod).
    * Lets the engine render an already-compiled page instead of compiling the
    * source at request time — required for `deno compile` binaries, where the

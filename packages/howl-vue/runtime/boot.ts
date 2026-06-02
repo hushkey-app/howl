@@ -22,6 +22,8 @@ declare global {
   var __VUE_PAGE_PROPS__: Record<string, unknown> | undefined;
   // deno-lint-ignore no-explicit-any
   var __PINIA__: Record<string, any> | undefined;
+  /** AOT routes: route pattern (`/about/:id`) → client chunk URL. */
+  var __HOWL_VUE_AOT__: Record<string, string> | undefined;
 }
 
 // One Pinia for the session — hydrated once from the SSR state, then kept across
@@ -111,6 +113,33 @@ export function hydrateVuePage(components: Component[]): void {
   currentApp.mount(el);
 }
 
+/** Replace the inlined page CSS with `styles`. AOT routes are client-rendered
+ * (no SSR HTML to swap styles from), so the chunk carries + injects its own. */
+function injectPageStyles(styles: string[]): void {
+  let el = document.head.querySelector("style[data-howl-vue-css]");
+  if (el === null) {
+    el = document.createElement("style");
+    el.setAttribute("data-howl-vue-css", "");
+    document.head.appendChild(el);
+  }
+  el.textContent = styles.join("\n");
+}
+
+/**
+ * Render an AOT route on the client: inject its scoped CSS and re-render the
+ * persistent app's page tree with client-derived `props` — **no server fetch**.
+ * Called by an AOT page chunk's exported `aotMount(props)`.
+ */
+export function aotMountVuePage(
+  components: Component[],
+  styles: string[],
+  props: Record<string, unknown>,
+): void {
+  injectPageStyles(styles);
+  globalThis.__VUE_PAGE_PROPS__ = props;
+  hydrateVuePage(components);
+}
+
 /** Whether `el` sits inside a `client-nav` boundary that isn't disabled. */
 function clientNavEnabled(el: Element): boolean {
   const setting = el.closest(`[${CLIENT_NAV_ATTR}]`);
@@ -146,9 +175,15 @@ function prefetchEnabled(a: HTMLAnchorElement): boolean {
   return setting !== null && setting.getAttribute(PREFETCH_ATTR) !== "false";
 }
 
-/** Warm the SSR HTML for `href` so a later navigation reuses it (instant swap). */
+/** Warm a destination on intent: for an AOT route just modulepreload its chunk
+ * (no server fetch); otherwise warm the SSR HTML so a later swap is instant. */
 function prefetchPage(href: string): void {
   if (href === location.href || saveDataEnabled()) return;
+  const match = matchAot(new URL(href, location.origin).pathname);
+  if (match !== null) {
+    modulePreload(match.route.chunk);
+    return;
+  }
   const existing = prefetchCache.get(href);
   if (existing !== undefined && Date.now() - existing.ts < PREFETCH_TTL_MS) return;
   const job = fetch(partialFetchUrl(href), {
@@ -166,19 +201,23 @@ function prefetchPage(href: string): void {
   job.then(preloadPageChunk).catch(() => prefetchCache.delete(href));
 }
 
-/** Modulepreload a prefetched page's hydration chunk (+ its Vue deps) so the
- * eventual nav `import()` is a cache hit. */
-function preloadPageChunk(html: string): void {
-  const m = html.match(/data-chunk="([^"]+)"/);
-  if (m === null) return;
-  const href = m[1];
-  if (document.head.querySelector(`link[rel="modulepreload"][href="${href}"]`) !== null) {
+/** Add a `<link rel="modulepreload">` for `url` (once) so a later `import()` is a
+ * cache hit. */
+function modulePreload(url: string): void {
+  if (document.head.querySelector(`link[rel="modulepreload"][href="${url}"]`) !== null) {
     return;
   }
   const link = document.createElement("link");
   link.rel = "modulepreload";
-  link.href = href;
+  link.href = url;
   document.head.appendChild(link);
+}
+
+/** Modulepreload a prefetched page's hydration chunk (+ its Vue deps) so the
+ * eventual nav `import()` is a cache hit. */
+function preloadPageChunk(html: string): void {
+  const m = html.match(/data-chunk="([^"]+)"/);
+  if (m !== null) modulePreload(m[1]);
 }
 
 /** Load a destination's SSR HTML, reusing a fresh hover-warmed copy when present. */
@@ -305,6 +344,100 @@ async function navigateVuePage(url: URL, push: boolean): Promise<void> {
   mod?.hydrate?.();
 }
 
+// --- AOT navigation: client-render a `__`-prefixed route, no server round-trip ---
+
+interface AotRoute {
+  pattern: string;
+  chunk: string;
+  re: RegExp;
+  keys: string[];
+}
+let aotRoutes: AotRoute[] | null = null;
+
+/** Compile the `__HOWL_VUE_AOT__` manifest (route pattern → chunk) into matchers
+ * (a `:param` → capture-group regex; complex patterns just won't match → SSR
+ * nav). */
+function getAotRoutes(): AotRoute[] {
+  if (aotRoutes === null) {
+    aotRoutes = Object.entries(globalThis.__HOWL_VUE_AOT__ ?? {}).map(
+      ([pattern, chunk]) => {
+        const keys: string[] = [];
+        const source = pattern
+          .replace(/:[A-Za-z0-9_]+/g, (m) => (keys.push(m.slice(1)), "([^/]+)"))
+          .replace(/\//g, "\\/");
+        return { pattern, chunk, re: new RegExp(`^${source}\\/?$`), keys };
+      },
+    );
+  }
+  return aotRoutes;
+}
+
+/** Match a pathname against the AOT routes, returning the route + its params. */
+function matchAot(
+  pathname: string,
+): { route: AotRoute; params: Record<string, string> } | null {
+  for (const route of getAotRoutes()) {
+    const m = route.re.exec(pathname);
+    if (m === null) continue;
+    const params: Record<string, string> = {};
+    route.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1])));
+    return { route, params };
+  }
+  return null;
+}
+
+/** State for an AOT render — the persisted Pinia `state` store (mirrors the last
+ * server `ctx.state`) or the last page's `state` prop when Pinia is off. */
+function currentState(): unknown {
+  if (document.body.hasAttribute("pinia")) {
+    const s = getPinia().state.value.state;
+    if (s !== undefined) return s;
+  }
+  return (globalThis.__VUE_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
+}
+
+/**
+ * Navigate to an AOT route by client-rendering its chunk with props derived on
+ * the client (URL, route params, persisted state) — no SSR-HTML fetch. `data` is
+ * left undefined (a per-route data loader is a future addition).
+ */
+async function aotNavigate(
+  url: URL,
+  push: boolean,
+  match: { route: AotRoute; params: Record<string, string> },
+): Promise<void> {
+  const props: Record<string, unknown> = {
+    Component: undefined,
+    url,
+    params: match.params,
+    query: Object.fromEntries(url.searchParams),
+    route: match.route.pattern,
+    isPartial: true,
+    state: currentState(),
+    data: undefined,
+    error: null,
+  };
+  // Import the chunk before touching the DOM so style-inject + render are atomic.
+  const mod = await import(match.route.chunk) as {
+    aotMount?: (p: Record<string, unknown>) => void;
+  };
+  if (mod.aotMount === undefined) {
+    location.assign(url.href); // chunk lacks AOT support — full load
+    return;
+  }
+  if (push) history.pushState({ howlVue: true }, "", url.href);
+  scrollTo({ top: 0, left: 0, behavior: "instant" });
+  mod.aotMount(props);
+}
+
+/** Dispatch a client navigation: AOT (client-render) when the destination is an
+ * AOT route, else the SSR-HTML fetch-and-swap path. */
+function navigateTo(url: URL, push: boolean): void {
+  const match = matchAot(url.pathname);
+  if (match !== null) void aotNavigate(url, push, match);
+  else void navigateVuePage(url, push);
+}
+
 /** Mounts a resolved Vue component into its container. */
 export type IslandMounter = (
   component: Component,
@@ -379,12 +512,12 @@ if (typeof document !== "undefined") {
     const a = eligibleAnchor(e.target);
     if (a === null) return;
     e.preventDefault();
-    if (a.href !== location.href) navigateVuePage(new URL(a.href), true);
+    if (a.href !== location.href) navigateTo(new URL(a.href), true);
   });
 
   addEventListener("popstate", (e) => {
     if ((e.state as { howlVue?: boolean } | null)?.howlVue) {
-      navigateVuePage(new URL(location.href), false);
+      navigateTo(new URL(location.href), false);
     }
   });
 
