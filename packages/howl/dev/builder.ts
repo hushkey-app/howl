@@ -353,10 +353,25 @@ export class Builder<State = any> {
   }
 
   async #crawlFsItems() {
+    // Engine→extension map is declared by the registered engine plugins (e.g.
+    // `vuePlugin` owns `.vue`, `reactPlugin` owns `.tsx`) — keeping engines out
+    // of core. Unmapped extensions fall through to the built-in Preact renderer.
+    const engineByExt: Record<string, string> = {};
+    // Engine plugins declare their mapping under the shared `howl.engine` symbol
+    // (a symbol so esbuild's plugin-option validation ignores it).
+    const HOWL_ENGINE = Symbol.for("howl.engine");
+    for (const p of this.config.plugins ?? []) {
+      // deno-lint-ignore no-explicit-any
+      const he = (p as any)[HOWL_ENGINE] as
+        | { extensions: string[]; engine: string }
+        | undefined;
+      if (he !== undefined) { for (const ext of he.extensions) engineByExt[ext] = he.engine; }
+    }
     const { islands, vueIslands, routes } = await crawlFsItem({
       islandDir: this.config.islandDir,
       routeDir: this.config.routeDir,
       ignore: this.config.ignore,
+      engineByExt,
     });
 
     for (let i = 0; i < islands.length; i++) {
@@ -460,7 +475,7 @@ export class Builder<State = any> {
           const wrapperPath = path.join(wrapperDir, `${name}.ts`);
           // Only [..Layouts, Page] hydrate inside `#howl-app`; `_app.vue` is
           // rendered server-side and stays static, so it's not in the chain.
-          const { app, layouts } = await discoverVuePageChain(f.filePath);
+          const { app, layouts } = await discoverEngineChain(f.filePath, ".vue");
           const comps = [...layouts, f.filePath];
           const arr = comps.map((_, i) => `_c${i}`).join(", ");
 
@@ -509,6 +524,42 @@ export class Builder<State = any> {
           }
           entryPoints[name] = wrapperPath;
           vuePageEntryToPath.set(name, f.filePath);
+        }
+      }
+
+      // React page hydration wrappers — simpler than Vue (no SFC compile, no
+      // scoped CSS): import [..Layouts, Page] (the `_app.tsx` shell stays static)
+      // and export `hydrate()`. esbuild compiles the `.tsx` via `reactPlugin`.
+      const reactPageEntryToPath = new Map<string, string>();
+      const reactPageFiles = this.#fsRoutes.files.filter(
+        (f) =>
+          f.engine === "react" &&
+          (f.type === CommandType.Route || f.type === CommandType.Error),
+      );
+      if (reactPageFiles.length > 0) {
+        const wrapperDir = path.join(outDir, ".react-pages");
+        await Deno.remove(wrapperDir, { recursive: true }).catch(() => {});
+        await Deno.mkdir(wrapperDir, { recursive: true });
+        for (const f of reactPageFiles) {
+          const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
+          const name = namer.getUniqueName(`reactpage_${slug}`);
+          const wrapperPath = path.join(wrapperDir, `${name}.tsx`);
+          const { layouts } = await discoverEngineChain(f.filePath, ".tsx");
+          const comps = [...layouts, f.filePath];
+          const imports = comps
+            .map((p, i) => `import _c${i} from ${JSON.stringify(p)};`)
+            .join("\n");
+          const arr = comps.map((_, i) => `_c${i}`).join(", ");
+          await Deno.writeTextFile(
+            wrapperPath,
+            `${imports}\n` +
+              `import { hydrateReactPage, renderReactPage } from "${REACT_BOOT_SPECIFIER}";\n` +
+              `const _comps = [${arr}];\n` +
+              `export function hydrate() { hydrateReactPage(_comps); }\n` +
+              `export function render(props) { renderReactPage(_comps, props); }\n`,
+          );
+          entryPoints[name] = wrapperPath;
+          reactPageEntryToPath.set(name, f.filePath);
         }
       }
 
@@ -570,6 +621,16 @@ export class Builder<State = any> {
         buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
       }
 
+      // React page chunks share the (engine-agnostic) `vuePages` map — keyed by
+      // filePath, read by `segments.ts` to pass `chunkUrl` to the engine.
+      for (const [name, filePath] of reactPageEntryToPath) {
+        const chunkName = output.entryToChunk.get(name);
+        if (chunkName === undefined) {
+          throw new Error(`Could not find chunk for React page: ${filePath}`);
+        }
+        buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
+      }
+
       // AOT manifest: route pattern → client chunk URL. Emitted to the page as
       // `window.__HOWL_VUE_AOT__` so the client renders these routes on nav.
       for (const [name, routePattern] of vueAotEntryToPattern) {
@@ -592,7 +653,7 @@ export class Builder<State = any> {
         const ssrEntries: Record<string, string> = {};
         const ssrEntryToPath = new Map<string, string>();
         for (const [name, filePath] of vuePageEntryToPath) {
-          const { app, layouts } = await discoverVuePageChain(filePath);
+          const { app, layouts } = await discoverEngineChain(filePath, ".vue");
           const chain = app !== null ? [app, ...layouts, filePath] : [...layouts, filePath];
           const imports = chain
             .map((p, i) =>
@@ -659,6 +720,7 @@ export class Builder<State = any> {
  * Howl core stays Vue-agnostic apart from this string and the manifest globals.
  */
 const VUE_BOOT_SPECIFIER = "@hushkey/howl-vue/boot";
+const REACT_BOOT_SPECIFIER = "@hushkey/howl-react/boot";
 
 /** Derive a Vue island's public name from its `*.island.vue` file path. */
 function vueIslandName(spec: string): string {
@@ -686,21 +748,22 @@ async function appSourceUsesPinia(appPath: string): Promise<boolean> {
   }
 }
 
-async function discoverVuePageChain(
+async function discoverEngineChain(
   pageFilePath: string,
+  ext: string,
 ): Promise<{ app: string | null; layouts: string[] }> {
   const layouts: string[] = [];
   let app: string | null = null;
   let dir = path.dirname(pageFilePath);
   for (let depth = 0; depth < 16; depth++) {
-    const layout = path.join(dir, "_layout.vue");
+    const layout = path.join(dir, `_layout${ext}`);
     try {
       await Deno.stat(layout);
       layouts.unshift(layout);
     } catch {
       // no layout at this level
     }
-    const appPath = path.join(dir, "_app.vue");
+    const appPath = path.join(dir, `_app${ext}`);
     try {
       await Deno.stat(appPath);
       app = appPath;

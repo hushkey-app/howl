@@ -3,11 +3,13 @@
   "workspace": [
     "./packages/howl",
     "./packages/howl-vue",
+    "./packages/howl-react",
     "./packages/howl-init",
     "./examples/www",
     "./examples/software-www",
     "./examples/hybrid-spa",
-    "./examples/vuety"
+    "./examples/vuety",
+    "./examples/reacty"
   ],
   "tasks": {
     "dev:fullstack": "deno run -A --watch examples/fullstack/dev.ts",

@@ -42,9 +42,12 @@ export interface VuePluginOptions {
  * Bare `vue` / `vue/server-renderer` imports in the generated code are left
  * for esbuild (and Howl's Deno resolver) to resolve.
  */
+/** Shared symbol key under which a plugin declares its Howl render engine. */
+const HOWL_ENGINE = Symbol.for("howl.engine");
+
 export function vuePlugin(options: VuePluginOptions = {}): Plugin {
   const ssr = options.ssr ?? false;
-  return {
+  const plugin: Plugin = {
     name: "howl-vue",
     setup(build) {
       // Vue's esm-bundler build expects these compile-time flags to be defined
@@ -136,4 +139,9 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
       );
     },
   };
+  // Declare to HowlBuilder that this plugin renders `.vue` routes — so the
+  // engine→extension mapping lives with the plugin, not hardcoded in core.
+  // deno-lint-ignore no-explicit-any
+  (plugin as any)[HOWL_ENGINE] = { extensions: [".vue"], engine: "vue" };
+  return plugin;
 }

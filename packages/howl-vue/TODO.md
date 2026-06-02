@@ -116,10 +116,10 @@ Tracking the remaining work on the Vue engine. Status as of the current branch.
   `isPartial:false`, client-nav `isPartial:true`, `url` clean both ways.
 - **AOT navigation (`__`-prefixed `.vue` routes) — zero round-trip nav.** First paint still SSRs;
   navigating **to** a `__` route client-renders its precompiled chunk with props derived on the
-  client (URL, route params from a `:param`→regex match, `state` from the persisted Pinia store) — no
-  SSR-HTML fetch. Pieces: `?howl-aot` plugin path (client render fn + scoped CSS as `__howlStyles`);
-  builder emits an AOT wrapper (`hydrate()` + `aotMount(props)`) for `f.aot` routes and a
-  `vueAot` (pattern→chunk) map; serialized into the snapshot; engine injects
+  client (URL, route params from a `:param`→regex match, `state` from the persisted Pinia store) —
+  no SSR-HTML fetch. Pieces: `?howl-aot` plugin path (client render fn + scoped CSS as
+  `__howlStyles`); builder emits an AOT wrapper (`hydrate()` + `aotMount(props)`) for `f.aot` routes
+  and a `vueAot` (pattern→chunk) map; serialized into the snapshot; engine injects
   `window.__HOWL_VUE_AOT__` (via `opts.aot` from `segments`); boot matches the clicked URL, derives
   props, imports the chunk, `aotMount`s (atomic style-inject + reactive re-render). Hover prefetch
   modulepreloads the chunk for AOT routes (no HTML fetch). Same `__` convention as Preact. Demo:

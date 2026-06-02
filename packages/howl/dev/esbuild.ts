@@ -109,6 +109,21 @@ export async function bundleJs(
     await startEsbuild();
   }
 
+  // A real-React app (registers `reactPlugin`, which declares its engine under
+  // the `howl.engine` symbol) must NOT get the React→Preact compat shim, so its
+  // `react` / `react-dom` imports resolve to real React.
+  // deno-lint-ignore no-explicit-any
+  const realReact = (options.plugins ?? []).some((p: any) =>
+    p?.[Symbol.for("howl.engine")]?.engine === "react"
+  );
+  let alias = options.alias;
+  if (realReact && alias !== undefined) {
+    alias = { ...alias };
+    for (const k of ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"]) {
+      delete alias[k];
+    }
+  }
+
   try {
     await Deno.mkdir(options.cwd, { recursive: true });
   } catch (err) {
@@ -145,8 +160,8 @@ export async function bundleJs(
     write: false,
     metafile: true,
 
-    // React → Preact/compat shim and other aliases
-    alias: options.alias,
+    // React → Preact/compat shim and other aliases (stripped for real React)
+    alias,
 
     define: {
       "process.env.NODE_ENV": JSON.stringify(
@@ -158,7 +173,7 @@ export async function bundleJs(
       preactDebugger(PREACT_ENV),
       buildIdPlugin(options.buildId),
       windowsPathFixer(),
-      reactCompatPlugin(options.cwd),
+      ...(realReact ? [] : [reactCompatPlugin(options.cwd)]),
       ...(options.plugins ?? []),
       denoPlugin({
         preserveJsx: true,

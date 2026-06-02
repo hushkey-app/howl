@@ -9,11 +9,18 @@ import type { RouteConfig } from "../core/types.ts";
 
 const GROUP_REG = /[/\\\\]\((_[^/\\\\]+)\)[/\\\\]/;
 
+/** Lowercased file extension including the dot (e.g. `.vue`, `.tsx`). */
+function extOf(p: string): string {
+  const i = p.lastIndexOf(".");
+  return i === -1 ? "" : p.slice(i).toLowerCase();
+}
+
 export async function crawlRouteDir<State>(
   fs: FsAdapter,
   routeDir: string,
   ignore: RegExp[],
   onIslandSpecifier: (spec: string) => void,
+  engineByExt?: Record<string, string>,
 ): Promise<FsRouteFileNoMod<State>[]> {
   const files: FsRouteFileNoMod<State>[] = [];
 
@@ -119,7 +126,13 @@ export async function crawlRouteDir<State>(
         overrideConfig,
         aot,
         ssg,
-        engine: entry.path.endsWith(".vue") ? "vue" : undefined,
+        // Render engine for this route is decided by the registered engine
+        // plugins (each declares the extensions it owns, e.g. `vuePlugin` →
+        // `.vue`, `reactPlugin` → `.tsx`). Unmapped extensions (`.tsx` with no
+        // engine plugin) fall through to the built-in Preact renderer. This keeps
+        // engines out of core — and lets React + Preact share `.tsx` (the app
+        // picks one by registering its plugin).
+        engine: engineByExt?.[extOf(entry.path)],
       });
     },
     ignore,
@@ -156,7 +169,12 @@ const ISLAND_NAME_RE = /\.island\.(tsx|jsx|ts|js)$/;
 const VUE_ISLAND_RE = /\.island\.vue$/;
 
 export async function crawlFsItem(
-  options: { islandDir: string; routeDir: string; ignore: RegExp[] },
+  options: {
+    islandDir: string;
+    routeDir: string;
+    ignore: RegExp[];
+    engineByExt?: Record<string, string>;
+  },
 ): Promise<
   { islands: string[]; vueIslands: string[]; routes: FsRouteFileNoMod<unknown>[] }
 > {
@@ -199,6 +217,7 @@ export async function crawlFsItem(
         }
         islands.push(entry);
       },
+      options.engineByExt,
     ),
   ]);
 

@@ -1,0 +1,32 @@
+{
+  "name": "@howl/reacty",
+  "version": "0.0.1",
+  "tasks": {
+    "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/ dev.ts",
+    "build": "deno run -A dev.ts build",
+    "start": "deno run -A dist/compiled-entry.js"
+  },
+  "exports": "./server/main.ts",
+  "imports": {
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.6.2",
+    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.6.2/dev",
+    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.6.2/api",
+    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.0.1",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@howl/config": "./howl.config.ts",
+    "react": "npm:react@^18.3.1",
+    "react/jsx-runtime": "npm:react@^18.3.1/jsx-runtime",
+    "react-dom": "npm:react-dom@^18.3.1",
+    "react-dom/server": "npm:react-dom@^18.3.1/server",
+    "react-dom/client": "npm:react-dom@^18.3.1/client",
+    "@types/react": "npm:@types/react@^18.3.0",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "daisyui": "npm:daisyui@5.5.18"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "@types/react",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
+  }
+}

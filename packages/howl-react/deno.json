@@ -1,0 +1,33 @@
+{
+  "name": "@hushkey/howl-react",
+  "version": "0.0.1",
+  "license": "MIT",
+  "exports": {
+    ".": "./mod.ts",
+    "./plugin": "./plugin.ts",
+    "./boot": "./runtime/boot.ts",
+    "./head": "./runtime/head.ts",
+    "./store": "./runtime/store.ts",
+    "./state": "./runtime/state.ts"
+  },
+  "imports": {
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.6.2",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@std/expect": "jsr:@std/expect@^1.0.18",
+    "esbuild": "npm:esbuild@^0.25.0",
+    "react": "npm:react@^18.3.1",
+    "react/jsx-runtime": "npm:react@^18.3.1/jsx-runtime",
+    "react-dom": "npm:react-dom@^18.3.1",
+    "react-dom/server": "npm:react-dom@^18.3.1/server",
+    "react-dom/client": "npm:react-dom@^18.3.1/client",
+    "@unhead/react": "npm:@unhead/react@^2.0.0",
+    "@unhead/react/server": "npm:@unhead/react@^2.0.0/server",
+    "@unhead/react/client": "npm:@unhead/react@^2.0.0/client",
+    "jotai": "npm:jotai@^2.0.0",
+    "jotai/utils": "npm:jotai@^2.0.0/utils"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  }
+}
