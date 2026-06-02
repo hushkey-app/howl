@@ -1,4 +1,31 @@
-import { compileScript, compileStyle, compileTemplate, parse } from "@vue/compiler-sfc";
+import { compileScript, compileStyle, compileTemplate, parse, registerTS } from "@vue/compiler-sfc";
+
+// Lazily-loaded TypeScript compiler. `@vue/compiler-sfc` needs it to resolve the
+// types `defineProps<T>()` / `defineEmits<T>()` pull from **module** imports
+// (bare specifiers / path aliases); relative-path types resolve without it.
+// Loaded on demand (not at module top level) so the production server — which
+// imports this file via the engine but never compiles `.vue` — never pays TS's
+// load cost.
+// deno-lint-ignore no-explicit-any
+let tsModule: any = undefined;
+registerTS(() => tsModule);
+
+/**
+ * Load the TypeScript compiler so {@linkcode compileSfc} can resolve imported
+ * types in `defineProps<T>()` / `defineEmits<T>()`. Idempotent — await it before
+ * compiling SFCs that reference types from module imports. A no-op if
+ * `typescript` isn't installed (imported-type resolution then stays relative).
+ */
+export async function prepareTypeResolution(): Promise<void> {
+  if (tsModule !== undefined) return;
+  try {
+    const mod = await import("typescript");
+    // deno-lint-ignore no-explicit-any
+    tsModule = (mod as any).default ?? mod;
+  } catch {
+    tsModule = null;
+  }
+}
 
 /**
  * Result of compiling a single Vue Single-File Component.
@@ -25,6 +52,37 @@ export interface CompileSfcOptions {
    */
   ssr?: boolean;
 }
+
+/**
+ * Filesystem shim handed to `@vue/compiler-sfc`'s `compileScript` so it can
+ * resolve **imported types** used in `defineProps<T>()` / `defineEmits<T>()`
+ * (Vue walks the import graph to extract the prop shape). The compiler assumes a
+ * Node `fs` and errors without this under Deno ("No fs option provided … in
+ * non-Node environment"). Backed by Deno's synchronous file APIs.
+ */
+const denoFs = {
+  fileExists(file: string): boolean {
+    try {
+      return Deno.statSync(file).isFile;
+    } catch {
+      return false;
+    }
+  },
+  readFile(file: string): string | undefined {
+    try {
+      return Deno.readTextFileSync(file);
+    } catch {
+      return undefined;
+    }
+  },
+  realpath(file: string): string {
+    try {
+      return Deno.realPathSync(file);
+    } catch {
+      return file;
+    }
+  },
+};
 
 /**
  * Deterministic short id derived from the file path — used as the scoped-style
@@ -72,6 +130,7 @@ export function compileSfc(
     // `<script setup>`: compileScript inlines the template render into setup.
     const compiled = compileScript(descriptor, {
       id,
+      fs: denoFs,
       inlineTemplate: descriptor.template !== null,
       templateOptions: {
         ssr,

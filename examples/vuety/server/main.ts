@@ -1,6 +1,7 @@
 import { Howl, staticFiles } from "@hushkey/howl";
 import { vueEngine } from "@hushkey/howl-vue";
-import type { State } from "../howl.config.ts";
+import { apiConfig, type State } from "../howl.config.ts";
+// import denoJson from "../deno.json" with { type: "json" }; used for the version
 
 export const app = new Howl<State>({
   logger: true,
@@ -8,13 +9,29 @@ export const app = new Howl<State>({
   engines: { vue: vueEngine() },
 });
 
+app.use(staticFiles());
+
 app.use((ctx) => {
   ctx.state.client = { title: "HUSHKEY - Vuety" };
   ctx.state.user = { first_name: "leo", last_name: "termine" };
+  ctx.headers.append("X-HOWL-TEST", "true");
+  console.log("---------------------------------------------");
+  // ctx.cookies.set("testing", "letting go");
+  console.log(ctx.cookies.all());
+  ctx.cookies.delete("lang");
+
   return ctx.next();
 });
 
-app.use(staticFiles());
+app.use("/about", (ctx) => {
+  if (ctx.url.pathname === "/about") {
+    return ctx.redirect("/about/1999", 302);
+  }
+
+  return ctx.next();
+});
+
+app.fsApiRoutes(apiConfig);
 app.fsClientRoutes();
 
 export default { app };

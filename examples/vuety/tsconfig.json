@@ -9,7 +9,6 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "types": [],
-    "baseUrl": ".",
     "paths": {
       "@howl/config": ["./howl.config.ts"],
       "@hushkey/howl": ["../../packages/howl/core/mod.ts"],

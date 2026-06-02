@@ -94,8 +94,6 @@ export interface HowlBundleOptions {
 
 export interface BuildOutput {
   entryToChunk: Map<string, string>;
-  /** Maps an entry name to its associated CSS bundle filename, when esbuild emitted one. */
-  entryToCss: Map<string, string>;
   dependencies: Map<string, string[]>;
   files: Array<{ hash: string | null; contents: Uint8Array; path: string }>;
 }
@@ -188,7 +186,6 @@ export async function bundleJs(
   });
 
   const entryToChunk = new Map<string, string>();
-  const entryToCss = new Map<string, string>();
   const dependencies = new Map<string, string[]>();
 
   const entryToName = new Map(
@@ -211,11 +208,6 @@ export async function bundleJs(
         const filePath = options.entryPoints[basename];
         const name = entryToName.get(filePath)!;
         entryToChunk.set(name, entryPath);
-        // deno-lint-ignore no-explicit-any
-        const cssBundle = (entry as any).cssBundle as string | undefined;
-        if (cssBundle !== undefined) {
-          entryToCss.set(name, path.basename(cssBundle));
-        }
       }
     }
   }
@@ -224,7 +216,69 @@ export async function bundleJs(
     esbuild = null;
   }
 
-  return { files, entryToChunk, entryToCss, dependencies };
+  return { files, entryToChunk, dependencies };
+}
+
+/**
+ * Bundle Vue page **server** (SSR) entries into importable ESM modules — one per
+ * page — that the production snapshot statically imports (so a `deno compile`
+ * binary needs no `.vue` source on disk).
+ *
+ * Bare imports (`vue`, `vue/server-renderer`, `pinia`, `@unhead/vue`,
+ * `@hushkey/howl-vue/*`) are left **external** (`packages: "external"`) so the
+ * precompiled components share the exact runtime instances the render engine
+ * uses — a bundled-in Vue would be a different instance and mismatch the
+ * engine's `renderToString`. Relative imports (e.g. a colocated store) are
+ * bundled in. Returns a map of entry name → output filename (in `outDir`).
+ */
+export async function bundleVueSsr(
+  options: {
+    cwd: string;
+    outDir: string;
+    dev: boolean;
+    buildId: string;
+    entryPoints: Record<string, string>;
+    plugins?: EsbuildPlugin[];
+  },
+): Promise<Map<string, string>> {
+  if (esbuild === null) {
+    await startEsbuild();
+  }
+  await Deno.mkdir(options.outDir, { recursive: true });
+
+  await esbuild!.build({
+    entryPoints: options.entryPoints,
+    platform: "neutral",
+    format: "esm",
+    bundle: true,
+    splitting: false,
+    treeShaking: true,
+    // Bare deps stay external so the precompiled component shares the engine's
+    // runtime instances. `@hushkey/howl-vue/*` must be external too (not bundled
+    // via node_modules) so its `pinia` / `@unhead/vue` deps resolve through
+    // howl-vue's own import map — and the user need not declare them.
+    packages: "external",
+    external: ["@hushkey/howl-vue/*"],
+    minify: !options.dev,
+    absWorkingDir: options.cwd,
+    outdir: options.outDir,
+    entryNames: "[name]",
+    write: true,
+    logOverride: {
+      "suspicious-nullish-coalescing": "silent",
+      "unsupported-jsx-comment": "silent",
+    },
+    plugins: [
+      buildIdPlugin(options.buildId),
+      ...(options.plugins ?? []),
+    ],
+  });
+
+  const entryToFile = new Map<string, string>();
+  for (const name of Object.keys(options.entryPoints)) {
+    entryToFile.set(name, `${name}.js`);
+  }
+  return entryToFile;
 }
 
 let initialized = false;

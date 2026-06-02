@@ -20,4 +20,4 @@ export { bootVueIslands, hydrateVuePage } from "./runtime/boot.ts";
 // page doesn't pull this module's build-time deps (compiler-sfc, esbuild).
 export type { ChunkImporter, IslandMounter } from "./runtime/boot.ts";
 export { vueEngine } from "./engine.ts";
-export type { VueEngineOptions, VuePageProps } from "./engine.ts";
+export type { VueEngineOptions, VuePageProps, VueSsrModule } from "./engine.ts";

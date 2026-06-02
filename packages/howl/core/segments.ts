@@ -223,8 +223,8 @@ export async function renderRoute<State>(
     const chunkUrl = route.filePath !== undefined
       ? buildCache.vuePages.get(route.filePath)
       : undefined;
-    const cssUrl = route.filePath !== undefined
-      ? buildCache.vuePagesCss.get(route.filePath)
+    const module = route.filePath !== undefined
+      ? buildCache.vueSsrModules.get(route.filePath)
       : undefined;
     return await engine.render(ctx, {
       filePath: route.filePath!,
@@ -232,7 +232,7 @@ export async function renderRoute<State>(
       headers,
       status,
       chunkUrl,
-      cssUrl,
+      module,
       dev: buildCache.features.errorOverlay,
     });
   }

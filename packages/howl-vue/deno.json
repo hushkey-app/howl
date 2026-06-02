@@ -21,6 +21,7 @@
     "vue": "npm:vue@^3.5.13",
     "vue/server-renderer": "npm:vue@^3.5.13/server-renderer",
     "@vue/compiler-sfc": "npm:@vue/compiler-sfc@^3.5.13",
+    "typescript": "npm:typescript@^5.0.0",
     "@unhead/vue": "npm:@unhead/vue@^2.0.0",
     "@unhead/vue/server": "npm:@unhead/vue@^2.0.0/server",
     "@unhead/vue/client": "npm:@unhead/vue@^2.0.0/client",

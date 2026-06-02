@@ -172,7 +172,7 @@ export class MockBuildCache<State> implements BuildCache<State> {
   vueIslands: Map<string, string> = new Map();
   vueBoot = "";
   vuePages: Map<string, string> = new Map();
-  vuePagesCss: Map<string, string> = new Map();
+  vueSsrModules: Map<string, unknown> = new Map();
 
   constructor(files: FsRouteFile<State>[], mode: "development" | "production") {
     this.features.errorOverlay = mode === "development";

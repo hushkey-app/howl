@@ -10,7 +10,7 @@ import {
 } from "../core/mod.ts";
 import * as path from "@std/path";
 import * as colors from "@std/fmt/colors";
-import { bundleJs, type HowlBundleOptions } from "./esbuild.ts";
+import { bundleJs, bundleVueSsr, type HowlBundleOptions } from "./esbuild.ts";
 import type { Plugin as EsbuildPlugin } from "esbuild";
 import { liveReload } from "./middlewares/live_reload.ts";
 import {
@@ -442,11 +442,16 @@ export class Builder<State = any> {
       // Vue pages: each `.vue` page route gets a client hydration chunk that
       // re-renders the page tree over the server-rendered markup.
       const vuePageEntryToPath = new Map<string, string>();
+      // `_error.vue` (CommandType.Error) is built like a page — it SSRs +
+      // hydrates through the engine when an error is caught.
       const vuePageFiles = this.#fsRoutes.files.filter(
-        (f) => f.engine === "vue" && f.type === CommandType.Route,
+        (f) =>
+          f.engine === "vue" &&
+          (f.type === CommandType.Route || f.type === CommandType.Error),
       );
       if (vuePageFiles.length > 0) {
         const wrapperDir = path.join(outDir, ".vue-pages");
+        await Deno.remove(wrapperDir, { recursive: true }).catch(() => {});
         await Deno.mkdir(wrapperDir, { recursive: true });
         for (const f of vuePageFiles) {
           const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
@@ -533,9 +538,59 @@ export class Builder<State = any> {
           throw new Error(`Could not find chunk for Vue page: ${filePath}`);
         }
         buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
-        const cssName = output.entryToCss.get(name);
-        if (cssName !== undefined) {
-          buildCache.vuePagesCss.set(filePath, `${prefix}${cssName}`);
+      }
+
+      // Prod only: precompile each `.vue` page (its `_app.vue` + `_layout.vue`
+      // chain + the page) into an importable SSR module via esbuild, so the
+      // production snapshot can static-import it. A `deno compile` binary then
+      // needs no `.vue` source on disk — the render engine renders the already
+      // compiled component instead of compiling per request. Dev keeps the
+      // request-time compile (fast reload, no precompile step).
+      if (!(dev ?? false) && vuePageFiles.length > 0) {
+        const ssrDir = path.join(outDir, ".vue-ssr");
+        await Deno.remove(ssrDir, { recursive: true }).catch(() => {});
+        await Deno.mkdir(ssrDir, { recursive: true });
+        const ssrEntries: Record<string, string> = {};
+        const ssrEntryToPath = new Map<string, string>();
+        for (const [name, filePath] of vuePageEntryToPath) {
+          const { app, layouts } = await discoverVuePageChain(filePath);
+          const chain = app !== null ? [app, ...layouts, filePath] : [...layouts, filePath];
+          const imports = chain
+            .map((p, i) =>
+              `import _c${i}, { __howlStyles as _s${i} } from ${JSON.stringify(`${p}?howl-ssr`)};`
+            )
+            .join("\n");
+          const layoutStart = app !== null ? 1 : 0;
+          const layoutExprs = layouts.map((_, i) => `_c${layoutStart + i}`).join(", ");
+          const styleExprs = chain.map((_, i) => `..._s${i}`).join(", ");
+          const usesPinia = app !== null && (await appSourceUsesPinia(app));
+          const wrapperPath = path.join(ssrDir, `${name}.server.ts`);
+          await Deno.writeTextFile(
+            wrapperPath,
+            `${imports}\n` +
+              `export const app = ${app !== null ? "_c0" : "null"};\n` +
+              `export const layouts = [${layoutExprs}];\n` +
+              `export const page = _c${chain.length - 1};\n` +
+              `export const styles = [${styleExprs}];\n` +
+              `export const pinia = ${usesPinia};\n`,
+          );
+          ssrEntries[name] = wrapperPath;
+          ssrEntryToPath.set(name, filePath);
+        }
+        const ssrOut = await bundleVueSsr({
+          cwd: root,
+          outDir: ssrDir,
+          dev: false,
+          buildId: BUILD_ID,
+          entryPoints: ssrEntries,
+          plugins: this.config.plugins ?? [],
+        });
+        for (const [name, filePath] of ssrEntryToPath) {
+          const file = ssrOut.get(name);
+          if (file === undefined) {
+            throw new Error(`Could not find SSR module for Vue page: ${filePath}`);
+          }
+          buildCache.vueSsrPages.set(filePath, `.vue-ssr/${file}`);
         }
       }
 
@@ -578,6 +633,20 @@ function vueIslandName(spec: string): string {
  * imported only for its CSS (not hydrated). Mirrors the engine's runtime
  * discovery.
  */
+/**
+ * Build-time mirror of the engine's `<body pinia>` detection: returns whether
+ * an `_app.vue` opts into Pinia, so the precompiled SSR module can bake the
+ * flag (the engine can't read the `.vue` source in a compiled binary).
+ */
+async function appSourceUsesPinia(appPath: string): Promise<boolean> {
+  try {
+    const src = await Deno.readTextFile(appPath);
+    return /<body[^>]*\bpinia\b/i.test(src);
+  } catch {
+    return false;
+  }
+}
+
 async function discoverVuePageChain(
   pageFilePath: string,
 ): Promise<{ app: string | null; layouts: string[] }> {

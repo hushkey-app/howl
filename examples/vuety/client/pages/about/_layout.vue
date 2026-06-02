@@ -1,6 +1,6 @@
 <template>
   <div class="layout">
-<h1>Nested Layout</h1>    
+    <h1>Nested Layout</h1>    
     <slot />
   </div>
 </template>

@@ -50,8 +50,8 @@ export interface BuildSnapshot<State> {
   vueBoot?: string;
   /** Map of `.vue` page file path → client hydration chunk URL. */
   vuePages?: Map<string, string>;
-  /** Map of `.vue` page file path → its CSS bundle URL, when it has styles. */
-  vuePagesCss?: Map<string, string>;
+  /** Map of `.vue` page file path → precompiled SSR module namespace (prod). */
+  vueSsrModules?: Map<string, unknown>;
 }
 
 /**
@@ -128,8 +128,13 @@ export interface BuildCache<State = any> {
    * the project contains `.vue` page routes.
    */
   vuePages: Map<string, string>;
-  /** Map of `.vue` page file path → CSS bundle URL, linked in the SSR `<head>`. */
-  vuePagesCss: Map<string, string>;
+  /**
+   * Map of `.vue` page file path → its precompiled SSR module (export shape
+   * `{ app, layouts, page, styles, pinia }`). Statically imported by the
+   * production snapshot so a `deno compile` binary needs no `.vue` source on
+   * disk. Empty in dev, where the Vue engine compiles each page per request.
+   */
+  vueSsrModules: Map<string, unknown>;
 }
 
 /**
@@ -156,8 +161,8 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   vueBoot: string;
   /** Map of `.vue` page file path → hydration chunk URL, from the snapshot. */
   vuePages: Map<string, string>;
-  /** Map of `.vue` page file path → CSS bundle URL, from the snapshot. */
-  vuePagesCss: Map<string, string>;
+  /** Map of `.vue` page file path → precompiled SSR module, from the snapshot. */
+  vueSsrModules: Map<string, unknown>;
 
   /** Build a production cache from a serialised snapshot. */
   constructor(public root: string, snapshot: BuildSnapshot<State>) {
@@ -170,7 +175,7 @@ export class ProdBuildCache<State> implements BuildCache<State> {
     this.vueIslands = snapshot.vueIslands ?? new Map();
     this.vueBoot = snapshot.vueBoot ?? "";
     this.vuePages = snapshot.vuePages ?? new Map();
-    this.vuePagesCss = snapshot.vuePagesCss ?? new Map();
+    this.vueSsrModules = snapshot.vueSsrModules ?? new Map();
 
     // Populate apiRegistry from snapshot
     for (const api of snapshot.apiRoutes ?? []) {

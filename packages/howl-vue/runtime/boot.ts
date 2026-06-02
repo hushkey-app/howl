@@ -1,5 +1,12 @@
 /// <reference lib="dom" />
-import { type App, type Component, createSSRApp } from "vue";
+import {
+  type App,
+  type Component,
+  createSSRApp,
+  type ShallowRef,
+  shallowRef,
+  type VNode,
+} from "vue";
 import { createHead } from "@unhead/vue/client";
 import { createPinia, type Pinia } from "pinia";
 import { mountVueIsland } from "./mount.ts";
@@ -36,36 +43,69 @@ const PROPS_SCRIPT_ATTR = "data-howl-vue-props";
 const PROPS_PREFIX = "window.__VUE_PAGE_PROPS__=";
 const HOVER_INTENT_MS = 65;
 const PREFETCH_TTL_MS = 30_000;
+// Mirrors `@hushkey/howl`'s PARTIAL_SEARCH_PARAM. Appended to client-nav fetches
+// so the server marks the request `ctx.isPartial` — the page can tell a
+// client-nav apart from a fresh load. Hardcoded (not imported) to keep Howl core
+// out of the client bundle. The engine strips it back off the page's `url` prop.
+const PARTIAL_PARAM = "howl-partial";
+
+/**
+ * The URL to actually fetch for a client-nav: the destination plus the partial
+ * marker. The prefetch cache and history entry stay keyed on the clean `href`.
+ */
+function partialFetchUrl(href: string): string {
+  const u = new URL(href, location.origin);
+  u.searchParams.set(PARTIAL_PARAM, "true");
+  return u.href;
+}
 
 let currentApp: App | null = null;
+// The mounted app's root renders this reactive page tree; client-nav swaps it.
+let pageTree: ShallowRef<(() => VNode) | null> | null = null;
 let intentTimer: ReturnType<typeof setTimeout> | undefined;
 let intentLink: HTMLAnchorElement | null = null;
 const prefetchCache = new Map<string, { job: Promise<string>; ts: number }>();
 
-function unmountCurrent(): void {
-  if (currentApp !== null) {
+/**
+ * Revive non-JSON values in the serialized page props so the client tree sees
+ * the same shape the server did — notably `url`, which `JSON.stringify` flattens
+ * to its href string (`URL.toJSON`) and we turn back into a real `URL`.
+ */
+function reviveProps(raw: Record<string, unknown>): Record<string, unknown> {
+  if (typeof raw.url === "string") {
     try {
-      currentApp.unmount();
+      return { ...raw, url: new URL(raw.url) };
     } catch {
-      // previous app already detached
+      // leave the string as-is if it isn't a valid absolute URL
     }
-    currentApp = null;
   }
+  return raw;
 }
 
 /**
- * Mount (or re-mount) the Vue page tree into `#howl-app`. On first load this
- * hydrates the server-rendered markup; during client navigation it's called
- * again after the DOM + props have been swapped. `components` is the
- * `[…Layouts, Page]` chain (the `_app.vue` shell stays static and is not part
- * of this tree).
+ * Render the Vue page tree into `#howl-app`. `components` is the
+ * `[…Layouts, Page]` chain (the `_app.vue` shell stays static, outside it).
+ *
+ * One app lives for the whole session: the first call **hydrates** the
+ * server-rendered markup; later calls (client-nav) swap a reactive page tree on
+ * that same app so Vue **re-renders** (a normal patch, not re-hydration). That
+ * keeps Pinia / unhead installed once (re-installing per nav breaks Vue
+ * devtools), lets persisted stores stay authoritative (no hydration mismatch),
+ * and reuses unchanged layouts (their `onMounted` doesn't re-fire each nav).
  */
 export function hydrateVuePage(components: Component[]): void {
   const el = document.getElementById(HOWL_APP_ID);
   if (el === null) return;
-  unmountCurrent();
-  const props = globalThis.__VUE_PAGE_PROPS__ ?? {};
-  currentApp = createSSRApp({ render: composeVueTree(components, props) });
+  const props = reviveProps(globalThis.__VUE_PAGE_PROPS__ ?? {});
+  const render = composeVueTree(components, props);
+
+  if (currentApp !== null && pageTree !== null) {
+    pageTree.value = render; // client-nav: re-render on the existing app
+    return;
+  }
+
+  pageTree = shallowRef(render);
+  currentApp = createSSRApp({ render: () => pageTree!.value!() });
   currentApp.use(head);
   if (document.body.hasAttribute("pinia")) currentApp.use(getPinia());
   currentApp.mount(el);
@@ -111,7 +151,7 @@ function prefetchPage(href: string): void {
   if (href === location.href || saveDataEnabled()) return;
   const existing = prefetchCache.get(href);
   if (existing !== undefined && Date.now() - existing.ts < PREFETCH_TTL_MS) return;
-  const job = fetch(href, {
+  const job = fetch(partialFetchUrl(href), {
     headers: { Accept: "text/html" },
     // deno-lint-ignore no-explicit-any
     ...({ priority: "low" } as any),
@@ -156,7 +196,7 @@ async function loadPageHtml(href: string): Promise<string | null> {
   }
   let res: Response;
   try {
-    res = await fetch(href, { headers: { Accept: "text/html" } });
+    res = await fetch(partialFetchUrl(href), { headers: { Accept: "text/html" } });
   } catch {
     return null;
   }
@@ -168,11 +208,13 @@ async function loadPageHtml(href: string): Promise<string | null> {
 }
 
 /**
- * Client-side navigation for Vue pages: fetch the destination's SSR HTML, swap
- * the `#howl-app` region + its props/styles/title in place, and re-hydrate —
+ * Client-side navigation for Vue pages: fetch the destination's SSR HTML for its
+ * props/styles/chunk, then re-render the persistent app's page tree in place —
  * no full reload, so anything outside `#howl-app` (the `_app.vue` shell, module
- * singletons like a store) stays alive. Falls back to a full browser
- * navigation for non-HTML responses or pages without a `#howl-app` target.
+ * singletons like a store) stays alive. The page chunk is imported *before* any
+ * DOM change so the style swap and re-render happen in one tick (no flicker).
+ * Falls back to a full browser navigation for non-HTML responses or pages
+ * without a `#howl-app` target.
  */
 async function navigateVuePage(url: URL, push: boolean): Promise<void> {
   const html = await loadPageHtml(url.href);
@@ -201,8 +243,18 @@ async function navigateVuePage(url: URL, push: boolean): Promise<void> {
     }
   }
 
-  unmountCurrent();
-  el.innerHTML = incoming.innerHTML;
+  // Import the page chunk BEFORE touching the live DOM. The `await` is the only
+  // async gap; doing it first means the style swap and the re-render below happen
+  // in the *same* tick. Otherwise there's a frame where the old page is still on
+  // screen under the new page's scoped CSS (mismatched `data-v`) → it loses its
+  // styles → flicker. A cache hit when the chunk was preloaded on hover.
+  const chunk = pageScript.getAttribute("data-chunk");
+  const mod = chunk !== null ? await import(chunk) as { hydrate?: () => void } : null;
+
+  // From here down there is no `await`: apply props, state, styles, title and
+  // history, then re-render — all synchronously, so the page swaps atomically.
+  // The persistent app owns `#howl-app` and re-renders from the new props + chunk;
+  // no manual markup swap (that would corrupt Vue's vdom).
   globalThis.__VUE_PAGE_PROPS__ = nextProps;
 
   // Re-sync the `state` store with the new request's ctx.state (other stores
@@ -241,17 +293,16 @@ async function navigateVuePage(url: URL, push: boolean): Promise<void> {
   });
   if (doc.title) document.title = doc.title;
 
-  if (push) history.pushState({ howlVue: true }, "", url.href);
+  // Push the URL the server actually rendered (`nextProps.url`), so a redirect
+  // during the nav (e.g. `/about` → `/about/1999`) lands the address bar on the
+  // final URL, not the clicked one. Falls back to the requested URL.
+  const landed = typeof nextProps.url === "string" ? nextProps.url : url.href;
+  if (push) history.pushState({ howlVue: true }, "", landed);
   scrollTo({ top: 0, left: 0, behavior: "instant" });
 
-  // Import the page chunk (a cache hit when it was preloaded on hover) and run
-  // its exported hydrate(). Stable URL — no cache-bust — so the preload applies
-  // and revisits reuse the loaded module.
-  const chunk = pageScript.getAttribute("data-chunk");
-  if (chunk !== null) {
-    const mod = await import(chunk) as { hydrate?: () => void };
-    mod.hydrate?.();
-  }
+  // Stable chunk URL (no cache-bust) so the preload applies and revisits reuse
+  // the loaded module. Re-renders the page tree into `#howl-app` (see boot).
+  mod?.hydrate?.();
 }
 
 /** Mounts a resolved Vue component into its container. */

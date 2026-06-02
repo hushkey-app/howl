@@ -12,8 +12,13 @@ export interface RenderEngineRenderOptions {
   status: number;
   /** Client hydration chunk URL for this route, if the build produced one. */
   chunkUrl?: string;
-  /** CSS bundle URL for this route, if the page (or its wrappers) have styles. */
-  cssUrl?: string;
+  /**
+   * Precompiled SSR module for this route, when the build produced one (prod).
+   * Lets the engine render an already-compiled page instead of compiling the
+   * source at request time — required for `deno compile` binaries, where the
+   * source file isn't on disk. Loosely typed; the engine narrows it.
+   */
+  module?: unknown;
   /** Whether the server is running in development mode (enables live-reload). */
   dev?: boolean;
 }

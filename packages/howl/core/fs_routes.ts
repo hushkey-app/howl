@@ -58,6 +58,10 @@ export interface FsRouteFile<State> {
   css: string[];
   /** Render-engine name for non-Preact routes (e.g. `"vue"` for `.vue` pages). */
   engine?: string;
+  /** Marks an engine route as AOT (client-rendered on in-app navigation). */
+  aot?: boolean;
+  /** Marks an engine route for static-site generation (prerendered at build). */
+  ssg?: boolean;
 }
 
 function isHowlFile<State>(
@@ -104,10 +108,15 @@ export function fsItemsToCommands<State>(
     const item = items[i];
     const { filePath, type, mod: rawMod, pattern, routePattern } = item;
 
-    // Engine-owned non-route files (e.g. `_app.vue`, `_layout.vue`) are
-    // resolved by the render engine straight from the filesystem; they're not
-    // registered as Howl commands.
-    if (item.engine !== undefined && type !== CommandType.Route) {
+    // Engine-owned `_app.vue` / `_layout.vue` are resolved by the render engine
+    // straight from the filesystem; they're not registered as Howl commands.
+    // Engine `_error.vue` (CommandType.Error) IS registered below — it renders
+    // through the engine like a page when an error is caught.
+    if (
+      item.engine !== undefined &&
+      type !== CommandType.Route &&
+      type !== CommandType.Error
+    ) {
       continue;
     }
 
@@ -148,6 +157,17 @@ export function fsItemsToCommands<State>(
         continue;
       }
       case CommandType.Error: {
+        // Engine error page (e.g. `_error.vue`) — rendered by the render engine
+        // from the filesystem, no importable Preact component.
+        if (item.engine !== undefined) {
+          const engineConfig: RouteConfig = { methods: "ALL" };
+          commands.push(newErrorCmd(
+            pattern,
+            { engine: item.engine, filePath, config: engineConfig },
+            true,
+          ));
+          continue;
+        }
         const { handlers, mod } = validateFsMod<State>(filePath, rawMod, type);
         commands.push(newErrorCmd(
           pattern,

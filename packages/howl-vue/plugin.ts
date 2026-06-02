@@ -1,9 +1,17 @@
 import type { Plugin } from "esbuild";
 import * as path from "@std/path";
-import { compileSfc } from "./sfc.ts";
+import { compileSfc, prepareTypeResolution } from "./sfc.ts";
 
 /** Marker query appended to a `.vue` path to import its extracted styles. */
 const STYLE_QUERY = "?howl-vue-style=";
+
+/**
+ * Marker query a server-side build appends to a `.vue` import to force an SSR
+ * compile regardless of the plugin's default mode. The matching module exports
+ * the component (default) plus its scoped CSS as a `__howlStyles` string array
+ * (so the SSR page bundle can inline styles without a separate CSS file).
+ */
+const SSR_QUERY = "?howl-ssr";
 
 /**
  * Options for {@linkcode vuePlugin}.
@@ -44,7 +52,29 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
       // virtual-module loader below.
       const styleStore = new Map<string, string[]>();
 
+      // Server (SSR) page build: `import x from "./Foo.vue?howl-ssr"` forces an
+      // SSR compile and exposes styles as a JS `__howlStyles` export. Used by
+      // Howl's prod build to precompile `.vue` pages into importable JS modules
+      // (so a `deno compile` binary needs no `.vue` source at runtime).
+      build.onResolve({ filter: /\.vue\?howl-ssr$/ }, (args) => {
+        const real = args.path.slice(0, -SSR_QUERY.length);
+        const abs = path.isAbsolute(real) ? real : path.join(args.resolveDir, real);
+        return { path: abs, namespace: "howl-vue-ssr" };
+      });
+
+      build.onLoad(
+        { filter: /.*/, namespace: "howl-vue-ssr" },
+        async (args) => {
+          await prepareTypeResolution();
+          const source = await Deno.readTextFile(args.path);
+          const { code, styles } = compileSfc(source, args.path, { ssr: true });
+          const contents = `${code}\nexport const __howlStyles = ${JSON.stringify(styles)};\n`;
+          return { contents, loader: "ts", resolveDir: path.dirname(args.path) };
+        },
+      );
+
       build.onLoad({ filter: /\.vue$/ }, async (args) => {
+        await prepareTypeResolution();
         const source = await Deno.readTextFile(args.path);
         const { code, styles } = compileSfc(source, args.path, { ssr });
         styleStore.set(args.path, styles);

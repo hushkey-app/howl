@@ -1,20 +1,19 @@
 <template>
   <div class="layout">
     <nav class="navbar">
-      <a href="/" :class="{ active: url === '/' }">Home</a>
-      <a href="/about" :class="{ active: url === '/about' }">About</a>
-      <span class="here">· routed at {{ url }}</span>
+      <a href="/" :class="{ active: url.pathname === '/' }">Home</a>
+      <a href="/about" :class="{ active: url.pathname === '/about' }">About</a>
+      <span class="here">· routed at {{ url.pathname }}</span>
     </nav>
     <slot />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import type { VuePageProps } from "@hushkey/howl-vue";
+import type { State } from "@howl/config";
 
-defineProps<{ url?: string }>();
-onMounted(()=>console.log('hello'))
-
+const props = defineProps<VuePageProps<unknown, State>>();
 </script>
 
 <style scoped>

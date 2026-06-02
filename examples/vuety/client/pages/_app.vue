@@ -9,12 +9,15 @@
   </head>
   <body client-nav client-prefetch pinia>
     <div class="app-shell">
-      <header class="bg-fuchsia-600 py-4">{{ state?.client?.title }}</header>
+      <header class="bg-fuchsia-600 py-4 font-bold pl-10">{{ props.state?.client?.title }}</header>
       <slot />
     </div>
   </body>
 </template>
 
 <script setup lang="ts">
-defineProps<{ state?: { client?: { title?: string } } }>();
+import type { VuePageProps } from "@hushkey/howl-vue";
+import type { State } from "@howl/config";
+
+const props = defineProps<VuePageProps<unknown, State>>();
 </script>
