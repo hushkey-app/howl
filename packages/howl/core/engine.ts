@@ -4,6 +4,12 @@
 export interface RenderEngineRenderOptions {
   /** Absolute path of the page's source file (e.g. a `.vue` file). */
   filePath: string;
+  /**
+   * The already-imported page component, for engines that render a component
+   * value rather than a source file — the built-in {@linkcode preactEngine}.
+   * Other engines (Vue/React) load from {@linkcode filePath} and ignore this.
+   */
+  component?: unknown;
   /** Data returned by the route's handler, used as page props. */
   data?: unknown;
   /** Response headers accumulated by middleware / the handler so far. */

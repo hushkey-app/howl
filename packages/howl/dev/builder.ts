@@ -209,6 +209,7 @@ export class Builder<State = any> {
     if (!(app instanceof Howl) && "app" in app) {
       app = app.app;
     }
+    this.assertEngineSelected(app);
 
     const buildCache = new MemoryBuildCache<State>(
       this.config,
@@ -275,6 +276,28 @@ export class Builder<State = any> {
     return (app) => {
       setBuildCache(app, buildCache, app.config.mode);
     };
+  }
+
+  /**
+   * Enforce explicit engine selection: when a client entry with page routes is
+   * configured but the app registers no render engine, throw. Engines are
+   * explicit — Howl has no implicit default — so a renderable app must select
+   * one (`preactEngine()` / `vueEngine()` / `reactEngine()`). Backend-only apps
+   * (no client entry, or no page routes) are unaffected. Call after the FS crawl
+   * with the resolved app.
+   */
+  assertEngineSelected(app: Howl<State>): void {
+    if (this.config.clientEntry === undefined) return;
+    const hasPageRoutes = this.#fsRoutes.files.some(
+      (f) => f.type === CommandType.Route || f.type === CommandType.Error,
+    );
+    if (!hasPageRoutes) return;
+    if (Object.keys(app.config.engines).length > 0) return;
+    throw new Error(
+      `Howl: client entry "${this.config.clientEntry}" has page routes but no render ` +
+        `engine is registered. Engines are explicit — select one on the Howl app:\n` +
+        `  new Howl({ engines: { preact: preactEngine() } })  // or vueEngine() / reactEngine()`,
+    );
   }
 
   /**
@@ -628,17 +651,17 @@ export class Builder<State = any> {
         if (chunkName === undefined) {
           throw new Error(`Could not find chunk for Vue page: ${filePath}`);
         }
-        buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
+        buildCache.enginePages.set(filePath, `${prefix}${chunkName}`);
       }
 
-      // React page chunks share the (engine-agnostic) `vuePages` map — keyed by
+      // React page chunks share the (engine-agnostic) `enginePages` map — keyed by
       // filePath, read by `segments.ts` to pass `chunkUrl` to the engine.
       for (const [name, filePath] of reactPageEntryToPath) {
         const chunkName = output.entryToChunk.get(name);
         if (chunkName === undefined) {
           throw new Error(`Could not find chunk for React page: ${filePath}`);
         }
-        buildCache.vuePages.set(filePath, `${prefix}${chunkName}`);
+        buildCache.enginePages.set(filePath, `${prefix}${chunkName}`);
       }
 
       // AOT manifest: route pattern → client chunk URL. Emitted to the page as
@@ -646,16 +669,16 @@ export class Builder<State = any> {
       for (const [name, routePattern] of vueAotEntryToPattern) {
         const chunkName = output.entryToChunk.get(name);
         if (chunkName !== undefined) {
-          buildCache.vueAot.set(routePattern, `${prefix}${chunkName}`);
+          buildCache.engineAot.set(routePattern, `${prefix}${chunkName}`);
         }
       }
 
-      // React AOT routes share the (engine-agnostic) `vueAot` manifest; the React
+      // React AOT routes share the (engine-agnostic) `engineAot` manifest; the React
       // engine emits it as `window.__HOWL_REACT_AOT__` for the client runtime.
       for (const [name, routePattern] of reactAotEntryToPattern) {
         const chunkName = output.entryToChunk.get(name);
         if (chunkName !== undefined) {
-          buildCache.vueAot.set(routePattern, `${prefix}${chunkName}`);
+          buildCache.engineAot.set(routePattern, `${prefix}${chunkName}`);
         }
       }
 
@@ -709,7 +732,7 @@ export class Builder<State = any> {
           if (file === undefined) {
             throw new Error(`Could not find SSR module for Vue page: ${filePath}`);
           }
-          buildCache.vueSsrPages.set(filePath, `.vue-ssr/${file}`);
+          buildCache.engineSsrPages.set(filePath, `.vue-ssr/${file}`);
         }
       }
 
@@ -746,7 +769,7 @@ export class Builder<State = any> {
               `export const layouts = [${layoutExprs}];\n` +
               `export const page = _c${chain.length - 1};\n`,
           );
-          buildCache.vueSsrPages.set(filePath, `.react-ssr/${name}.server.tsx`);
+          buildCache.engineSsrPages.set(filePath, `.react-ssr/${name}.server.tsx`);
         }
       }
 

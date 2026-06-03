@@ -209,33 +209,43 @@ export async function renderRoute<State>(
     }
   }
 
-  // Pluggable render engines (e.g. Vue) own the whole response and bypass the
-  // Preact app/layout/`ctx.render` path entirely.
-  if (route.engine !== undefined) {
-    const engine = ctx.config.engines[route.engine];
-    if (engine === undefined) {
+  // Resolve the render engine for this route: an explicit tag (`.vue` → "vue",
+  // `.tsx` + reactPlugin → "react"), or the built-in "preact" inferred from a
+  // route component. Pluggable engines own the whole response (they bypass the
+  // app/layout/`ctx.render` path); `preactEngine` runs that path internally.
+  const engineName = route.engine ?? (route.component !== undefined ? "preact" : undefined);
+  if (engineName !== undefined) {
+    const engine = ctx.config.engines[engineName];
+    if (engine !== undefined) {
+      const buildCache = getBuildCache(ctx);
+      const chunkUrl = route.filePath !== undefined
+        ? buildCache.enginePages.get(route.filePath)
+        : undefined;
+      const module = route.filePath !== undefined
+        ? buildCache.engineSsrModules.get(route.filePath)
+        : undefined;
+      return await engine.render(ctx, {
+        filePath: route.filePath ?? "",
+        component: route.component,
+        data: res.data,
+        headers,
+        status,
+        chunkUrl,
+        module,
+        aot: buildCache.engineAot.size > 0 ? Object.fromEntries(buildCache.engineAot) : undefined,
+        dev: buildCache.features.errorOverlay,
+      });
+    }
+    // An explicit Vue/React tag with no registered engine is a hard error.
+    // Inferred "preact" falls through to the built-in path below so apps and
+    // tests keep rendering without registering `preactEngine()` (real apps that
+    // set `clientEntry` are guarded at build time instead).
+    if (route.engine !== undefined) {
       throw new Error(
         `Route "${route.filePath ?? ""}" requires the "${route.engine}" render ` +
           `engine, but it isn't registered in the Howl \`engines\` option.`,
       );
     }
-    const buildCache = getBuildCache(ctx);
-    const chunkUrl = route.filePath !== undefined
-      ? buildCache.vuePages.get(route.filePath)
-      : undefined;
-    const module = route.filePath !== undefined
-      ? buildCache.vueSsrModules.get(route.filePath)
-      : undefined;
-    return await engine.render(ctx, {
-      filePath: route.filePath!,
-      data: res.data,
-      headers,
-      status,
-      chunkUrl,
-      module,
-      aot: buildCache.vueAot.size > 0 ? Object.fromEntries(buildCache.vueAot) : undefined,
-      dev: buildCache.features.errorOverlay,
-    });
   }
 
   let vnode = null;

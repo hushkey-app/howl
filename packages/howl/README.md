@@ -649,13 +649,14 @@ Earlier releases warned and continued; that masked subtle hydration bugs, so it'
 > `<VueIsland name="…" />`. Built with Howl's existing esbuild toolchain (no Vite); requires
 > `vuePlugin()` in your builder. See that package's README.
 
-> **Pluggable render engines — Vue & React (experimental).** Howl is Preact-native, but full **Vue**
-> (`.vue`) and **React** (`.tsx`) pages can be served alongside Preact via the `RenderEngine` seam:
-> register an engine — `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) — and
-> its plugin (`vuePlugin()` / `reactPlugin()`) in your builder. The shared backend (routing, APIs,
-> middleware, client-nav + prefetch, AOT/SSG, `deno compile`) is reused; only the renderer differs.
-> `@hushkey/howl-react` also adds `useHead`, jotai stores, AOT/SSG, and a self-contained compiled
-> binary. See the `@hushkey/howl-vue` / `@hushkey/howl-react` package READMEs.
+> **Pluggable render engines — Preact, Vue & React.** Page rendering is a registered engine with **no
+> implicit default**: select one on the app — `new Howl({ engines: { preact: preactEngine() } })` (or
+> `vue: vueEngine()` / `react: reactEngine()`) — plus the matching builder plugin for Vue/React
+> (`vuePlugin()` / `reactPlugin()`). Preact (`.tsx`) is built in via `preactEngine()`; full **Vue**
+> (`.vue`) / **React** (`.tsx`) pages come from `@hushkey/howl-vue` / `@hushkey/howl-react`. The shared
+> backend (routing, APIs, middleware, client-nav + prefetch, AOT/SSG, `deno compile`) is reused; only
+> the renderer differs. If a client entry with page routes is configured but no engine is registered,
+> the build throws. Backend-only apps (no client entry) are unaffected.
 
 ```
 client/islands/Counter.island.tsx          ✅

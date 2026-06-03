@@ -58,7 +58,7 @@ export interface ApiEntry {
 export interface DevBuildCache<State> extends BuildCache<State> {
   islandModNameToChunk: Map<string, IslandModChunk>;
   /** Build artifact: `.vue` page file path → SSR module path (relative to dist). */
-  vueSsrPages: Map<string, string>;
+  engineSsrPages: Map<string, string>;
   /** Registry of API definitions keyed by METHOD:path */
   apiRegistry: Map<string, unknown>;
   getApiRoutes(): unknown[];
@@ -93,10 +93,10 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   ssgPages: Map<string, string> = new Map();
   vueIslands: Map<string, string> = new Map();
   vueBoot = "";
-  vueAot: Map<string, string> = new Map();
-  vuePages: Map<string, string> = new Map();
-  vueSsrModules: Map<string, unknown> = new Map();
-  vueSsrPages: Map<string, string> = new Map();
+  engineAot: Map<string, string> = new Map();
+  enginePages: Map<string, string> = new Map();
+  engineSsrModules: Map<string, unknown> = new Map();
+  engineSsrPages: Map<string, string> = new Map();
 
   constructor(
     config: ResolvedBuildConfig,
@@ -311,11 +311,11 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   ssgPages: Map<string, string> = new Map();
   vueIslands: Map<string, string> = new Map();
   vueBoot = "";
-  vueAot: Map<string, string> = new Map();
-  vuePages: Map<string, string> = new Map();
-  vueSsrModules: Map<string, unknown> = new Map();
+  engineAot: Map<string, string> = new Map();
+  enginePages: Map<string, string> = new Map();
+  engineSsrModules: Map<string, unknown> = new Map();
   /** Build artifact: `.vue` page file path → SSR module path (relative to dist). */
-  vueSsrPages: Map<string, string> = new Map();
+  engineSsrPages: Map<string, string> = new Map();
   #commands: Command<State>[] = [];
 
   constructor(
@@ -500,9 +500,9 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
         ssgPages: this.ssgPages,
         vueIslands: this.vueIslands,
         vueBoot: this.vueBoot,
-        vueAot: this.vueAot,
-        vuePages: this.vuePages,
-        vueSsrPages: this.vueSsrPages,
+        engineAot: this.engineAot,
+        enginePages: this.enginePages,
+        engineSsrPages: this.engineSsrPages,
         outDir: root,
         entryAssets: [],
       }),
@@ -590,9 +590,9 @@ export async function generateSnapshotServer(
     ssgPages: Map<string, string>;
     vueIslands: Map<string, string>;
     vueBoot: string;
-    vueAot: Map<string, string>;
-    vuePages: Map<string, string>;
-    vueSsrPages: Map<string, string>;
+    engineAot: Map<string, string>;
+    enginePages: Map<string, string>;
+    engineSsrPages: Map<string, string>;
     writeSpecifier: (filePath: string) => string;
   },
 ): Promise<string> {
@@ -601,7 +601,7 @@ export async function generateSnapshotServer(
   // Emit an expression that, at runtime, resolves a snapshot-relative specifier
   // (e.g. `"../client/pages/index.vue"`) to an absolute filesystem path. Engine
   // routes are read from disk by the render engine, so their `filePath` and the
-  // `vuePages` chunk-map keys must resolve to the same absolute path on the
+  // `enginePages` chunk-map keys must resolve to the same absolute path on the
   // deploy machine — both go through this so they always match.
   const fileUrlExpr = (jsonSpec: string): string =>
     `decodeURIComponent(new URL(${jsonSpec}, import.meta.url).pathname)`;
@@ -724,24 +724,24 @@ export async function generateSnapshotServer(
     .map(([name, chunkUrl]) => `  [${JSON.stringify(name)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
-  const serializedVueAot = Array.from(options.vueAot.entries())
+  const serializedEngineAot = Array.from(options.engineAot.entries())
     .map(([pattern, chunkUrl]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
-  // `vuePages` is keyed by the page's absolute source path. Re-key through
+  // `enginePages` is keyed by the page's absolute source path. Re-key through
   // `fileUrlExpr` so the keys resolve to the same runtime path as each engine
   // route's `filePath` — otherwise the hydration-chunk lookup in `segments.ts`
   // misses and the page SSRs without hydrating.
-  const serializedVuePages = serializeRuntimePathMap(options.vuePages);
+  const serializedEnginePages = serializeRuntimePathMap(options.enginePages);
 
   // Precompiled Vue SSR page modules are **statically imported** (so a
   // `deno compile` binary embeds them) and mapped by the same runtime-resolved
   // path as each engine route's `filePath`, so the engine finds the module.
-  const vueSsrEntries = Array.from(options.vueSsrPages.entries());
+  const vueSsrEntries = Array.from(options.engineSsrPages.entries());
   const vueSsrImports = vueSsrEntries
     .map(([, moduleRel], i) => `import * as vueSsr_${i} from "./${moduleRel}";`)
     .join("\n");
-  const serializedVueSsrModules = vueSsrEntries
+  const serializedEngineSsrModules = vueSsrEntries
     .map(([filePath], i) =>
       `  [${fileUrlExpr(JSON.stringify(writeSpecifier(filePath)))}, vueSsr_${i}],`
     )
@@ -781,16 +781,16 @@ ${serializedVueIslands}
 
 export const vueBoot = ${JSON.stringify(options.vueBoot)};
 
-export const vueAot = new Map([
-${serializedVueAot}
+export const engineAot = new Map([
+${serializedEngineAot}
 ]);
 
-export const vuePages = new Map([
-${serializedVuePages}
+export const enginePages = new Map([
+${serializedEnginePages}
 ]);
 
-export const vueSsrModules = new Map([
-${serializedVueSsrModules}
+export const engineSsrModules = new Map([
+${serializedEngineSsrModules}
 ]);
 
 export const fsRoutes = [

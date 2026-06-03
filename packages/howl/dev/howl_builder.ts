@@ -275,6 +275,7 @@ export class HowlBuilder<State = any> {
           apiEntries: this.#apiEntries,
         });
         applySnapshot(app);
+        builder.assertEngineSelected(app);
         if (builder.getSsgPatterns().length > 0) ssgBuilders.push(builder);
         // deno-lint-ignore no-console
         console.log(`_ Built client: ${name}`);
