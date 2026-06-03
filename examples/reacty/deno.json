@@ -4,7 +4,8 @@
   "tasks": {
     "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/ dev.ts",
     "build": "deno run -A dev.ts build",
-    "start": "deno run -A dist/compiled-entry.js"
+    "start": "deno run -A dist/compiled-entry.js",
+    "compile": "deno compile -A --include dist/static --output dist/bin/reacty dist/compiled-entry.js"
   },
   "exports": "./server/main.ts",
   "imports": {

@@ -38,6 +38,8 @@ function withProviders(tree: ReactNode): ReactNode {
 
 declare global {
   var __REACT_PAGE_PROPS__: Record<string, unknown> | undefined;
+  /** AOT routes: route pattern (`/about/:id`) → client chunk URL. */
+  var __HOWL_REACT_AOT__: Record<string, string> | undefined;
 }
 
 const HOWL_APP_ID = "howl-app";
@@ -110,6 +112,19 @@ export function renderReactPage(
   root.render(withProviders(composeReactTree(components, revived)));
 }
 
+/**
+ * Render an AOT route on the client with props derived purely on the client —
+ * **no server fetch**. Called by an AOT page chunk's exported `aotMount(props)`.
+ * The page's `useHead()` runs during this render, so title/meta update too.
+ */
+export function aotMountReactPage(
+  components: AnyComponent[],
+  props: Record<string, unknown>,
+): void {
+  globalThis.__REACT_PAGE_PROPS__ = props;
+  renderReactPage(components, props);
+}
+
 /** Whether `el` sits inside a `client-nav` boundary that isn't disabled. */
 function clientNavEnabled(el: Element): boolean {
   const setting = el.closest(`[${CLIENT_NAV_ATTR}]`);
@@ -150,9 +165,15 @@ function modulePreload(url: string): void {
   document.head.appendChild(link);
 }
 
-/** Warm the SSR HTML for `href` (and modulepreload its chunk) on intent. */
+/** Warm a destination on intent: for an AOT route just modulepreload its chunk
+ * (no server fetch); otherwise warm the SSR HTML so a later swap is instant. */
 function prefetchPage(href: string): void {
   if (href === location.href || saveDataEnabled()) return;
+  const match = matchAot(new URL(href, location.origin).pathname);
+  if (match !== null) {
+    modulePreload(match.route.chunk);
+    return;
+  }
   const existing = prefetchCache.get(href);
   if (existing !== undefined && Date.now() - existing.ts < PREFETCH_TTL_MS) return;
   const job = fetch(partialFetchUrl(href), { headers: { Accept: "text/html" } }).then((res) => {
@@ -240,6 +261,95 @@ async function navigateReactPage(url: URL, push: boolean): Promise<void> {
   mod?.render?.(nextProps);
 }
 
+// --- AOT navigation: client-render a `__`/`___`-prefixed route, no server hop ---
+
+interface AotRoute {
+  pattern: string;
+  chunk: string;
+  re: RegExp;
+  keys: string[];
+}
+let aotRoutes: AotRoute[] | null = null;
+
+/** Compile the `__HOWL_REACT_AOT__` manifest (pattern → chunk) into matchers:
+ * each `:param` becomes a capture group; non-matching patterns fall to SSR nav. */
+function getAotRoutes(): AotRoute[] {
+  if (aotRoutes === null) {
+    aotRoutes = Object.entries(globalThis.__HOWL_REACT_AOT__ ?? {}).map(
+      ([pattern, chunk]) => {
+        const keys: string[] = [];
+        const source = pattern
+          .replace(/:[A-Za-z0-9_]+/g, (m) => (keys.push(m.slice(1)), "([^/]+)"))
+          .replace(/\//g, "\\/");
+        return { pattern, chunk, re: new RegExp(`^${source}\\/?$`), keys };
+      },
+    );
+  }
+  return aotRoutes;
+}
+
+/** Match a pathname against the AOT routes, returning the route + its params. */
+function matchAot(
+  pathname: string,
+): { route: AotRoute; params: Record<string, string> } | null {
+  for (const route of getAotRoutes()) {
+    const m = route.re.exec(pathname);
+    if (m === null) continue;
+    const params: Record<string, string> = {};
+    route.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1])));
+    return { route, params };
+  }
+  return null;
+}
+
+/** State for an AOT render — the session store's `ctx.state` mirror (set on the
+ * last SSR/nav), falling back to the last page props' `state`. */
+function currentState(): unknown {
+  const s = store.get(howlStateAtom);
+  if (s !== undefined && Object.keys(s).length > 0) return s;
+  return (globalThis.__REACT_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
+}
+
+/**
+ * Navigate to an AOT route by client-rendering its chunk with props derived on
+ * the client (URL, route params, persisted state) — no SSR-HTML fetch. `data` is
+ * left undefined; AOT pages fetch their own data on the client.
+ */
+async function aotNavigate(
+  url: URL,
+  push: boolean,
+  match: { route: AotRoute; params: Record<string, string> },
+): Promise<void> {
+  const props: Record<string, unknown> = {
+    url: url.href,
+    params: match.params,
+    query: Object.fromEntries(url.searchParams),
+    route: match.route.pattern,
+    isPartial: true,
+    state: currentState(),
+    data: undefined,
+    error: null,
+  };
+  const mod = await import(match.route.chunk) as {
+    aotMount?: (p: Record<string, unknown>) => void;
+  };
+  if (mod.aotMount === undefined) {
+    location.assign(url.href); // chunk lacks AOT support — full load
+    return;
+  }
+  if (push) history.pushState({ howlReact: true }, "", url.href);
+  scrollTo({ top: 0, left: 0, behavior: "instant" });
+  mod.aotMount(props);
+}
+
+/** Dispatch a client navigation: AOT (client-render) when the destination is an
+ * AOT route, else the SSR-HTML fetch-and-swap path. */
+function navigateTo(url: URL, push: boolean): void {
+  const match = matchAot(url.pathname);
+  if (match !== null) void aotNavigate(url, push, match);
+  else void navigateReactPage(url, push);
+}
+
 if (typeof document !== "undefined") {
   // Tag the initial history entry so Back to it triggers a client re-render.
   if (
@@ -257,12 +367,12 @@ if (typeof document !== "undefined") {
     const a = eligibleAnchor(e.target);
     if (a === null) return;
     e.preventDefault();
-    if (a.href !== location.href) navigateReactPage(new URL(a.href), true);
+    if (a.href !== location.href) navigateTo(new URL(a.href), true);
   });
 
   addEventListener("popstate", (e) => {
     if ((e.state as { howlReact?: boolean } | null)?.howlReact) {
-      navigateReactPage(new URL(location.href), false);
+      navigateTo(new URL(location.href), false);
     }
   });
 

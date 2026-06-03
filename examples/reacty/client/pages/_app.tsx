@@ -14,7 +14,7 @@ export default function App(props: ReactPageProps) {
         {/* <title>Reacty · Howl + React</title> */}
         <link rel="stylesheet" href="/style.css" />
       </head>
-      <body client-nav="" client-prefetch="" className="bg-base-100 text-base-content">
+      <body client-nav="true" client-prefetch="true" className="bg-base-100 text-base-content">
         <Outlet />
       </body>
     </html>

@@ -49,6 +49,20 @@ interface ReactChain {
 const CHAIN_CACHE = new Map<string, ReactChain>();
 
 /**
+ * Shape of a precompiled SSR page module (emitted by Howl's prod build, one per
+ * `.tsx` route) carried in `opts.module`. Lets the engine render from statically
+ * imported components — required for `deno compile` (no `.tsx` source on disk).
+ */
+interface ReactSsrModule {
+  /** The `_app.tsx` document shell component, or `null` if the route has none. */
+  app: AnyComponent | null;
+  /** The `_layout.tsx` chain (outer → inner). */
+  layouts: AnyComponent[];
+  /** The page component. */
+  page: AnyComponent;
+}
+
+/**
  * Discover a page's wrapper chain: walk up from its directory collecting
  * `_layout.tsx` at each level (inner → outer), stopping at the first `_app.tsx`.
  */
@@ -146,6 +160,17 @@ function injectBefore(html: string, closeTag: string, content: string): string {
   return i === -1 ? html + content : html.slice(0, i) + content + html.slice(i);
 }
 
+/** Prefix every chunk URL in an AOT manifest with `base` (no-op when empty). */
+function prefixManifest(
+  manifest: Record<string, string>,
+  base: string,
+): Record<string, string> {
+  if (base === "") return manifest;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(manifest)) out[k] = `${base}${v}`;
+  return out;
+}
+
 /** Escape the five HTML-significant characters for safe text interpolation. */
 function escapeHtml(s: string): string {
   return s
@@ -184,12 +209,23 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
     async render(ctx, opts) {
       const props = buildProps(ctx, opts);
       const base = ctx.config.basePath;
-      const { app, layouts } = await discoverReactChain(opts.filePath);
 
-      const inner = composeReactTree(
-        await Promise.all([...layouts, opts.filePath].map(loadComponent)),
-        { ...props },
-      );
+      // Resolve the page tree two ways: from a precompiled SSR module (prod —
+      // required for `deno compile`, no `.tsx` on disk), else by importing the
+      // `.tsx` source at request time (dev — fast reload via `--watch`).
+      let appComp: AnyComponent | null;
+      let innerComps: AnyComponent[];
+      const ssrModule = opts.module as ReactSsrModule | undefined;
+      if (ssrModule !== undefined) {
+        appComp = ssrModule.app;
+        innerComps = [...ssrModule.layouts, ssrModule.page];
+      } else {
+        const { app, layouts } = await discoverReactChain(opts.filePath);
+        innerComps = await Promise.all([...layouts, opts.filePath].map(loadComponent));
+        appComp = app !== null ? await loadComponent(app) : null;
+      }
+
+      const inner = composeReactTree(innerComps, { ...props });
 
       // Client hydration: serialise the props and import the page chunk, which
       // calls its exported `hydrate()`.
@@ -201,6 +237,13 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
         `<script type="module" data-howl-react-page data-chunk="${chunkHref}">` +
         `import(${JSON.stringify(chunkHref)}).then(function(m){m.hydrate();})</script>`
       );
+      // AOT manifest (route pattern → client chunk) so the client runtime can
+      // render `__`/`___`-prefixed routes on nav without a server round-trip.
+      const aotScript = opts.aot === undefined || Object.keys(opts.aot).length === 0
+        ? ""
+        : `<script data-howl-react-aot>window.__HOWL_REACT_AOT__=${
+          JSON.stringify(prefixManifest(opts.aot, base)).replaceAll("<", "\\u003c")
+        }</script>`;
       const preload = chunkHref === "" ? "" : `<link rel="modulepreload" href="${chunkHref}">`;
 
       // Per-request unhead instance — collects every page/layout `useHead()` call
@@ -223,9 +266,8 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
       };
 
       let html: string;
-      if (app !== null) {
-        const App = await loadComponent(app);
-        const appNode = createElement(App, {
+      if (appComp !== null) {
+        const appNode = createElement(appComp, {
           ...props,
           Component: () => createElement("div", { id: "howl-app" }, inner),
         });
@@ -233,7 +275,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
         if (!doc.includes("<html")) doc = `<html lang="en">${doc}</html>`;
         const headTags = await resolveHeadTags();
         doc = injectBefore(doc, "</head>", preload + headTags);
-        doc = injectBefore(doc, "</body>", hydration);
+        doc = injectBefore(doc, "</body>", aotScript + hydration);
         html = `<!DOCTYPE html>${doc}`;
       } else {
         const appHtml = renderToString(
@@ -243,7 +285,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
         html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
           `<meta name="viewport" content="width=device-width, initial-scale=1">` +
           `${preload}${headTags}</head>` +
-          `<body>${appHtml}${hydration}</body></html>`;
+          `<body>${appHtml}${aotScript}${hydration}</body></html>`;
       }
 
       const headers = new Headers(opts.headers);

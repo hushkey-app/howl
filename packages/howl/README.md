@@ -649,6 +649,14 @@ Earlier releases warned and continued; that masked subtle hydration bugs, so it'
 > `<VueIsland name="…" />`. Built with Howl's existing esbuild toolchain (no Vite); requires
 > `vuePlugin()` in your builder. See that package's README.
 
+> **Pluggable render engines — Vue & React (experimental).** Howl is Preact-native, but full **Vue**
+> (`.vue`) and **React** (`.tsx`) pages can be served alongside Preact via the `RenderEngine` seam:
+> register an engine — `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) — and
+> its plugin (`vuePlugin()` / `reactPlugin()`) in your builder. The shared backend (routing, APIs,
+> middleware, client-nav + prefetch, AOT/SSG, `deno compile`) is reused; only the renderer differs.
+> `@hushkey/howl-react` also adds `useHead`, jotai stores, AOT/SSG, and a self-contained compiled
+> binary. See the `@hushkey/howl-vue` / `@hushkey/howl-react` package READMEs.
+
 ```
 client/islands/Counter.island.tsx          ✅
 client/islands/Counter.tsx                 ❌ throws at build

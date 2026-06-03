@@ -504,6 +504,18 @@ releases.
 > `<VueIsland name="…" />`. It uses Howl's existing esbuild toolchain (no Vite).
 > Requires `vuePlugin()` in your builder; see the package README.
 
+> **Pluggable render engines — Vue & React (experimental).** Howl is
+> Preact-native, but full **Vue** (`.vue`) and **React** (`.tsx`) pages can be
+> served alongside Preact via the `RenderEngine` seam — register an engine in
+> `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) and
+> the matching plugin in your builder (`vuePlugin()` / `reactPlugin()`). The
+> shared backend — routing, APIs, middleware, client-nav + prefetch, AOT/SSG,
+> `deno compile` — is reused unchanged; only the component renderer differs.
+> See [`@hushkey/howl-vue`](packages/howl-vue) /
+> [`@hushkey/howl-react`](packages/howl-react) (the latter adds `useHead`,
+> jotai stores, AOT/SSG, and a self-contained compiled binary). Demos:
+> [`examples/vuety`](examples/vuety) · [`examples/reacty`](examples/reacty).
+
 `Howl#handler()` is built lazily on first call and cached per listener.
 Registering routes after `handler()` has been built throws — wire everything
 up before requesting the handler.

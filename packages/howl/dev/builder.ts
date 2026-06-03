@@ -531,6 +531,7 @@ export class Builder<State = any> {
       // scoped CSS): import [..Layouts, Page] (the `_app.tsx` shell stays static)
       // and export `hydrate()`. esbuild compiles the `.tsx` via `reactPlugin`.
       const reactPageEntryToPath = new Map<string, string>();
+      const reactAotEntryToPattern = new Map<string, string>();
       const reactPageFiles = this.#fsRoutes.files.filter(
         (f) =>
           f.engine === "react" &&
@@ -550,16 +551,25 @@ export class Builder<State = any> {
             .map((p, i) => `import _c${i} from ${JSON.stringify(p)};`)
             .join("\n");
           const arr = comps.map((_, i) => `_c${i}`).join(", ");
+          // AOT routes (`__`/`___` prefix) additionally export `aotMount` so the
+          // client can render them on nav with no server round-trip. Unlike Vue,
+          // React has no scoped CSS to carry — the same component chain is reused.
+          const aotImport = f.aot === true ? ", aotMountReactPage" : "";
+          const aotExport = f.aot === true
+            ? `export function aotMount(props) { aotMountReactPage(_comps, props); }\n`
+            : "";
           await Deno.writeTextFile(
             wrapperPath,
             `${imports}\n` +
-              `import { hydrateReactPage, renderReactPage } from "${REACT_BOOT_SPECIFIER}";\n` +
+              `import { hydrateReactPage, renderReactPage${aotImport} } from "${REACT_BOOT_SPECIFIER}";\n` +
               `const _comps = [${arr}];\n` +
               `export function hydrate() { hydrateReactPage(_comps); }\n` +
-              `export function render(props) { renderReactPage(_comps, props); }\n`,
+              `export function render(props) { renderReactPage(_comps, props); }\n` +
+              aotExport,
           );
           entryPoints[name] = wrapperPath;
           reactPageEntryToPath.set(name, f.filePath);
+          if (f.aot === true) reactAotEntryToPattern.set(name, f.routePattern);
         }
       }
 
@@ -640,6 +650,15 @@ export class Builder<State = any> {
         }
       }
 
+      // React AOT routes share the (engine-agnostic) `vueAot` manifest; the React
+      // engine emits it as `window.__HOWL_REACT_AOT__` for the client runtime.
+      for (const [name, routePattern] of reactAotEntryToPattern) {
+        const chunkName = output.entryToChunk.get(name);
+        if (chunkName !== undefined) {
+          buildCache.vueAot.set(routePattern, `${prefix}${chunkName}`);
+        }
+      }
+
       // Prod only: precompile each `.vue` page (its `_app.vue` + `_layout.vue`
       // chain + the page) into an importable SSR module via esbuild, so the
       // production snapshot can static-import it. A `deno compile` binary then
@@ -691,6 +710,43 @@ export class Builder<State = any> {
             throw new Error(`Could not find SSR module for Vue page: ${filePath}`);
           }
           buildCache.vueSsrPages.set(filePath, `.vue-ssr/${file}`);
+        }
+      }
+
+      // Prod only: emit a `.react-ssr` wrapper per `.tsx` page that **statically
+      // imports** its `_app.tsx` + `_layout.tsx` chain + the page and re-exports
+      // them as `{ app, layouts, page }`. The snapshot static-imports these so a
+      // `deno compile` binary embeds the whole `.tsx` graph — no source on disk
+      // at runtime. Unlike Vue there's no compile step: Deno imports `.tsx`
+      // natively (same as the built-in Preact engine). Imports are written
+      // **relative** to the wrapper so the binary resolves them to the embedded
+      // (`deno-compile://`) copies — an absolute `file://` specifier would match
+      // the on-disk source instead, which the binary can't transpile.
+      if (!(dev ?? false) && reactPageFiles.length > 0) {
+        const ssrDir = path.join(outDir, ".react-ssr");
+        await Deno.remove(ssrDir, { recursive: true }).catch(() => {});
+        await Deno.mkdir(ssrDir, { recursive: true });
+        for (const [name, filePath] of reactPageEntryToPath) {
+          const { app, layouts } = await discoverEngineChain(filePath, ".tsx");
+          const chain = app !== null ? [app, ...layouts, filePath] : [...layouts, filePath];
+          const rel = (p: string) => {
+            const r = path.relative(ssrDir, p);
+            return r.startsWith(".") ? r : `./${r}`;
+          };
+          const imports = chain
+            .map((p, i) => `import _c${i} from ${JSON.stringify(rel(p))};`)
+            .join("\n");
+          const layoutStart = app !== null ? 1 : 0;
+          const layoutExprs = layouts.map((_, i) => `_c${layoutStart + i}`).join(", ");
+          const wrapperPath = path.join(ssrDir, `${name}.server.tsx`);
+          await Deno.writeTextFile(
+            wrapperPath,
+            `${imports}\n` +
+              `export const app = ${app !== null ? "_c0" : "null"};\n` +
+              `export const layouts = [${layoutExprs}];\n` +
+              `export const page = _c${chain.length - 1};\n`,
+          );
+          buildCache.vueSsrPages.set(filePath, `.react-ssr/${name}.server.tsx`);
         }
       }
 
