@@ -57,4 +57,34 @@ export interface RenderEngine<Ctx = unknown> {
     ctx: Ctx,
     opts: RenderEngineRenderOptions,
   ): Promise<Response> | Response;
+
+  /**
+   * Render a standalone component to an HTML string in this engine's template
+   * language — for templates rendered **outside** the page/layout/request flow
+   * (emails, notifications, partial fragments). Surfaced on the request context
+   * as `ctx.renderToString(component, props?)`. No layouts, no app shell, no
+   * headers — just the component to markup.
+   *
+   * Optional: an engine that doesn't implement it can't back `ctx.renderToString`.
+   */
+  renderToString?(
+    component: unknown,
+    props?: Record<string, unknown>,
+  ): Promise<string> | string;
+
+  /**
+   * Render an inline vnode through the layout/app stack to a full page
+   * `Response` — backs `ctx.render(<jsx>)`. Provided only by the built-in Preact
+   * engine; Vue/React are file-based (they own the whole response via
+   * {@linkcode render}) and never call `ctx.render`. Loosely typed — the engine
+   * narrows `vnode` / `config` / `internals` (the framework-internal layout/app
+   * tree the `Context` hands over).
+   */
+  renderInline?(
+    ctx: Ctx,
+    vnode: unknown,
+    init: ResponseInit | undefined,
+    config: unknown,
+    internals: unknown,
+  ): Promise<Response>;
 }

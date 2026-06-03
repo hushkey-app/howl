@@ -293,5 +293,10 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
       mergeCtxHeaders(ctx, headers);
       return new Response(html, { status: opts.status, headers });
     },
+    renderToString(component, props) {
+      // Standalone render (emails / notifications) — a bare React component to
+      // markup, no Howl layouts/app shell. Mirrors `ctx.renderToString`.
+      return renderToString(createElement(component as ComponentType, props ?? undefined));
+    },
   };
 }

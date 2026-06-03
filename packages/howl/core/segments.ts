@@ -5,7 +5,7 @@ import type { LayoutConfig, Route } from "./types.ts";
 import { type Context, getBuildCache, getInternals } from "./context.ts";
 import { recordSpanError, tracer } from "./otel.ts";
 import { type HandlerFn, isHandlerByMethod } from "./handlers.ts";
-import { type AsyncAnyComponent, type PageProps, renderRouteComponent } from "./render.ts";
+import type { AsyncAnyComponent, PageProps } from "./render.ts";
 import { isHttpError } from "./error.ts";
 
 export type RouteComponent<State> =
@@ -211,57 +211,39 @@ export async function renderRoute<State>(
 
   // Resolve the render engine for this route: an explicit tag (`.vue` → "vue",
   // `.tsx` + reactPlugin → "react"), or the built-in "preact" inferred from a
-  // route component. Pluggable engines own the whole response (they bypass the
-  // app/layout/`ctx.render` path); `preactEngine` runs that path internally.
+  // route component. Engines are explicit — Preact is required like any other
+  // (no implicit fallback); a registered engine owns the whole response.
   const engineName = route.engine ?? (route.component !== undefined ? "preact" : undefined);
   if (engineName !== undefined) {
     const engine = ctx.config.engines[engineName];
-    if (engine !== undefined) {
-      const buildCache = getBuildCache(ctx);
-      const chunkUrl = route.filePath !== undefined
-        ? buildCache.enginePages.get(route.filePath)
-        : undefined;
-      const module = route.filePath !== undefined
-        ? buildCache.engineSsrModules.get(route.filePath)
-        : undefined;
-      return await engine.render(ctx, {
-        filePath: route.filePath ?? "",
-        component: route.component,
-        data: res.data,
-        headers,
-        status,
-        chunkUrl,
-        module,
-        aot: buildCache.engineAot.size > 0 ? Object.fromEntries(buildCache.engineAot) : undefined,
-        dev: buildCache.features.errorOverlay,
-      });
-    }
-    // An explicit Vue/React tag with no registered engine is a hard error.
-    // Inferred "preact" falls through to the built-in path below so apps and
-    // tests keep rendering without registering `preactEngine()` (real apps that
-    // set `clientEntry` are guarded at build time instead).
-    if (route.engine !== undefined) {
+    if (engine === undefined) {
       throw new Error(
-        `Route "${route.filePath ?? ""}" requires the "${route.engine}" render ` +
-          `engine, but it isn't registered in the Howl \`engines\` option.`,
+        `Route "${route.filePath ?? ""}" needs the "${engineName}" render engine, but ` +
+          `it isn't registered in the Howl \`engines\` option ` +
+          `(e.g. \`new Howl({ engines: { ${engineName}: ${engineName}Engine() } })\`).`,
       );
     }
-  }
-
-  let vnode = null;
-  if (route.component !== undefined) {
-    const result = await renderRouteComponent(ctx, {
+    const buildCache = getBuildCache(ctx);
+    const chunkUrl = route.filePath !== undefined
+      ? buildCache.enginePages.get(route.filePath)
+      : undefined;
+    const module = route.filePath !== undefined
+      ? buildCache.engineSsrModules.get(route.filePath)
+      : undefined;
+    return await engine.render(ctx, {
+      filePath: route.filePath ?? "",
       component: route.component,
-      // deno-lint-ignore no-explicit-any
-      props: res.data as any,
-    }, () => null);
-
-    if (result instanceof Response) {
-      return result;
-    }
-
-    vnode = result;
+      data: res.data,
+      headers,
+      status,
+      chunkUrl,
+      module,
+      aot: buildCache.engineAot.size > 0 ? Object.fromEntries(buildCache.engineAot) : undefined,
+      dev: buildCache.features.errorOverlay,
+    });
   }
 
-  return ctx.render(vnode, { headers, status });
+  // No page component and no engine tag — render the app shell only (e.g. a
+  // layout-only route), through the registered engine via `ctx.render`.
+  return await ctx.render(null, { headers, status });
 }

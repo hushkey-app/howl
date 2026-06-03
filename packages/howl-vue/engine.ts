@@ -439,6 +439,11 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
         return new Response(renderDevError(err, opts.filePath), { status: 500, headers });
       }
     },
+    async renderToString(component, props) {
+      // Standalone render (emails / notifications) — a bare Vue component to
+      // markup, no Howl layouts/app shell. Mirrors `ctx.renderToString`.
+      return await renderToString(createSSRApp(component as Component, props));
+    },
   };
 }
 

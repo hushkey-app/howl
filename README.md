@@ -104,11 +104,13 @@ export const { defineApi, config: apiConfig } = defineConfig<State, Role>({
 
 ```typescript
 import { Howl, staticFiles } from "@hushkey/howl";
+import { preactEngine } from "@hushkey/howl-preact";
 import type { State } from "../howl.config.ts";
 import { apiConfig } from "../howl.config.ts";
 import { middleware } from "./middleware/_index.middleware.ts";
 
-export const app = new Howl<State>({ logger: true });
+// Page rendering is a registered engine (no implicit default) — Preact here.
+export const app = new Howl<State>({ logger: true, engines: { preact: preactEngine() } });
 
 app.use(staticFiles());
 app.configure(middleware);
@@ -515,7 +517,10 @@ releases.
 > `vuePlugin()` / `reactPlugin()`). The shared backend — routing, APIs,
 > middleware, client-nav + prefetch, AOT/SSG, `deno compile` — is reused
 > unchanged; only the component renderer differs, and all three engines use the
-> same `client-nav` / `client-prefetch` attributes.
+> same `client-nav` / `client-prefetch` attributes. Each engine also backs
+> `ctx.renderToString(component, props?)` — render a standalone template to an
+> HTML string (emails, notifications) in whatever engine you picked, no page
+> shell.
 >
 > If a **client entry with page routes** is configured but no engine is
 > registered, the build throws (telling you to select one). Backend-only apps

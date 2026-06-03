@@ -48,6 +48,16 @@ engines use, so navigation behaves identically across all three.
 > Renamed from the former `f-client-nav` / `f-prefetch` (which was prefetch
 > opt-out) to unify the three engines on `client-nav` + `client-prefetch`.
 
+## Standalone rendering — `ctx.renderToString`
+
+The engine also backs `ctx.renderToString(component, props?)` for templates rendered **outside** the
+page flow (emails, notifications) — a bare Preact component to an HTML string (via
+`preact-render-to-string`), no `_app`/layout shell:
+
+```tsx
+const html = ctx.renderToString(WelcomeEmail, { name: user.name });
+```
+
 ## What's here vs. core
 
 Unlike the Vue/React packages — which ship their own client `boot` runtime

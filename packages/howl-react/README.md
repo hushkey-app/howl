@@ -158,6 +158,16 @@ enters a Preact-only app's dependency graph (and vice versa); registering `react
 wiring. Howl forces `react` → `preact/compat` for the *built-in* engine, but disables that shim for
 apps that register `reactPlugin()` so they resolve real React.
 
+## Standalone rendering — `ctx.renderToString`
+
+The engine also backs `ctx.renderToString(component, props?)` for templates rendered **outside** the
+page flow (emails, notifications, partial fragments) — a bare React component to an HTML string, no
+`_app`/layout shell:
+
+```tsx
+const html = await ctx.renderToString(WelcomeEmail, { name: user.name });
+```
+
 ## API
 
 ### `reactEngine(options?)`

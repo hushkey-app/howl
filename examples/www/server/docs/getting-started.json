@@ -58,7 +58,7 @@
         { "type": "p", "text": "If you already have a Deno project, add Howl from JSR. The scaffolder is the recommended path for greenfield apps; this is for grafting onto something existing." },
         { "type": "code", "lang": "sh", "text": "deno add jsr:@hushkey/howl" },
         { "type": "p", "text": "Then wire up your entry. A minimal main.ts looks like this:" },
-        { "type": "code", "lang": "ts", "filename": "main.ts", "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { coalesceRequests, compression } from \"@hushkey/howl/middleware\";\nimport { apiConfig } from \"./howl.config.ts\";\n\nexport const app = new Howl({ logger: true });\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();\n\nexport default { app };" },
+        { "type": "code", "lang": "ts", "filename": "main.ts", "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { preactEngine } from \"@hushkey/howl-preact\";\nimport { coalesceRequests, compression } from \"@hushkey/howl/middleware\";\nimport { apiConfig } from \"./howl.config.ts\";\n\n// Page rendering is a registered engine (no implicit default).\nexport const app = new Howl({ logger: true, engines: { preact: preactEngine() } });\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();\n\nexport default { app };" },
         { "type": "warning", "text": "When grafting Howl into an existing app, make sure compilerOptions.jsx is \"react-jsx\" and jsxImportSource is \"preact\" in your deno.json. The scaffolder sets this for you automatically." }
       ]
     },

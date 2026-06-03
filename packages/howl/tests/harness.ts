@@ -1,6 +1,7 @@
 import { Howl, type HowlOptions } from "../core/app.ts";
 import { MockBuildCache } from "../core/test_utils.ts";
 import { setBuildCache } from "../core/app.ts";
+import { preactEngine } from "../core/preact_engine.ts";
 
 /**
  * Lightweight test harness — wraps a {@linkcode Howl} app and gives back a
@@ -26,7 +27,13 @@ export interface TestApp<State = unknown> {
 export function makeApp<State = any>(
   options: HowlOptions = {},
 ): TestApp<State> {
-  const app = new Howl<State>(options);
+  // Preact is an explicit engine now; register it by default so tests that
+  // render Preact pages via `ctx.render` work. Pass `engines` (even `{}`) to
+  // override — e.g. to test the no-engine error path.
+  const app = new Howl<State>({
+    ...options,
+    engines: options.engines ?? { preact: preactEngine() },
+  });
   setBuildCache(
     app,
     new MockBuildCache([], options.mode ?? "production"),

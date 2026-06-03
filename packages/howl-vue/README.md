@@ -165,6 +165,16 @@ import { VueIsland } from "@hushkey/howl-vue";
 Client adapter: `createSSRApp(component, props).mount(container)` — hydrates in place over SSR
 markup, or renders fresh otherwise. The Vue analogue of Howl's Preact hydrate/render branch.
 
+## Standalone rendering — `ctx.renderToString`
+
+The engine also backs `ctx.renderToString(component, props?)` for templates rendered **outside** the
+page flow (emails, notifications) — a bare Vue component to an HTML string (via
+`vue/server-renderer`), no `_app.vue`/layout shell:
+
+```ts
+const html = await ctx.renderToString(WelcomeEmail, { name: user.name });
+```
+
 ## Why no Vite
 
 `@vitejs/plugin-vue` only wraps `@vue/compiler-sfc`, which is standalone. Howl calls it directly

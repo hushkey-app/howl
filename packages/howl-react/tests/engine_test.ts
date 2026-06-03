@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import * as path from "@std/path";
+import { createElement } from "react";
 import type { Context, RenderEngineRenderOptions } from "@hushkey/howl";
 import { reactEngine } from "../engine.ts";
 
@@ -108,6 +109,14 @@ Deno.test("reactEngine — merges ctx.headers (cookies append) into the response
   const cookies = res.headers.getSetCookie();
   expect(cookies).toContain("a=1");
   expect(cookies).toContain("b=2");
+});
+
+Deno.test("reactEngine — renderToString renders a standalone component (notifications)", () => {
+  const Email = (props: { name?: string }) =>
+    createElement("h1", null, `Hello ${props.name ?? "there"}`);
+  const out = reactEngine().renderToString!(Email, { name: "Leo" });
+  expect(typeof out).toBe("string");
+  expect((out as string).replaceAll("<!-- -->", "")).toContain("<h1>Hello Leo</h1>");
 });
 
 Deno.test("reactEngine — serialises ctx.error for an error page payload", async () => {

@@ -116,12 +116,15 @@ export const { defineApi, config: apiConfig } = defineConfig<State, Role>({
 
 ```typescript
 import { Howl, staticFiles } from "@hushkey/howl";
+import { preactEngine } from "@hushkey/howl-preact";
 import { coalesceRequests, compression } from "@hushkey/howl/middleware";
 import type { State } from "../howl.config.ts";
 import { apiConfig } from "../howl.config.ts";
 import { middleware } from "./middleware/_index.middleware.ts";
 
-export const app = new Howl<State>({ logger: true });
+// Page rendering is a registered engine (no implicit default) — pick Preact,
+// Vue (@hushkey/howl-vue), or React (@hushkey/howl-react).
+export const app = new Howl<State>({ logger: true, engines: { preact: preactEngine() } });
 
 app.use(coalesceRequests()); // thundering-herd protection — must be first
 app.use(compression());
@@ -657,8 +660,10 @@ Earlier releases warned and continued; that masked subtle hydration bugs, so it'
 > preactEngine() } })` (or `vue: vueEngine()` / `react: reactEngine()`) — plus the matching builder
 > plugin (`preactPlugin()` / `vuePlugin()` / `reactPlugin()`). The shared backend (routing, APIs,
 > middleware, `client-nav` + `client-prefetch`, AOT/SSG, `deno compile`) is reused; only the renderer
-> differs. If a client entry with page routes is configured but no engine is registered, the build
-> throws. Backend-only apps (no client entry) are unaffected.
+> differs. Each engine also backs `ctx.renderToString(component, props?)` — render a standalone
+> template to an HTML string (emails, notifications) in your chosen engine, with no page shell. If a
+> client entry with page routes is configured but no engine is registered, the build throws.
+> Backend-only apps (no client entry) are unaffected.
 
 ```
 client/islands/Counter.island.tsx          ✅
