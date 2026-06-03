@@ -25,7 +25,6 @@
     "jsr:@std/semver@^1.0.8": "1.0.8",
     "jsr:@std/uuid@^1.1.0": "1.1.1",
     "npm:@opentelemetry/api@^1.9.0": "1.9.1",
-    "npm:@preact/signals@^2.8.2": "2.8.2_preact@10.29.0",
     "npm:@tailwindcss/postcss@4": "4.2.4",
     "npm:@tailwindcss/typography@~0.5.19": "0.5.19_tailwindcss@4.2.4",
     "npm:@types/react@^18.3.0": "18.3.28",
@@ -43,7 +42,6 @@
     "npm:pinia@^2.2.0": "2.3.1_typescript@5.9.3_vue@3.5.29__typescript@5.9.3",
     "npm:postcss@^8.5.6": "8.5.14",
     "npm:preact-render-to-string@6": "6.6.7_preact@10.29.0",
-    "npm:preact@*": "10.29.0",
     "npm:preact@^10.25.0": "10.29.0",
     "npm:react-dom@^18.3.1": "18.3.1_react@18.3.1",
     "npm:react@^18.3.1": "18.3.1",
@@ -336,16 +334,6 @@
     },
     "@opentelemetry/api@1.9.1": {
       "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="
-    },
-    "@preact/signals-core@1.14.0": {
-      "integrity": "sha512-AowtCcCU/33lFlh1zRFf/u+12rfrhtNakj7UpaGEsmMwUKpKWMVvcktOGcwBBNiB4lWrZWc01LhiyyzVklJyaQ=="
-    },
-    "@preact/signals@2.8.2_preact@10.29.0": {
-      "integrity": "sha512-gym5yoa64c+0w2kL7zRAAjY548qzWXbbuOfjsK9F1nWrEqooDwyWnih5SNdonjhQSp27zUqYh7UrxIRnkCyFCA==",
-      "dependencies": [
-        "@preact/signals-core",
-        "preact"
-      ]
     },
     "@tailwindcss/node@4.2.4": {
       "integrity": "sha512-Ai7+yQPxz3ddrDQzFfBKdHEVBg0w3Zl83jnjuwxnZOsnH9pGn93QHQtpU0p/8rYWxvbFZHneni6p1BSLK4DkGA==",
@@ -927,10 +915,6 @@
     }
   },
   "workspace": {
-    "dependencies": [
-      "npm:@preact/signals@^2.8.2",
-      "npm:preact@*"
-    ],
     "members": {
       "examples/hybrid-spa": {
         "dependencies": [
@@ -958,12 +942,14 @@
       },
       "examples/software-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-preact@^0.0.1",
-          "jsr:@hushkey/howl@0.6",
+          "jsr:@hushkey/howl-react@^0.0.1",
+          "jsr:@hushkey/howl@~0.6.2",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
+          "npm:@types/react@^18.3.0",
           "npm:daisyui@5.5.18",
-          "npm:preact@^10.25.0",
+          "npm:react-dom@^18.3.1",
+          "npm:react@^18.3.1",
           "npm:tailwindcss@4.1.18",
           "npm:zod@4.3.6"
         ]
@@ -1026,13 +1012,6 @@
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
-        ]
-      },
-      "packages/howl-preact": {
-        "dependencies": [
-          "jsr:@hushkey/howl@~0.6.2",
-          "jsr:@std/expect@^1.0.18",
-          "npm:esbuild@0.25"
         ]
       },
       "packages/howl-react": {

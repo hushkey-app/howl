@@ -14,16 +14,16 @@ built-in Preact engine.
 
 ## Status
 
-| Piece                                                                                       | State           |
-| ------------------------------------------------------------------------------------------- | --------------- |
+| Piece                                                                                           | State           |
+| ----------------------------------------------------------------------------------------------- | --------------- |
 | `RenderEngine` seam — `.tsx` routes SSR'd by `react-dom/server`, hydrated by `react-dom/client` | ✅ done, tested |
-| esbuild plugin (`reactPlugin`) — declares `.tsx`/`.jsx` → react, sets automatic JSX          | ✅ done, tested |
-| `_app.tsx` + `_layout.tsx` composition (own the document, SSR + hydrate)                     | ✅ done, tested |
-| Client-nav — `client-nav` link/back-forward re-render, hover prefetch, no reload             | ✅ done, tested |
-| Head/SEO — `useHead` (`@unhead/react`), SSR'd + reactive across client-nav                   | ✅ done, tested |
-| Store — `jotai` atoms (SSR-safe per-request `Provider`) + `useHowlState` (`ctx.state` mirror) | ✅ done, tested |
-| AOT (`__`) + SSG (`___`) — client chunk, AOT manifest, no-server-hop nav                     | ✅ done, tested |
-| Prod snapshot + `deno compile` — embedded SSR modules, self-contained binary                 | ✅ done, tested |
+| esbuild plugin (`reactPlugin`) — declares `.tsx`/`.jsx` → react, sets automatic JSX             | ✅ done, tested |
+| `_app.tsx` + `_layout.tsx` composition (own the document, SSR + hydrate)                        | ✅ done, tested |
+| Client-nav — `client-nav` link/back-forward re-render, hover prefetch, no reload                | ✅ done, tested |
+| Head/SEO — `useHead` (`@unhead/react`), SSR'd + reactive across client-nav                      | ✅ done, tested |
+| Store — `jotai` atoms (SSR-safe per-request `Provider`) + `useHowlState` (`ctx.state` mirror)   | ✅ done, tested |
+| AOT (`__`) + SSG (`___`) — client chunk, AOT manifest, no-server-hop nav                        | ✅ done, tested |
+| Prod snapshot + `deno compile` — embedded SSR modules, self-contained binary                    | ✅ done, tested |
 
 Browser-verified end-to-end in [`examples/reacty`](../../examples/reacty) (a 1:1 mirror of
 [`examples/vuety`](../../examples/vuety)).
@@ -89,8 +89,9 @@ useHead({ title: "About", meta: [{ name: "description", content: "…" }] });
 ```
 
 The engine installs an unhead provider around the tree on both server and client, so these tags are
-**SSR'd** into `<head>` and stay **reactive across client navigations**. With no `useHead({ title })`
-the document title falls back to `state.title` (configurable via `reactEngine({ title })`).
+**SSR'd** into `<head>` and stay **reactive across client navigations**. With no
+`useHead({ title })` the document title falls back to `state.title` (configurable via
+`reactEngine({ title })`).
 
 ## Store — jotai atoms + `useHowlState`
 
@@ -130,8 +131,8 @@ AOT-route navigation and renders the chunk directly.
 
 `deno task build` writes the client chunks, prerenders SSG routes, and emits one `.react-ssr`
 wrapper per page that **statically imports** its `_app` + layout chain + page. The snapshot
-static-imports those wrappers, so `deno compile` embeds the whole `.tsx` graph and the engine renders
-from the embedded modules — the binary is self-contained, no source on disk at runtime.
+static-imports those wrappers, so `deno compile` embeds the whole `.tsx` graph and the engine
+renders from the embedded modules — the binary is self-contained, no source on disk at runtime.
 
 ```jsonc
 // deno.json
@@ -147,16 +148,17 @@ Deno resolves React's JSX types via `@types/react`. In your app's `deno.json`:
 "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "react", "jsxImportSourceTypes": "@types/react" }
 ```
 
-Add a `.d.ts` augmenting `react`'s `HTMLAttributes` so `client-nav` / `client-prefetch` type-check on
-`<body>` (see [`examples/reacty/client/howl-react.d.ts`](../../examples/reacty/client/howl-react.d.ts)).
+Add a `.d.ts` augmenting `react`'s `HTMLAttributes` so `client-nav` / `client-prefetch` type-check
+on `<body>` (see
+[`examples/reacty/client/howl-react.d.ts`](../../examples/reacty/client/howl-react.d.ts)).
 
 ## Why no Vite / Next
 
-Deno imports `.tsx` natively and Howl already owns an esbuild pipeline, the router, SSR, islands, and
-client-nav. `reactEngine` reuses all of it — React is only the component renderer. `react` never
-enters a Preact-only app's dependency graph (and vice versa); registering `reactPlugin()` is the only
-wiring. Howl forces `react` → `preact/compat` for the *built-in* engine, but disables that shim for
-apps that register `reactPlugin()` so they resolve real React.
+Deno imports `.tsx` natively and Howl already owns an esbuild pipeline, the router, SSR, islands,
+and client-nav. `reactEngine` reuses all of it — React is only the component renderer. `react` never
+enters a Preact-only app's dependency graph (and vice versa); registering `reactPlugin()` is the
+only wiring. Howl forces `react` → `preact/compat` for the _built-in_ engine, but disables that shim
+for apps that register `reactPlugin()` so they resolve real React.
 
 ## Standalone rendering — `ctx.renderToString`
 
@@ -177,8 +179,8 @@ document title (default `state.title` or `"Howl"`).
 
 ### `reactPlugin()`
 
-esbuild plugin that declares `.tsx`/`.jsx` → the `react` engine (via `Symbol.for("howl.engine")`) and
-sets esbuild to automatic React JSX. Registering it is what routes `.tsx` through React.
+esbuild plugin that declares `.tsx`/`.jsx` → the `react` engine (via `Symbol.for("howl.engine")`)
+and sets esbuild to automatic React JSX. Registering it is what routes `.tsx` through React.
 
 ### Lightweight entries
 

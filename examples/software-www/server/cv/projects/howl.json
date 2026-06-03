@@ -15,29 +15,49 @@
       "id": "overview",
       "heading": "Overview",
       "blocks": [
-        { "type": "p", "text": "Howl is the framework that powers Hushkey. It builds on Fresh 2.x and adds file-system APIs, a single-pass SSR pipeline, and a typed islands runtime — packaged as a single JSR module." },
-        { "type": "list", "items": [
-          "File-system routes for both pages and APIs",
-          "Single-pass renderToString — ~5ms saved per request vs the dual-pass baseline",
-          "Typed defineApi factory with Zod validation, role checks, rate limiting and OpenAPI generation",
-          "Tiered cache adapters: memory, Redis, Deno KV"
-        ] }
+        {
+          "type": "p",
+          "text": "Howl is the framework that powers Hushkey. It builds on Fresh 2.x and adds file-system APIs, a single-pass SSR pipeline, and a typed islands runtime — packaged as a single JSR module."
+        },
+        {
+          "type": "list",
+          "items": [
+            "File-system routes for both pages and APIs",
+            "Single-pass renderToString — ~5ms saved per request vs the dual-pass baseline",
+            "Typed defineApi factory with Zod validation, role checks, rate limiting and OpenAPI generation",
+            "Tiered cache adapters: memory, Redis, Deno KV"
+          ]
+        }
       ]
     },
     {
       "id": "highlight",
       "heading": "Highlight: file-system APIs",
       "blocks": [
-        { "type": "p", "text": "Each .api.ts file becomes a route. The directory is the OpenAPI tag, the path is inferred from the filename." },
-        { "type": "code", "lang": "ts", "filename": "apis/public/ping.api.ts", "text": "import { z } from \"zod\";\nimport { defineApi } from \"../../howl.config.ts\";\n\nexport default defineApi({\n  name: \"Ping\",\n  directory: \"public\",\n  method: \"GET\",\n  roles: [],\n  responses: { 200: z.object({ message: z.string() }) },\n  handler: () => ({ statusCode: 200, message: \"pong\" }),\n});" },
-        { "type": "tip", "text": "Auth, rate limiting, caching and response shaping are all handled by the framework — the handler returns a plain object." }
+        {
+          "type": "p",
+          "text": "Each .api.ts file becomes a route. The directory is the OpenAPI tag, the path is inferred from the filename."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "apis/public/ping.api.ts",
+          "text": "import { z } from \"zod\";\nimport { defineApi } from \"../../howl.config.ts\";\n\nexport default defineApi({\n  name: \"Ping\",\n  directory: \"public\",\n  method: \"GET\",\n  roles: [],\n  responses: { 200: z.object({ message: z.string() }) },\n  handler: () => ({ statusCode: 200, message: \"pong\" }),\n});"
+        },
+        {
+          "type": "tip",
+          "text": "Auth, rate limiting, caching and response shaping are all handled by the framework — the handler returns a plain object."
+        }
       ]
     },
     {
       "id": "outcome",
       "heading": "Outcome",
       "blocks": [
-        { "type": "p", "text": "Howl now ships every Hushkey deployment, has a published JSR package, and a small but growing user base outside Hushkey itself." }
+        {
+          "type": "p",
+          "text": "Howl now ships every Hushkey deployment, has a published JSR package, and a small but growing user base outside Hushkey itself."
+        }
       ]
     }
   ]

@@ -7,3 +7,4 @@
  * @module
  */
 export { IS_BROWSER, IS_SERVER } from "./guards.ts";
+export { type ErrorStatus, HttpError, isHttpError } from "./error.ts";

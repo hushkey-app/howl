@@ -1,8 +1,4 @@
-import {
-  type AnyComponent,
-  type RenderableProps,
-  type VNode,
-} from "./component.ts";
+import { type AnyComponent, type RenderableProps, type VNode } from "./component.ts";
 import type { Context } from "./context.ts";
 
 /**

@@ -432,14 +432,8 @@ export class Builder<State = any> {
         // Ignore
       }
 
-      const runtimeUrl = new URL(
-        dev ? "../core/runtime/client/dev.ts" : "../core/runtime/client/mod.ts",
-        import.meta.url,
-      ).href;
-
-      const entryPoints: Record<string, string> = {
-        "howl-runtime": runtimeUrl,
-      };
+      // No base client runtime: engines (Vue/React) ship their own boot chunks.
+      const entryPoints: Record<string, string> = {};
 
       const namer = new UniqueNamer();
       for (const spec of this.#islandSpecifiers) {

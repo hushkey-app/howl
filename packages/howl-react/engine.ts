@@ -1,5 +1,5 @@
 import type { Context, RenderEngine, RenderEngineRenderOptions } from "@hushkey/howl";
-import { PARTIAL_SEARCH_PARAM } from "@hushkey/howl";
+import { asset, isHttpError, PARTIAL_SEARCH_PARAM } from "@hushkey/howl";
 import { renderToString } from "react-dom/server";
 import { type ComponentType, createElement, type ReactNode } from "react";
 import { createHead, renderSSRHead, UnheadProvider } from "@unhead/react/server";
@@ -160,6 +160,44 @@ function injectBefore(html: string, closeTag: string, content: string): string {
   return i === -1 ? html + content : html.slice(0, i) + content + html.slice(i);
 }
 
+/**
+ * Append Howl's build-id cache-bust to local **asset** references so the static
+ * middleware serves them `immutable`: `href` on `<link>` (stylesheets, icons)
+ * and `src` on `<script>`/`<img>`/`<source>`. Crucially it does **not** touch
+ * `<a href>` — those are navigation targets and must stay clean (no
+ * `?__howl_c=` leaking into the address bar). Skips `//` (external) and
+ * `/_howl/` internals (already build-id pathed; rewriting them would break the
+ * modulepreload↔import URL match). Prod only; dev leaves assets un-busted so
+ * edits show immediately.
+ */
+function cacheBustLocalAssets(html: string): string {
+  const local = /(\/(?!\/|_howl\/)[^"]*)/;
+  return html
+    .replace(
+      new RegExp(`(<link\\b[^>]*?\\shref=")${local.source}(")`, "gi"),
+      (_m, pre, url, post) => `${pre}${asset(url)}${post}`,
+    )
+    .replace(
+      new RegExp(`(<(?:script|img|source)\\b[^>]*?\\ssrc=")${local.source}(")`, "gi"),
+      (_m, pre, url, post) => `${pre}${asset(url)}${post}`,
+    );
+}
+
+/** Inline dev live-reload: reconnects to `/_howl/alive` and reloads when the
+ * server (and its build id) restarts — React pages don't load Howl's runtime.
+ * Backs off reconnects so a `--watch` restart doesn't spam the console. */
+function liveReloadScript(base: string): string {
+  return `<script>(function(){var r=0,d=250;function c(){try{var w=new WebSocket(` +
+    `location.origin.replace(/^http/,"ws")+${JSON.stringify(base)}+"/_howl/alive");` +
+    `w.onopen=function(){d=250;};` +
+    `w.onmessage=function(e){var m=JSON.parse(e.data);if(m&&m.type==="initial-state"){` +
+    `if(r===0){r=m.revision;console.log("%c🐺 Howl%c connected to development server",` +
+    `"color:#a855f7;font-weight:bold","color:inherit");}` +
+    `else if(r<m.revision){location.reload();}}};` +
+    `w.onclose=function(){d=Math.min(d*1.5,2000);setTimeout(c,d);};` +
+    `}catch(_){setTimeout(c,1000);}}c();})();</script>`;
+}
+
 /** Prefix every chunk URL in an AOT manifest with `base` (no-op when empty). */
 function prefixManifest(
   manifest: Record<string, string>,
@@ -179,6 +217,27 @@ function escapeHtml(s: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+/** Dev-only page shown when a `.tsx` render throws (bad import, runtime error in
+ * a component, …) — surfaces the real message + stack so it's debuggable instead
+ * of the generic `_error.tsx`. Intentional {@link HttpError}s bypass this and
+ * route to `_error.tsx`; prod rethrows. */
+function renderDevError(err: unknown, filePath: string): string {
+  const e = err as { message?: string; stack?: string };
+  const message = escapeHtml(e?.message ?? String(err));
+  const stack = escapeHtml(e?.stack ?? "");
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
+    `<title>🐺 React render error</title><style>` +
+    `body{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;` +
+    `background:#1e1e2e;color:#cdd6f4;margin:0;padding:2rem}` +
+    `h1{color:#f38ba8;font-size:1rem;margin:0 0 .5rem}` +
+    `.file{color:#89b4fa;margin-bottom:1rem;word-break:break-all}` +
+    `.msg{color:#fab387;font-weight:600;white-space:pre-wrap;margin-bottom:1rem}` +
+    `pre{background:#11111b;padding:1rem;border-radius:.5rem;overflow:auto;` +
+    `white-space:pre-wrap;word-break:break-word}</style></head><body>` +
+    `<h1>React render failed</h1><div class="file">${escapeHtml(filePath)}</div>` +
+    `<div class="msg">${message}</div><pre>${stack}</pre></body></html>`;
 }
 
 /** Options for {@linkcode reactEngine}. */
@@ -207,91 +266,115 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
 
   return {
     async render(ctx, opts) {
-      const props = buildProps(ctx, opts);
-      const base = ctx.config.basePath;
+      try {
+        const props = buildProps(ctx, opts);
+        const base = ctx.config.basePath;
 
-      // Resolve the page tree two ways: from a precompiled SSR module (prod —
-      // required for `deno compile`, no `.tsx` on disk), else by importing the
-      // `.tsx` source at request time (dev — fast reload via `--watch`).
-      let appComp: AnyComponent | null;
-      let innerComps: AnyComponent[];
-      const ssrModule = opts.module as ReactSsrModule | undefined;
-      if (ssrModule !== undefined) {
-        appComp = ssrModule.app;
-        innerComps = [...ssrModule.layouts, ssrModule.page];
-      } else {
-        const { app, layouts } = await discoverReactChain(opts.filePath);
-        innerComps = await Promise.all([...layouts, opts.filePath].map(loadComponent));
-        appComp = app !== null ? await loadComponent(app) : null;
-      }
+        // Resolve the page tree two ways: from a precompiled SSR module (prod —
+        // required for `deno compile`, no `.tsx` on disk), else by importing the
+        // `.tsx` source at request time (dev — fast reload via `--watch`).
+        let appComp: AnyComponent | null;
+        let innerComps: AnyComponent[];
+        const ssrModule = opts.module as ReactSsrModule | undefined;
+        if (ssrModule !== undefined) {
+          appComp = ssrModule.app;
+          innerComps = [...ssrModule.layouts, ssrModule.page];
+        } else {
+          const { app, layouts } = await discoverReactChain(opts.filePath);
+          innerComps = await Promise.all([...layouts, opts.filePath].map(loadComponent));
+          appComp = app !== null ? await loadComponent(app) : null;
+        }
 
-      const inner = composeReactTree(innerComps, { ...props });
+        const inner = composeReactTree(innerComps, { ...props });
 
-      // Client hydration: serialise the props and import the page chunk, which
-      // calls its exported `hydrate()`.
-      const propsJson = JSON.stringify(props, (_k, v) => v instanceof URL ? v.href : v)
-        .replaceAll("<", "\\u003c");
-      const chunkHref = opts.chunkUrl === undefined ? "" : `${base}${opts.chunkUrl}`;
-      const hydration = opts.chunkUrl === undefined ? "" : (
-        `<script data-howl-react-props>window.__REACT_PAGE_PROPS__=${propsJson}</script>` +
-        `<script type="module" data-howl-react-page data-chunk="${chunkHref}">` +
-        `import(${JSON.stringify(chunkHref)}).then(function(m){m.hydrate();})</script>`
-      );
-      // AOT manifest (route pattern → client chunk) so the client runtime can
-      // render `__`/`___`-prefixed routes on nav without a server round-trip.
-      const aotScript = opts.aot === undefined || Object.keys(opts.aot).length === 0
-        ? ""
-        : `<script data-howl-react-aot>window.__HOWL_REACT_AOT__=${
-          JSON.stringify(prefixManifest(opts.aot, base)).replaceAll("<", "\\u003c")
-        }</script>`;
-      const preload = chunkHref === "" ? "" : `<link rel="modulepreload" href="${chunkHref}">`;
-
-      // Per-request unhead instance — collects every page/layout `useHead()` call
-      // during render, then serialises to `<head>` tags (with a title fallback).
-      const head = createHead();
-      // Per-request jotai store — seeded with `ctx.state` so `useHowlState()` and
-      // user atoms render server-side without leaking across concurrent requests.
-      const store = createStore();
-      store.set(howlStateAtom, (props.state ?? {}) as Record<string, unknown>);
-      const withProviders = (node: ReactNode): ReactNode =>
-        createElement(JotaiProvider, { store }, createElement(
-          UnheadProvider as ComponentType<{ value: unknown; children: ReactNode }>,
-          { value: head, children: node },
-        ));
-      const resolveHeadTags = async (): Promise<string> => {
-        const ssr = await renderSSRHead(head);
-        return ssr.headTags.includes("<title")
-          ? ssr.headTags
-          : `<title>${escapeHtml(resolveTitle(props))}</title>${ssr.headTags}`;
-      };
-
-      let html: string;
-      if (appComp !== null) {
-        const appNode = createElement(appComp, {
-          ...props,
-          Component: () => createElement("div", { id: "howl-app" }, inner),
-        });
-        let doc = renderToString(withProviders(appNode));
-        if (!doc.includes("<html")) doc = `<html lang="en">${doc}</html>`;
-        const headTags = await resolveHeadTags();
-        doc = injectBefore(doc, "</head>", preload + headTags);
-        doc = injectBefore(doc, "</body>", aotScript + hydration);
-        html = `<!DOCTYPE html>${doc}`;
-      } else {
-        const appHtml = renderToString(
-          withProviders(createElement("div", { id: "howl-app" }, inner)),
+        // Client hydration: serialise the props and import the page chunk, which
+        // calls its exported `hydrate()`.
+        const propsJson = JSON.stringify(props, (_k, v) => v instanceof URL ? v.href : v)
+          .replaceAll("<", "\\u003c");
+        const chunkHref = opts.chunkUrl === undefined ? "" : `${base}${opts.chunkUrl}`;
+        const hydration = opts.chunkUrl === undefined ? "" : (
+          `<script data-howl-react-props>window.__REACT_PAGE_PROPS__=${propsJson}</script>` +
+          `<script type="module" data-howl-react-page data-chunk="${chunkHref}">` +
+          `import(${JSON.stringify(chunkHref)}).then(function(m){m.hydrate();})</script>`
         );
-        const headTags = await resolveHeadTags();
-        html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
-          `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-          `${preload}${headTags}</head>` +
-          `<body>${appHtml}${aotScript}${hydration}</body></html>`;
-      }
+        // AOT manifest (route pattern → client chunk) so the client runtime can
+        // render `__`/`___`-prefixed routes on nav without a server round-trip.
+        const aotScript = opts.aot === undefined || Object.keys(opts.aot).length === 0
+          ? ""
+          : `<script data-howl-react-aot>window.__HOWL_REACT_AOT__=${
+            JSON.stringify(prefixManifest(opts.aot, base)).replaceAll("<", "\\u003c")
+          }</script>`;
+        const preload = chunkHref === "" ? "" : `<link rel="modulepreload" href="${chunkHref}">`;
+        const live = opts.dev ? liveReloadScript(base) : "";
 
-      const headers = new Headers(opts.headers);
-      headers.set("content-type", "text/html; charset=utf-8");
-      mergeCtxHeaders(ctx, headers);
-      return new Response(html, { status: opts.status, headers });
+        // Per-request unhead instance — collects every page/layout `useHead()` call
+        // during render, then serialises to `<head>` tags (with a title fallback).
+        const head = createHead();
+        // Per-request jotai store — seeded with `ctx.state` so `useHowlState()` and
+        // user atoms render server-side without leaking across concurrent requests.
+        const store = createStore();
+        store.set(howlStateAtom, (props.state ?? {}) as Record<string, unknown>);
+        const withProviders = (node: ReactNode): ReactNode =>
+          createElement(
+            JotaiProvider,
+            { store },
+            createElement(
+              UnheadProvider as ComponentType<{ value: unknown; children: ReactNode }>,
+              { value: head, children: node },
+            ),
+          );
+        const resolveHeadTags = async (): Promise<string> => {
+          const ssr = await renderSSRHead(head);
+          return ssr.headTags.includes("<title")
+            ? ssr.headTags
+            : `<title>${escapeHtml(resolveTitle(props))}</title>${ssr.headTags}`;
+        };
+
+        let html: string;
+        if (appComp !== null) {
+          const appNode = createElement(appComp, {
+            ...props,
+            Component: () => createElement("div", { id: "howl-app" }, inner),
+          });
+          let doc = renderToString(withProviders(appNode));
+          if (!doc.includes("<html")) doc = `<html lang="en">${doc}</html>`;
+          const headTags = await resolveHeadTags();
+          doc = injectBefore(doc, "</head>", preload + headTags);
+          doc = injectBefore(doc, "</body>", aotScript + hydration + live);
+          html = `<!DOCTYPE html>${doc}`;
+        } else {
+          const appHtml = renderToString(
+            withProviders(createElement("div", { id: "howl-app" }, inner)),
+          );
+          const headTags = await resolveHeadTags();
+          html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
+            `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+            `${preload}${headTags}</head>` +
+            `<body>${appHtml}${aotScript}${hydration}${live}</body></html>`;
+        }
+
+        // Prod: cache-bust local asset refs (`<link href>` / `<img src>`) so the
+        // static middleware serves them `immutable`. Dev leaves them un-busted so
+        // edits show immediately.
+        if (opts.dev !== true) html = cacheBustLocalAssets(html);
+
+        const headers = new Headers(opts.headers);
+        headers.set("content-type", "text/html; charset=utf-8");
+        mergeCtxHeaders(ctx, headers);
+        return new Response(html, { status: opts.status, headers });
+      } catch (err) {
+        // A render failure (unresolved import, throw in a component, …) is
+        // otherwise swallowed by the segment error handler. An intentional
+        // `HttpError` (e.g. a 404) should still route to `_error.tsx`, so
+        // rethrow it; in prod rethrow everything. In dev, return a page that
+        // surfaces the real error + stack so it's debuggable.
+        if (isHttpError(err) || opts.dev !== true) throw err;
+        // deno-lint-ignore no-console
+        console.error(`🐺 React render failed for ${opts.filePath}:`, err);
+        const headers = new Headers(opts.headers);
+        headers.set("content-type", "text/html; charset=utf-8");
+        return new Response(renderDevError(err, opts.filePath), { status: 500, headers });
+      }
     },
     renderToString(component, props) {
       // Standalone render (emails / notifications) — a bare React component to

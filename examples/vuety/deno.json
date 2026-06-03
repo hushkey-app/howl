@@ -20,7 +20,8 @@
     "daisyui": "npm:daisyui@5.5.18"
   },
   "compilerOptions": {
-    "jsxImportSource": "precompiled",
+    "jsx": "react-jsx",
+    "jsxImportSource": "vue",
     "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
   }
 }

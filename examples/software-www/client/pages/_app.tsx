@@ -1,23 +1,22 @@
-import type { JSX } from "preact/jsx-runtime";
-import type { PageProps } from "@hushkey/howl";
-import { asset, Partial } from "@hushkey/howl/runtime";
+import type { ReactPageProps } from "@hushkey/howl-react";
 import type { State } from "../../howl.config.ts";
 
 const DESCRIPTION =
   "Software engineer — full-stack Deno, TypeScript, distributed systems. Selected projects, experience, and contact.";
 const OG_IMAGE = "/og.png";
 
-export default function App({ Component, state }: PageProps<unknown, State>): JSX.Element {
-  const title = state.client?.title ?? "CV";
+export default function App(props: ReactPageProps<unknown, State>) {
+  const Outlet = props.Component!;
+  const title = props.state.client?.title ?? "CV";
   return (
     <html>
       <head>
-        <meta charset="utf-8" />
+        <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>{title}</title>
         <meta name="description" content={DESCRIPTION} />
         <link rel="stylesheet" href="/style.css" />
-        <link rel="icon" type="image/svg+xml" href={asset("/logo.svg")} />
+        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 
         <meta property="og:type" content="website" />
         <meta property="og:title" content={title} />
@@ -31,10 +30,8 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
         <meta name="twitter:description" content={DESCRIPTION} />
         <meta name="twitter:image" content={OG_IMAGE} />
       </head>
-      <body client-nav client-prefetch>
-        <Partial name="main">
-          <Component />
-        </Partial>
+      <body client-nav="true" client-prefetch="true">
+        <Outlet />
       </body>
     </html>
   );

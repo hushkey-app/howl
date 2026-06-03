@@ -53,6 +53,7 @@ export type { LayoutConfig, Lazy, MaybeLazy, Route, RouteConfig } from "./types.
 // --- Config ---
 export { type HowlConfig, parseDirPath, type ResolvedHowlConfig } from "./config.ts";
 export type { RenderEngine, RenderEngineRenderOptions } from "./engine.ts";
+export { asset, assetSrcSet } from "./asset.ts";
 
 // --- Constants ---
 export {

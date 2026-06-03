@@ -1,6 +1,5 @@
 import type { Context, RenderEngine, RenderEngineRenderOptions } from "@hushkey/howl";
-import { PARTIAL_SEARCH_PARAM } from "@hushkey/howl";
-import { asset } from "@hushkey/howl/runtime";
+import { asset, PARTIAL_SEARCH_PARAM } from "@hushkey/howl";
 import { type Component, createSSRApp, h } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { createHead, renderSSRHead } from "@unhead/vue/server";
