@@ -13,7 +13,7 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
         <link rel="stylesheet" href="/style.css" />
         <link rel="icon" type="image/svg+xml" href={asset("/logo.svg")} />
       </head>
-      <body f-client-nav>
+      <body client-nav>
         <Partial name="main">
           <Component />
         </Partial>

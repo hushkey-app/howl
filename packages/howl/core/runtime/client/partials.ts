@@ -276,7 +276,7 @@ document.addEventListener("submit", async (e) => {
       el.getAttribute(PARTIAL_ATTR) ?? el.action;
     const rawActionUrl = e.submitter?.getAttribute("formaction") ?? el.action;
 
-    // Forms inside f-client-nav are only intercepted when they explicitly
+    // Forms inside client-nav are only intercepted when they explicitly
     // opt in. Without this check, every form would be hijacked because
     // `el.action` defaults to the current URL — there's no empty-string
     // signal we can rely on. A form opts in by setting `f-partial`,

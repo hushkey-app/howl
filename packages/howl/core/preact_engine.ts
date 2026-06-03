@@ -7,12 +7,15 @@ type AnyComponentDef = ComponentDef<unknown, unknown>;
 /**
  * Howl's built-in render engine: Preact. Renders the matched route's
  * (already-imported) page component through the layout/app stack via
- * `ctx.render` — the same path Howl has always used, now behind the pluggable
+ * `ctx.render` — the path Howl has always used, now behind the pluggable
  * {@linkcode RenderEngine} seam so Preact is **selected explicitly** like any
- * other engine rather than being an implicit default.
+ * other engine rather than being an implicit default. Usually imported from
+ * `@hushkey/howl-preact` (which re-exports it) for symmetry with the Vue/React
+ * engine packages:
  *
  * ```ts
- * import { Howl, preactEngine } from "@hushkey/howl";
+ * import { Howl } from "@hushkey/howl";
+ * import { preactEngine } from "@hushkey/howl-preact";
  * const app = new Howl({ engines: { preact: preactEngine() } });
  * ```
  *

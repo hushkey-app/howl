@@ -31,7 +31,7 @@ export default function Error({ error }: { error: unknown }): JSX.Element {
           <a
             href="/"
             class="btn btn-primary btn-md rounded-lg mt-4"
-            f-client-nav
+            client-nav
           >
             Go Back Home
           </a>

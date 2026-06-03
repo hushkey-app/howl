@@ -4,7 +4,7 @@ import { prefetchAotRoute } from "./aot.ts";
 
 /**
  * Link-prefetch on intent. When the pointer hovers (or a touch/focus signals
- * intent on) an `f-client-nav` link, the destination is warmed ahead of the
+ * intent on) a `client-nav` link, the destination is warmed ahead of the
  * click: AOT routes pre-import their JS chunk, SSR routes pre-fetch their
  * partial response. The subsequent navigation then reuses the warmed result,
  * making it feel instant — the same idea as Hotwired Turbo / instant.page.
@@ -12,11 +12,13 @@ import { prefetchAotRoute } from "./aot.ts";
  * Engine-agnostic: it only touches URLs, `fetch`, and dynamic `import()`, so
  * any future render engine that reuses Howl's navigation layer gets it for free.
  *
- * Opt out per-link (or per-subtree) with `f-prefetch="false"`.
+ * Opt **in** per-subtree with a `client-prefetch` boundary (off by default,
+ * matching the Vue/React engines); exclude a link or subtree with
+ * `client-prefetch="false"`.
  */
 
-/** Attribute used to opt a link or subtree out of prefetching. */
-const PREFETCH_ATTR = "f-prefetch";
+/** Attribute that opts a link or subtree **into** prefetching (off by default). */
+const PREFETCH_ATTR = "client-prefetch";
 
 /** Hover dwell (ms) before a pointer hover is treated as navigation intent. */
 const HOVER_INTENT_MS = 65;
@@ -42,8 +44,9 @@ function eligibleLink(target: EventTarget | null): HTMLAnchorElement | null {
   const rawHref = a.getAttribute("href");
   if (rawHref === null || rawHref.startsWith("#")) return null;
   if (!isClientNavOptedIn(a)) return null;
-  const optOut = a.closest(`[${PREFETCH_ATTR}]`);
-  if (optOut !== null && optOut.getAttribute(PREFETCH_ATTR) === "false") {
+  // Opt-in: a `client-prefetch` boundary must be present and not disabled.
+  const setting = a.closest(`[${PREFETCH_ATTR}]`);
+  if (setting === null || setting.getAttribute(PREFETCH_ATTR) === "false") {
     return null;
   }
   return a;

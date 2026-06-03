@@ -34,7 +34,7 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
         <meta name="twitter:description" content={DESCRIPTION} />
         <meta name="twitter:image" content={OG_IMAGE} />
       </head>
-      <body f-client-nav f-view-transition>
+      <body client-nav f-view-transition>
         {
           /* Reproducing hushkey: utility islands inside <Partial> so each nav
             re-mounts them. Move outside to keep state across nav. */

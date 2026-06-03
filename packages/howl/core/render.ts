@@ -71,11 +71,20 @@ export type PageProps<Data = unknown, T = unknown> =
   >
   & { data: Data };
 
+/** A route's page component plus the handler data passed to it as props. */
 export interface ComponentDef<Data, State> {
+  /** Handler data, narrowed to `PageProps` by {@linkcode renderRouteComponent}. */
   props: PageProps<Data, State> | null;
+  /** The page component to render. */
   component: AnyComponent<PageProps<Data, State>>;
 }
 
+/**
+ * Render a route's page component to a Preact `VNode` (or a `Response` if the
+ * component is an async component that returns one). Builds the full
+ * {@linkcode PageProps} from `ctx` + `def.props` and places `child` at the
+ * `Component` outlet. Used by the built-in Preact engine.
+ */
 export async function renderRouteComponent<State>(
   ctx: Context<State>,
   def: ComponentDef<unknown, State>,

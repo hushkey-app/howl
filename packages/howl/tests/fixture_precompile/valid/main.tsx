@@ -10,8 +10,8 @@ const app = new Howl().get(
           <title>foo</title>
         </head>
         <body>
-          <div f-client-nav>
-            <span f-client-nav={false}>
+          <div client-nav>
+            <span client-nav={false}>
               <p>false</p>
             </span>
             <a href="/">Home</a>

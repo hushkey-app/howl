@@ -14,9 +14,9 @@ export function HowlAttrs(props: HowlAttrs) {
   return (
     <div id={props.id} class={active.value ? "ready" : ""}>
       <h1>Howl attrs</h1>
-      <div class="f-client-nav-true" f-client-nav>f-client-nav=true</div>
-      <div class="f-client-nav-false" f-client-nav={false}>
-        f-client-nav=false
+      <div class="client-nav-true" client-nav>client-nav=true</div>
+      <div class="client-nav-false" client-nav={false}>
+        client-nav=false
       </div>
     </div>
   );

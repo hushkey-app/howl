@@ -25,7 +25,7 @@ export default function Error({ error }: { error: unknown }): JSX.Element {
           <p class="text-base mb-8 text-base-content/60 leading-relaxed">
             The page you're looking for could not be found.
           </p>
-          <a href="/" class="btn btn-primary btn-md rounded-lg mt-4" f-client-nav>
+          <a href="/" class="btn btn-primary btn-md rounded-lg mt-4" client-nav>
             Go Back Home
           </a>
         </div>

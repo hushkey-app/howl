@@ -12,7 +12,7 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
         <title>{state.client.appName}</title>
         <link rel="stylesheet" href="/style.css" />
       </head>
-      <body f-client-nav class="min-h-screen bg-base-100 text-base-content">
+      <body client-nav class="min-h-screen bg-base-100 text-base-content">
         <Partial name="main">
           <Component />
         </Partial>

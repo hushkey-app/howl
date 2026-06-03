@@ -25,7 +25,7 @@ Deno.test("zero-JS — page with no islands/partials/client-nav ships no <script
   expect(res.headers.get("Link")).toBeNull();
 });
 
-Deno.test("zero-JS — f-client-nav forces the runtime even without islands", async () => {
+Deno.test("zero-JS — client-nav forces the runtime even without islands", async () => {
   const t = makeApp();
   t.app.get("/", (ctx) =>
     ctx.render(
@@ -33,7 +33,7 @@ Deno.test("zero-JS — f-client-nav forces the runtime even without islands", as
         <head>
           <title>nav</title>
         </head>
-        <body f-client-nav>
+        <body client-nav>
           <h1>hello</h1>
         </body>
       </html>,

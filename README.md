@@ -505,15 +505,17 @@ releases.
 > Requires `vuePlugin()` in your builder; see the package README.
 
 > **Pluggable render engines — Preact, Vue & React.** Page rendering is a
-> registered engine — there is **no implicit default**. Select one on the app:
+> registered engine — there is **no implicit default**. The framework is split
+> into four packages: [`@hushkey/howl`](packages/howl) (core + the Preact
+> runtime) · [`@hushkey/howl-preact`](packages/howl-preact) ·
+> [`@hushkey/howl-vue`](packages/howl-vue) ·
+> [`@hushkey/howl-react`](packages/howl-react). Select an engine on the app —
 > `new Howl({ engines: { preact: preactEngine() } })` (or `vue: vueEngine()` /
-> `react: reactEngine()`), plus the matching builder plugin for Vue/React
-> (`vuePlugin()` / `reactPlugin()`). Preact (`.tsx`) is built in via
-> `preactEngine()`; full **Vue** (`.vue`) and **React** (`.tsx`) pages come from
-> the optional [`@hushkey/howl-vue`](packages/howl-vue) /
-> [`@hushkey/howl-react`](packages/howl-react) packages. The shared backend —
-> routing, APIs, middleware, client-nav + prefetch, AOT/SSG, `deno compile` — is
-> reused unchanged; only the component renderer differs.
+> `react: reactEngine()`) — plus the matching builder plugin (`preactPlugin()` /
+> `vuePlugin()` / `reactPlugin()`). The shared backend — routing, APIs,
+> middleware, client-nav + prefetch, AOT/SSG, `deno compile` — is reused
+> unchanged; only the component renderer differs, and all three engines use the
+> same `client-nav` / `client-prefetch` attributes.
 >
 > If a **client entry with page routes** is configured but no engine is
 > registered, the build throws (telling you to select one). Backend-only apps

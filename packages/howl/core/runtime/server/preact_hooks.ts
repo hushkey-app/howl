@@ -81,7 +81,7 @@ export class RenderState {
 
   /**
    * Set to `true` whenever the page renders something that requires the
-   * client runtime: an island, a `<Partial>`, an `f-client-nav` boundary, or
+   * client runtime: an island, a `<Partial>`, a `client-nav` boundary, or
    * an `f-view-transition` body. Pages without any of these ship 0 KB of JS.
    */
   needsClientRuntime = false;
@@ -680,7 +680,7 @@ function HowlRuntimeScript() {
     const hasAot = buildCache.aotRoutes.size > 0;
     const hasVue = buildCache.vueIslands.size > 0;
     // Zero-JS default: page renders nothing that needs the client runtime
-    // (no island, no <Partial>, no f-client-nav, no f-view-transition) →
+    // (no island, no <Partial>, no client-nav, no f-view-transition) →
     // skip the bootloader script entirely. The error overlay (dev-only)
     // renders independently as an iframe and stays available. Pages with
     // AOT routes or Vue islands registered always need the runtime so client

@@ -347,7 +347,7 @@ export class Builder<State = any> {
       // this route. The page still renders normally (SSR for `__`, prebuilt
       // HTML for `___`); client navigation to it falls through to a full
       // document load, same as a regular SSR route. We only warn at build
-      // time so apps that intentionally drop `f-client-nav` (and therefore
+      // time so apps that intentionally drop `client-nav` (and therefore
       // don't need chunks) stay quiet — those won't have a Partial either.
       const chain: string[] = [];
       if (appFile) chain.push(appFile.filePath);

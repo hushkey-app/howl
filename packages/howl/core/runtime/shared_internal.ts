@@ -4,7 +4,7 @@ import { ASSET_CACHE_BUST_KEY } from "../constants.ts";
 export const DATA_CURRENT = "data-current";
 export const DATA_ANCESTOR = "data-ancestor";
 export const DATA_HOWL_KEY = "data-howl-key";
-export const CLIENT_NAV_ATTR = "f-client-nav";
+export const CLIENT_NAV_ATTR = "client-nav";
 
 export const enum OptionsType {
   ATTR = "attr",
@@ -110,7 +110,7 @@ export const enum PartialMode {
 }
 
 /**
- * Returns `true` when the given element sits inside an `f-client-nav`
+ * Returns `true` when the given element sits inside a `client-nav`
  * boundary that hasn't been explicitly disabled. Used by both the SSR partial
  * navigator and the AOT navigator to gate interception of `<a>` clicks and
  * `popstate` events — when the attribute is absent (or set to `"false"`),

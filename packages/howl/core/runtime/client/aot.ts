@@ -154,10 +154,10 @@ if (typeof document !== "undefined" && Object.keys(manifest).length > 0) {
       e.ctrlKey || e.metaKey || e.altKey || e.shiftKey
     ) return;
 
-    // `f-client-nav` gates AOT the same way it gates the SSR partial nav.
+    // `client-nav` gates AOT the same way it gates the SSR partial nav.
     // When the user removes the attribute (or sets it to "false") the AOT
     // navigator must stand down and let the browser perform a regular
-    // document-level navigation, otherwise removing `f-client-nav` would
+    // document-level navigation, otherwise removing `client-nav` would
     // half-work — SSR routes reload, AOT routes stay SPA.
     if (!isClientNavOptedIn(el)) return;
 
@@ -189,7 +189,7 @@ if (typeof document !== "undefined" && Object.keys(manifest).length > 0) {
 
   addEventListener("popstate", (e) => {
     if (e.state === null) return;
-    // Same gating rule as the click path: when `f-client-nav` is missing or
+    // Same gating rule as the click path: when `client-nav` is missing or
     // explicitly disabled at the body level, defer to the browser instead of
     // intercepting back/forward.
     if (!document.body || !isClientNavOptedIn(document.body)) return;

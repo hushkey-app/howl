@@ -1,4 +1,5 @@
 import { Howl, staticFiles } from "@hushkey/howl";
+import { preactEngine } from "@hushkey/howl-preact";
 import { coalesceRequests, compression } from "@hushkey/howl/middleware";
 import { apiConfig, type State } from "../howl.config.ts";
 import denoJson from "../deno.json" with { type: "json" };
@@ -9,6 +10,7 @@ const APP_VERSION = denoJson.version;
 export const app = new Howl<State>({
   logger: true,
   debug: true,
+  engines: { preact: preactEngine() },
 });
 
 app.use((ctx) => {

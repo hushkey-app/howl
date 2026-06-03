@@ -9,7 +9,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Pages that don't render an island, a <Partial>, an f-client-nav boundary, or an f-view-transition body ship 0 KB of JavaScript. The bootloader <script> tag and the Link: …; rel=\"modulepreload\" response header are both skipped automatically — no flag, no opt-in."
+          "text": "Pages that don't render an island, a <Partial>, a client-nav boundary, or an f-view-transition body ship 0 KB of JavaScript. The bootloader <script> tag and the Link: …; rel=\"modulepreload\" response header are both skipped automatically — no flag, no opt-in."
         },
         {
           "type": "p",
@@ -18,7 +18,7 @@
         {
           "type": "code",
           "lang": "tsx",
-          "text": "// Static page → no <script>, no Link header\nexport default function About() {\n  return <h1>About</h1>;\n}\n\n// Interactive page → runtime is loaded automatically\nexport default function Counter() {\n  return (\n    <body f-client-nav>\n      <CounterIsland />\n    </body>\n  );\n}"
+          "text": "// Static page → no <script>, no Link header\nexport default function About() {\n  return <h1>About</h1>;\n}\n\n// Interactive page → runtime is loaded automatically\nexport default function Counter() {\n  return (\n    <body client-nav>\n      <CounterIsland />\n    </body>\n  );\n}"
         },
         {
           "type": "table",
@@ -26,7 +26,7 @@
           "rows": [
             ["Island (.island.tsx)", "Hydrates on the client"],
             ["<Partial>", "Receives DOM swaps from partial nav"],
-            ["f-client-nav", "Intercepts links/forms for SPA-style nav"],
+            ["client-nav", "Intercepts links/forms for SPA-style nav"],
             ["f-view-transition", "Wraps DOM swaps in startViewTransition()"],
             ["__page.tsx / ___page.tsx", "Ships the AOT navigation chunk + manifest"]
           ]
@@ -86,7 +86,7 @@
         {
           "type": "code",
           "lang": "tsx",
-          "text": "// client/pages/_app.tsx\nexport default function App({ Component }: PageProps) {\n  return (\n    <html>\n      <body f-client-nav f-view-transition>\n        <Partial name=\"main\">\n          <Component />\n        </Partial>\n      </body>\n    </html>\n  );\n}"
+          "text": "// client/pages/_app.tsx\nexport default function App({ Component }: PageProps) {\n  return (\n    <html>\n      <body client-nav f-view-transition>\n        <Partial name=\"main\">\n          <Component />\n        </Partial>\n      </body>\n    </html>\n  );\n}"
         },
         {
           "type": "code",
@@ -95,7 +95,7 @@
         },
         {
           "type": "tip",
-          "text": "Pair f-view-transition with f-client-nav. Without f-client-nav, browser-native page navigation will tear down the document and the transition won't run."
+          "text": "Pair f-view-transition with client-nav. Without client-nav, browser-native page navigation will tear down the document and the transition won't run."
         }
       ]
     }

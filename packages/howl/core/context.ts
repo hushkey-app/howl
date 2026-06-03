@@ -469,7 +469,7 @@ export class Context<State> {
         throw err;
       } finally {
         // Zero-JS default: nothing on the page needs the client runtime
-        // (no island, no <Partial>, no f-client-nav, no f-view-transition)
+        // (no island, no <Partial>, no client-nav, no f-view-transition)
         // → skip the modulepreload Link header entirely. Pages with only CSS
         // still preload styles below.
         const basePath = this.config.basePath;

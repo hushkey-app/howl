@@ -1064,6 +1064,7 @@
     "members": {
       "examples/hybrid-spa": {
         "dependencies": [
+          "jsr:@hushkey/howl-preact@^0.0.1",
           "jsr:@hushkey/howl@~0.6.2",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
@@ -1087,6 +1088,7 @@
       },
       "examples/software-www": {
         "dependencies": [
+          "jsr:@hushkey/howl-preact@^0.0.1",
           "jsr:@hushkey/howl@0.6",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
@@ -1110,6 +1112,7 @@
       },
       "examples/www": {
         "dependencies": [
+          "jsr:@hushkey/howl-preact@^0.0.1",
           "jsr:@hushkey/howl-vue@^0.0.1",
           "jsr:@hushkey/howl@0.6",
           "jsr:@std/path@1",
@@ -1157,6 +1160,13 @@
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
+        ]
+      },
+      "packages/howl-preact": {
+        "dependencies": [
+          "jsr:@hushkey/howl@~0.6.2",
+          "jsr:@std/expect@^1.0.18",
+          "npm:esbuild@0.25"
         ]
       },
       "packages/howl-react": {

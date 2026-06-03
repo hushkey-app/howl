@@ -1,4 +1,5 @@
-import { Howl, preactEngine, staticFiles } from "@hushkey/howl";
+import { Howl, staticFiles } from "@hushkey/howl";
+import { preactEngine } from "@hushkey/howl-preact";
 import { apiConfig, type State } from "../howl.config.ts";
 // import { coalesceRequests, compression } from "@hushkey/howl/middleware";
 import denoJson from "../../../packages/howl/deno.json" with { type: "json" };
