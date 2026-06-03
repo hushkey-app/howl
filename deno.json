@@ -2,6 +2,7 @@
   "nodeModulesDir": "auto",
   "workspace": [
     "./packages/howl",
+    "./packages/howl-preact",
     "./packages/howl-vue",
     "./packages/howl-react",
     "./packages/howl-init",
