@@ -2,7 +2,7 @@ import * as path from "@std/path";
 import type { Command } from "./commands.ts";
 import { fsItemsToCommands, type FsRouteFile } from "./fs_routes.ts";
 import type { ServerIslandRegistry } from "./context.ts";
-import type { AnyComponent, ComponentType } from "preact";
+import type { AnyComponent, ComponentType } from "./component.ts";
 import { UniqueNamer } from "./utils.ts";
 import { setBuildId } from "../utils/build-id.ts";
 

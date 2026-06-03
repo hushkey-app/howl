@@ -1,4 +1,4 @@
-import type { AnyComponent } from "preact";
+import type { AnyComponent } from "./component.ts";
 import type { MaybeLazy, Route, RouteConfig } from "./types.ts";
 import type { HandlerByMethod, RouteHandler } from "./handlers.ts";
 import type { Middleware } from "./middlewares/mod.ts";

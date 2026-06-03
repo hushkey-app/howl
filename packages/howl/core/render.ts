@@ -2,7 +2,7 @@ import {
   type AnyComponent,
   type RenderableProps,
   type VNode,
-} from "preact";
+} from "./component.ts";
 import type { Context } from "./context.ts";
 
 /**
