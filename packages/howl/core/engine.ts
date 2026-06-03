@@ -71,20 +71,4 @@ export interface RenderEngine<Ctx = unknown> {
     component: unknown,
     props?: Record<string, unknown>,
   ): Promise<string> | string;
-
-  /**
-   * Render an inline vnode through the layout/app stack to a full page
-   * `Response` — backs `ctx.render(<jsx>)`. Provided only by the built-in Preact
-   * engine; Vue/React are file-based (they own the whole response via
-   * {@linkcode render}) and never call `ctx.render`. Loosely typed — the engine
-   * narrows `vnode` / `config` / `internals` (the framework-internal layout/app
-   * tree the `Context` hands over).
-   */
-  renderInline?(
-    ctx: Ctx,
-    vnode: unknown,
-    init: ResponseInit | undefined,
-    config: unknown,
-    internals: unknown,
-  ): Promise<Response>;
 }

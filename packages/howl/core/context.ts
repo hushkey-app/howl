@@ -2,11 +2,9 @@ import {
   type AnyComponent,
   type ComponentType,
   type FunctionComponent,
-  type VNode,
 } from "preact";
 import type { ResolvedHowlConfig } from "./config.ts";
 import type { BuildCache } from "./build_cache.ts";
-import type { LayoutConfig } from "./types.ts";
 import { PARTIAL_SEARCH_PARAM } from "./constants.ts";
 import type { ComponentDef, PageProps } from "./render.ts";
 import { CookieManager } from "./cookies.ts";
@@ -281,42 +279,6 @@ export class Context<State> {
     });
 
     return new Response(null, { status, headers });
-  }
-
-  /**
-   * Render JSX and return an HTML `Response` instance.
-   * ```tsx
-   * ctx.render(<h1>hello world</h1>);
-   * ```
-   */
-  async render(
-    // deno-lint-ignore no-explicit-any
-    vnode: VNode<any> | null,
-    init: ResponseInit | undefined = {},
-    config: LayoutConfig = {},
-  ): Promise<Response> {
-    if (arguments.length === 0) {
-      throw new Error(`No arguments passed to: ctx.render()`);
-    }
-    // `ctx.render` is the Preact page path, implemented by the engine (not core).
-    // Delegate to the registered engine that provides `renderInline` (Preact);
-    // engines are explicit, so there's no built-in fallback.
-    const internals = {
-      app: this.#internal.app,
-      layouts: this.#internal.layouts,
-      buildCache: this.#buildCache,
-      additionalStyles: this.#additionalStyles,
-    };
-    const ctx = this as unknown as Context<unknown>;
-    for (const engine of Object.values(this.config.engines)) {
-      if (engine.renderInline !== undefined) {
-        return await engine.renderInline(ctx, vnode, init, config, internals);
-      }
-    }
-    throw new Error(
-      "ctx.render(): no render engine is registered — add one, e.g. " +
-        "`new Howl({ engines: { preact: preactEngine() } })`.",
-    );
   }
 
   /**

@@ -209,11 +209,10 @@ export async function renderRoute<State>(
     }
   }
 
-  // Resolve the render engine for this route: an explicit tag (`.vue` → "vue",
-  // `.tsx` + reactPlugin → "react"), or the built-in "preact" inferred from a
-  // route component. Engines are explicit — Preact is required like any other
-  // (no implicit fallback); a registered engine owns the whole response.
-  const engineName = route.engine ?? (route.component !== undefined ? "preact" : undefined);
+  // Page rendering is delegated to a registered engine, picked by the route's
+  // engine tag (`.vue` → "vue", `.tsx` + reactPlugin → "react"). Engines are
+  // explicit — a registered engine owns the whole response.
+  const engineName = route.engine;
   if (engineName !== undefined) {
     const engine = ctx.config.engines[engineName];
     if (engine === undefined) {
@@ -232,7 +231,6 @@ export async function renderRoute<State>(
       : undefined;
     return await engine.render(ctx, {
       filePath: route.filePath ?? "",
-      component: route.component,
       data: res.data,
       headers,
       status,
@@ -243,7 +241,7 @@ export async function renderRoute<State>(
     });
   }
 
-  // No page component and no engine tag — render the app shell only (e.g. a
-  // layout-only route), through the registered engine via `ctx.render`.
-  return await ctx.render(null, { headers, status });
+  // The handler returned data but the route has no render engine — return the
+  // data as JSON (a page route would carry an engine tag).
+  return ctx.json(res.data ?? null, { headers, status });
 }
