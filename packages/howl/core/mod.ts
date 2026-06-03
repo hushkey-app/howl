@@ -35,9 +35,6 @@ export { staticFiles } from "./middlewares/static_files.ts";
 export { type CoalesceOptions, coalesceRequests } from "./middlewares/coalesce.ts";
 export type { MaybeLazyMiddleware, Middleware } from "./middlewares/mod.ts";
 
-// --- Client-only utility ---
-export { ClientOnly } from "./client_only.tsx";
-
 // --- Environment guards ---
 export { IS_BROWSER, IS_SERVER } from "./guards.ts";
 
@@ -56,7 +53,6 @@ export type { LayoutConfig, Lazy, MaybeLazy, Route, RouteConfig } from "./types.
 // --- Config ---
 export { type HowlConfig, parseDirPath, type ResolvedHowlConfig } from "./config.ts";
 export type { RenderEngine, RenderEngineRenderOptions } from "./engine.ts";
-export { preactEngine } from "./preact_engine.ts";
 
 // --- Constants ---
 export {

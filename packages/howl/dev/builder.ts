@@ -27,7 +27,7 @@ import {
   MemoryBuildCache,
 } from "./dev_build_cache.ts";
 import { BUILD_ID } from "../utils/build-id.ts";
-import { devErrorOverlay } from "./middlewares/error_overlay/middleware.tsx";
+import { devErrorOverlay } from "./middlewares/error_overlay/middleware.ts";
 import { automaticWorkspaceFolders } from "./middlewares/automatic_workspace_folders.ts";
 import { checkDenoCompilerOptions } from "./check.ts";
 import { crawlFsItem } from "./fs_crawl.ts";

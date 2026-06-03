@@ -6,6 +6,4 @@
  *
  * @module
  */
-
-export { ClientOnly } from "./client_only.tsx";
 export { IS_BROWSER, IS_SERVER } from "./guards.ts";
