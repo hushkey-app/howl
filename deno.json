@@ -7,9 +7,9 @@
     "./packages/howl-init",
     "./examples/www",
     "./examples/software-www",
-    "./examples/hybrid-spa",
-    "./examples/vuety",
-    "./examples/reacty"
+    "./examples/_vue",
+    "./examples/_react",
+    "./examples/_backend"
   ],
   "tasks": {
     "dev:vuety": "deno run -A --watch examples/vuety/dev.ts",

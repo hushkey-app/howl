@@ -19,36 +19,124 @@ const ENGINES: { id: Engine; label: string }[] = [
   { id: "text", label: "Your own" },
 ];
 
-/** Each engine's `main.ts` — the core ships no renderer; you register one. */
-const ENGINE_CODE: Record<Engine, string> = {
-  react: `import { defineConfig } from "@hushkey/howl";
-import { reactEngine } from "@hushkey/howl-react";
-// Core ships no renderer. Register an engine
-// and it owns the whole response (react-dom/server).
-export default defineConfig({
-  engines: { react: reactEngine() },
-});`,
-  vue: `import { defineConfig } from "@hushkey/howl";
+/** The real `server/main.ts` bootstrap for a given engine — the core ships no
+ * renderer, so you register one and it owns the whole response. */
+function mainCode(engine: Engine): string {
+  if (engine === "vue") {
+    return `import { Howl, staticFiles } from "@hushkey/howl";
 import { vueEngine } from "@hushkey/howl-vue";
-// Same core, swap the package.
-// Renders with vue/server-renderer.
-export default defineConfig({
-  engines: { vue: vueEngine() },
-});`,
-  text: `import { defineConfig } from "@hushkey/howl";
+import { apiConfig, type State } from "../howl.config.ts";
+
+export const app = new Howl<State>({
+  engines: { vue: vueEngine() }, // swap the package — same core
+});
+
+app.use(staticFiles());
+app.fsApiRoutes(apiConfig); // mounts server/apis/**/*.api.ts
+app.fsClientRoutes();       // mounts client/pages/**/*.tsx
+
+export default { app };`;
+  }
+  if (engine === "text") {
+    return `import { Howl, staticFiles } from "@hushkey/howl";
 import type { RenderEngine } from "@hushkey/howl";
+import { apiConfig, type State } from "../howl.config.ts";
+
 // The seam is one method — total control.
 const text: RenderEngine = {
   render: (ctx, opts) => ctx.html(String(opts.data)),
 };
-export default defineConfig({ engines: { text } });`,
-};
+
+export const app = new Howl<State>({
+  engines: { text },
+});
+
+app.use(staticFiles());
+app.fsApiRoutes(apiConfig); // mounts server/apis/**/*.api.ts
+app.fsClientRoutes();       // mounts client/pages/**/*.tsx
+
+export default { app };`;
+  }
+  return `import { Howl, staticFiles } from "@hushkey/howl";
+import { reactEngine } from "@hushkey/howl-react";
+import { apiConfig, type State } from "../howl.config.ts";
+
+export const app = new Howl<State>({
+  engines: { react: reactEngine() }, // engine owns the response
+});
+
+app.use(staticFiles());
+app.fsApiRoutes(apiConfig); // mounts server/apis/**/*.api.ts
+app.fsClientRoutes();       // mounts client/pages/**/*.tsx
+
+export default { app };`;
+}
 
 const ENGINE_PKG: Record<Engine, string> = {
   react: "@hushkey/howl-react",
   vue: "@hushkey/howl-vue",
   text: "(your module)",
 };
+
+/** The files you can open in the §4 IDE panel. */
+type FileId = "engine" | "main" | "api" | "page";
+
+/** The render seam — core ships types only. */
+const CORE_CODE = `// Core ships types only — it renders nothing.
+import type { Context } from "@hushkey/howl";
+
+export interface RenderEngine {
+  // One method. The engine owns the response.
+  render(ctx: Context, opts: RenderOptions): Response;
+}`;
+
+/** The backend showcase — a fully typed endpoint. */
+const API_CODE = `import { defineApi } from "../../howl.config.ts";
+import { z } from "zod";
+
+// Typed query, body, params + responses — validated by Zod.
+export default defineApi({
+  name: "ListUsers",
+  method: "GET",
+  roles: ["ADMIN"],                  // built-in RBAC
+  query: z.object({ limit: z.coerce.number().max(100) }),
+  responses: { 200: z.object({ users: z.array(User) }) },
+  rateLimit: { max: 60, windowMs: 60_000 },
+  handler: (ctx) => listUsers(ctx.query.limit),
+});`;
+
+/** A page is just a component; its data comes from the handler. */
+const PAGE_CODE = `import type { ReactPageProps } from "@hushkey/howl-react";
+
+// Pages are components; data comes from the route handler.
+export default function Home({ data }: ReactPageProps) {
+  return <h1>Hello {data.name}</h1>;
+}`;
+
+/** Code shown for a given open file + selected engine. */
+function fileCode(file: FileId, engine: Engine): string {
+  switch (file) {
+    case "engine":
+      return CORE_CODE;
+    case "api":
+      return API_CODE;
+    case "page":
+      return PAGE_CODE;
+    default:
+      return mainCode(engine);
+  }
+}
+
+const APP_FILES: { id: FileId; name: string }[] = [
+  { id: "main", name: "server/main.ts" },
+  { id: "api", name: "server/apis/users.api.ts" },
+  { id: "page", name: "client/pages/index.tsx" },
+];
+
+/** Last path segment — used for the editor tab label. */
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
 
 const RENDER_MODES: { file: string; mode: string; paint: string; nav: string }[] = [
   {
@@ -163,16 +251,13 @@ const KEYWORDS = new Set([
   "return",
 ]);
 
-/** Lightweight TS syntax highlighting for the IDE panel code samples. */
-function highlightLine(line: string): ReactNode {
-  if (line.trimStart().startsWith("//")) {
-    return <span className="text-ink-3">{line}</span>;
-  }
+/** Tokenise a comment-free code fragment into coloured spans. */
+function tokenize(s: string, keyStart: number): ReactNode[] {
   const out: ReactNode[] = [];
-  const re = /("[^"]*")|([A-Za-z_$][A-Za-z0-9_$]*)|([{}()<>;:,.=]+)|(\s+)/g;
+  const re = /("[^"]*")|([A-Za-z_$][A-Za-z0-9_$]*)|([{}()<>[\];:,.=]+)|(\s+)|(.)/g;
   let m: RegExpExecArray | null;
-  let key = 0;
-  while ((m = re.exec(line)) !== null) {
+  let key = keyStart;
+  while ((m = re.exec(s)) !== null) {
     const [tok, str, ident, punct] = m;
     if (str) {
       out.push(<span key={key++} className="text-success">{tok}</span>);
@@ -181,7 +266,7 @@ function highlightLine(line: string): ReactNode {
         out.push(<span key={key++} className="font-semibold text-primary">{tok}</span>);
       } else if (/^[A-Z]/.test(ident)) {
         out.push(<span key={key++} className="text-magenta">{tok}</span>);
-      } else if (line[re.lastIndex] === "(") {
+      } else if (s[re.lastIndex] === "(") {
         out.push(<span key={key++} className="text-info">{tok}</span>);
       } else {
         out.push(<span key={key++} className="text-ink">{tok}</span>);
@@ -193,6 +278,22 @@ function highlightLine(line: string): ReactNode {
     }
   }
   return out;
+}
+
+/** Lightweight TS syntax highlighting for the IDE panel code samples. */
+function highlightLine(line: string): ReactNode {
+  // A `//` outside a string starts a comment (samples have no `//` in strings).
+  const ci = line.indexOf("//");
+  const isComment = ci >= 0 && (line.slice(0, ci).split('"').length - 1) % 2 === 0;
+  if (isComment) {
+    return (
+      <>
+        {ci > 0 && tokenize(line.slice(0, ci), 0)}
+        <span className="text-ink-3">{line.slice(ci)}</span>
+      </>
+    );
+  }
+  return tokenize(line, 0);
 }
 
 /** Reveal `[data-reveal]` elements as they scroll into view (reduced-motion safe). */
@@ -250,6 +351,30 @@ function ModeFile({ file }: { file: string }) {
   );
 }
 
+/** Inline slide-up engine cycler — React (blue), Vue (green), your own (purple). */
+function EngineSlide() {
+  const items: { label: string; bg: string }[] = [
+    { label: "React", bg: "bg-info" },
+    { label: "Vue", bg: "bg-success" },
+    { label: "BYO", bg: "bg-primary" },
+    { label: "React", bg: "bg-info" },
+  ];
+  return (
+    <span className="relative inline-block h-6 overflow-hidden rounded-md align-middle">
+      <span className="engine-slide flex flex-col">
+        {items.map((it, i) => (
+          <span
+            key={i}
+            className={`flex h-6 shrink-0 items-center justify-center whitespace-nowrap rounded-md px-2 font-mono text-[13px] font-semibold text-white ${it.bg}`}
+          >
+            {it.label}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
 /**
  * The dark install bar — the `howl-init` scaffold command, click-to-copy.
  * Reused in the hero and the closing CTA.
@@ -304,7 +429,7 @@ function HuskyCard() {
       <div className="pointer-events-none absolute -inset-4 -z-10 translate-x-6 rounded-full bg-primary/15 blur-3xl" />
       <div className="howl-float relative rounded-3xl border border-line bg-paper p-8 shadow-[0_30px_70px_-28px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]">
         <span className="absolute left-4 top-4 rounded-full border border-line bg-accent-soft px-2.5 py-1 font-mono text-[10px] font-bold text-primary">
-          Fresh-forked
+          server-first
         </span>
         <div className="flex flex-col items-center gap-3 py-4">
           <img src="/logo.svg" alt="Howl mascot" className="h-46 w-46 drop-shadow-xl" />
@@ -320,8 +445,8 @@ function HuskyCard() {
   );
 }
 
-/** A `main.ts` sample rendered like a real editor — gutter line numbers + caret. */
-function CodeEditor({ code }: { code: string }) {
+/** A code sample rendered like a real editor — gutter line numbers + caret. */
+function CodeEditor({ code, caret = true }: { code: string; caret?: boolean }) {
   const lines = code.split("\n");
   return (
     <div className="flex overflow-x-auto bg-code-bg font-mono text-[12.5px] leading-[1.8]">
@@ -335,7 +460,7 @@ function CodeEditor({ code }: { code: string }) {
         {lines.map((line, i) => (
           <div key={i} className="whitespace-pre">
             {line ? highlightLine(line) : " "}
-            {i === lines.length - 1 && (
+            {caret && i === lines.length - 1 && (
               <span className="howl-cursor ml-0.5 text-primary">▍</span>
             )}
           </div>
@@ -345,9 +470,152 @@ function CodeEditor({ code }: { code: string }) {
   );
 }
 
-/** The §4 IDE panel — core file tree + editor + engine segmented control. */
+/** A standalone, titled code card — used in the routing section. */
+function CodeCard({ name, code }: { name: string; code: string }) {
+  return (
+    <div
+      data-reveal
+      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_60px_-44px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+    >
+      <div className="flex items-center gap-1.5 border-b border-line bg-base-100/60 px-4 py-2.5 font-mono text-[12px] text-ink-3">
+        <FileGlyph />
+        {name}
+      </div>
+      <CodeEditor code={code} caret={false} />
+    </div>
+  );
+}
+
+const DEV_CODE = `import { HowlBuilder } from "@hushkey/howl/dev";
+import { tailwindPlugin } from "@hushkey/howl/plugins";
+import { reactPlugin } from "@hushkey/howl-react/plugin";
+import { app } from "./server/main.ts";
+
+const builder = new HowlBuilder(app, {
+  serverEntry: "./server/main.ts", // apis/ resolve from here
+  clientEntry: "./client/pages/_app.tsx",
+  plugins: [reactPlugin()],
+});
+tailwindPlugin(builder.getBuilder("default")!);
+
+// No Vite — one builder runs dev and the production build.
+Deno.args.includes("build")
+  ? await builder.build()
+  : await builder.listen({ port: 8000 });`;
+
+/** File-system → route mapping rows shown in the §2 routing map. */
+const ROUTE_MAP: { fs: string; method: string; url: string }[] = [
+  { fs: "client/pages/index.tsx", method: "GET", url: "/" },
+  { fs: "client/pages/docs/[slug].tsx", method: "GET", url: "/docs/:slug" },
+  { fs: "server/apis/public/ping.api.ts", method: "GET", url: "/api/public/ping" },
+  { fs: "server/apis/users/[id].api.ts", method: "POST", url: "/api/users/:id" },
+];
+
+/** A file path with `[params]` and the enforced `.api.ts` suffix accented. */
+function FsPath({ fs }: { fs: string }) {
+  const parts = fs.split(/(\[[^\]]+\]|\.api\.ts$)/g).filter(Boolean);
+  return (
+    <code className="font-mono text-[12.5px] text-ink-2">
+      {parts.map((p, i) =>
+        p === ".api.ts"
+          ? <span key={i} className="font-bold text-magenta">{p}</span>
+          : /^\[.+\]$/.test(p)
+          ? <span key={i} className="text-primary">{p}</span>
+          : <span key={i}>{p}</span>
+      )}
+    </code>
+  );
+}
+
+/** The §2 file → route map card. */
+function RouteMap() {
+  return (
+    <div
+      data-reveal
+      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_60px_-44px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+    >
+      <div className="border-b border-line bg-base-100/60 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest text-ink-3">
+        file → route
+      </div>
+      <ul className="divide-y divide-line/70">
+        {ROUTE_MAP.map((r) => (
+          <li key={r.fs} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+            <FsPath fs={r.fs} />
+            <span className="text-ink-3">→</span>
+            <span className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+              {r.method}
+            </span>
+            <code className="font-mono text-[12.5px] text-ink">{r.url}</code>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** A file-tree glyph. */
+function FileGlyph() {
+  return (
+    <svg
+      className="h-3 w-3 shrink-0 text-ink-3"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v5h5M7 3h7l5 5v13H7z" />
+    </svg>
+  );
+}
+
+/** A clickable file row in the §4 IDE panel tree. */
+function FileRow(
+  { name, active, badge, onClick }: {
+    name: string;
+    active: boolean;
+    badge?: string;
+    onClick: () => void;
+  },
+) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-current={active ? "true" : undefined}
+        className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-left transition-colors ${
+          active
+            ? "bg-accent-soft font-semibold text-primary"
+            : "text-ink-2 hover:bg-accent-soft/50 hover:text-primary"
+        }`}
+      >
+        <FileGlyph />
+        <span className="truncate">{name}</span>
+        {badge && (
+          <span className="ml-auto rounded bg-magenta-soft px-1.5 text-[9px] font-bold text-magenta ring-1 ring-magenta/20">
+            {badge}
+          </span>
+        )}
+      </button>
+    </li>
+  );
+}
+
+/** The §4 IDE panel — a clickable mini file-explorer over a real Howl app. */
 function ViewLayerPanel() {
   const [engine, setEngine] = useState<Engine>("react");
+  const [file, setFile] = useState<FileId>("main");
+
+  // Engine buttons jump to main.ts so their effect on the config is visible.
+  const pickEngine = (id: Engine) => {
+    setEngine(id);
+    setFile("main");
+  };
+
+  const activeName = file === "engine"
+    ? "engine.ts"
+    : baseName(APP_FILES.find((f) => f.id === file)?.name ?? "main.ts");
 
   return (
     <div
@@ -373,7 +641,7 @@ function ViewLayerPanel() {
               type="button"
               role="tab"
               aria-selected={engine === id}
-              onClick={() => setEngine(id)}
+              onClick={() => pickEngine(id)}
               className={`rounded-md px-2.5 py-1 font-mono text-[12px] transition-all ${
                 engine === id
                   ? "bg-primary text-primary-content shadow-sm"
@@ -387,30 +655,38 @@ function ViewLayerPanel() {
       </div>
 
       {/* Body: sidebar + editor */}
-      <div className="grid min-[940px]:grid-cols-[212px_1fr]">
+      <div className="grid min-[940px]:grid-cols-[236px_1fr]">
         {/* File tree — hidden ≤940px */}
         <aside className="hidden border-r border-line bg-base-100/40 p-3 font-mono text-[12px] min-[940px]:block">
           <p className="px-2 pb-1.5 text-[10px] uppercase tracking-widest text-ink-3">
             Core · renders nothing
           </p>
-          <ul className="mb-3 space-y-0.5 text-ink-3">
-            <li className="flex items-center justify-between rounded px-2 py-1">
-              engine.ts
-              <span className="rounded bg-magenta-soft px-1.5 text-[9px] font-bold text-magenta ring-1 ring-magenta/20">
-                seam
-              </span>
+          <ul className="mb-3 space-y-0.5">
+            <FileRow
+              name="engine.ts"
+              badge="seam"
+              active={file === "engine"}
+              onClick={() => setFile("engine")}
+            />
+            <li className="flex items-center gap-1.5 rounded px-2 py-1 text-ink-3/60">
+              <FileGlyph />segments.ts
             </li>
-            <li className="rounded px-2 py-1">segments.ts</li>
-            <li className="rounded px-2 py-1">context.ts</li>
+            <li className="flex items-center gap-1.5 rounded px-2 py-1 text-ink-3/60">
+              <FileGlyph />context.ts
+            </li>
           </ul>
           <p className="px-2 pb-1.5 text-[10px] uppercase tracking-widest text-ink-3">
             Your app
           </p>
-          <ul className="mb-3 space-y-0.5 text-ink-2">
-            <li className="rounded bg-accent-soft px-2 py-1 font-semibold text-primary">
-              main.ts
-            </li>
-            <li className="rounded px-2 py-1">routes/index.tsx</li>
+          <ul className="mb-3 space-y-0.5">
+            {APP_FILES.map((f) => (
+              <FileRow
+                key={f.id}
+                name={f.name}
+                active={file === f.id}
+                onClick={() => setFile(f.id)}
+              />
+            ))}
           </ul>
           <p className="px-2 pb-1.5 text-[10px] uppercase tracking-widest text-ink-3">
             Engine · JSR
@@ -422,12 +698,28 @@ function ViewLayerPanel() {
 
         {/* Editor */}
         <div className="min-w-0">
-          <div className="flex items-center gap-2 border-b border-line bg-base-100/40 px-4 py-2">
-            <span className="rounded-t-md border-b-2 border-primary px-2 py-1 font-mono text-[12px] text-ink">
-              ● main.ts
+          <div className="flex items-center gap-1 border-b border-line bg-base-100/40 px-3 py-2">
+            {/* Mobile file picker — the sidebar is hidden ≤940px */}
+            <div className="flex flex-wrap items-center gap-1 min-[940px]:hidden">
+              {APP_FILES.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFile(f.id)}
+                  className={`rounded-md px-2 py-1 font-mono text-[11px] transition-colors ${
+                    file === f.id ? "bg-accent-soft text-primary" : "text-ink-3 hover:text-primary"
+                  }`}
+                >
+                  {baseName(f.name)}
+                </button>
+              ))}
+            </div>
+            <span className="hidden items-center gap-1.5 rounded-t-md border-b-2 border-primary px-2 py-1 font-mono text-[12px] text-ink min-[940px]:inline-flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              {activeName}
             </span>
           </div>
-          <CodeEditor code={ENGINE_CODE[engine]} />
+          <CodeEditor code={fileCode(file, engine)} />
         </div>
       </div>
 
@@ -451,19 +743,19 @@ export default function Index(props: ReactPageProps<unknown, State>) {
   useReveal();
 
   const tagline =
-    "Howl is the backend-first Deno framework: routing, validated APIs, middleware that reaches every response, RBAC, WebSockets & SSE. Forked from Fresh 2.x with Preact and islands removed — the core renders nothing, so rendering is a pluggable engine. No Vite.";
+    "Howl is a server-first, full-stack Deno framework: SSR owns first paint and hands off to a thick SPA client, the view engine (React or Vue) is a plugin, APIs are typed contracts collocated with your pages, and state stays coherent across navigation. No Vite.";
 
   useHead({
-    title: "Howl — Backend-first Deno framework",
+    title: "Howl — Server-first Deno framework",
     meta: [
       { name: "description", content: tagline },
-      { property: "og:title", content: "Howl — Backend-first Deno framework" },
+      { property: "og:title", content: "Howl — Server-first Deno framework" },
       { property: "og:description", content: tagline },
       { property: "og:image", content: "https://howl.hushkey.dev/og.png" },
       { property: "og:url", content: "https://howl.hushkey.dev" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Howl — Backend-first Deno framework" },
+      { name: "twitter:title", content: "Howl — Server-first Deno framework" },
       { name: "twitter:description", content: tagline },
       { name: "twitter:image", content: "https://howl.hushkey.dev/og.png" },
     ],
@@ -491,18 +783,21 @@ export default function Index(props: ReactPageProps<unknown, State>) {
               <span className="rounded-full bg-accent-soft px-2 py-0.5 text-primary">
                 v{version}
               </span>
-              <span>Backend-first · Deno · No Vite</span>
+              <span>Server-first · Deno · No Vite</span>
             </p>
             <h1 className="font-mono text-[2.6rem] font-extrabold leading-[1.02] tracking-tight text-ink sm:text-[4rem]">
               Typed endpoints.<br />
               <em className="text-primary">Zero plumbing.</em>
             </h1>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-2 sm:text-base">
-              Howl is the backend-first Deno framework: routing, validated APIs, middleware that
-              reaches every response, RBAC, WebSockets & SSE. Forked from{" "}
-              <strong className="font-semibold text-ink">Fresh 2.x</strong> with{" "}
-              <strong className="font-semibold text-ink">Preact and islands removed</strong>{" "}
-              — the core renders nothing, so rendering is a pluggable engine. No Vite.
+              Howl is a{" "}
+              <strong className="font-semibold text-ink">server-first</strong>, full-stack Deno
+              framework. SSR owns first paint, then hands off to a{" "}
+              <strong className="font-semibold text-ink">thick SPA client</strong> — the view engine
+              {" "}
+              <EngineSlide />{" "}
+              is a plugin, so the core renders nothing. Typed API contracts sit beside your pages,
+              state stays coherent across navigation, and there's no Vite.
             </p>
 
             <div className="mt-7 max-w-lg">
@@ -581,15 +876,69 @@ export default function Index(props: ReactPageProps<unknown, State>) {
                 ctx.json()
               </code>.
             </p>
+            <p data-reveal className="mt-3 text-[13px] leading-relaxed text-ink-3">
+              Howl grew out of Fresh 2.x primitives, then diverged completely — its own rendering,
+              navigation, state model, and build pipeline. Lineage, not identity.
+            </p>
           </div>
           <ViewLayerPanel />
+          <p data-reveal className="mt-4 text-[13px] leading-relaxed text-ink-3">
+            Click any file in the tree — the render seam, the engine config, a{" "}
+            <code className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[12px] text-primary">
+              defineApi
+            </code>{" "}
+            endpoint (typed query, responses, RBAC, rate limit), or a page.
+          </p>
         </section>
 
         {/* ── 02 · Rendering modes ───────────────────────────── */}
+        {/* ── 02 · Filesystem routing ────────────────────────── */}
         <section className="mt-24">
           <div className="mb-7 max-w-2xl">
             <SectionHeader
               index="02"
+              tag="One convention"
+              title={
+                <>
+                  Pages and APIs, <em className="text-primary">one routing system</em>.
+                </>
+              }
+            />
+            <p data-reveal className="mt-4 text-[15px] leading-relaxed text-ink-2">
+              Drop a file, get a route. Folders map to URL segments and{" "}
+              <code className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[13px] text-primary">
+                [param]
+              </code>{" "}
+              folders to path params — the same filesystem convention for both. The only difference:
+              API files are enforced to end in{" "}
+              <code className="rounded bg-magenta-soft px-1.5 py-0.5 font-mono text-[13px] text-magenta">
+                .api.ts
+              </code>.{" "}
+              <code className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[13px] text-primary">
+                app.fsClientRoutes()
+              </code>{" "}
+              mounts your pages;{" "}
+              <code className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[13px] text-primary">
+                app.fsApiRoutes()
+              </code>{" "}
+              the typed endpoints.
+            </p>
+          </div>
+
+          <div className="grid gap-4 min-[940px]:grid-cols-2">
+            <CodeCard name="server/main.ts" code={mainCode("react")} />
+            <CodeCard name="dev.ts" code={DEV_CODE} />
+          </div>
+          <div className="mt-4">
+            <RouteMap />
+          </div>
+        </section>
+
+        {/* ── 03 · Rendering modes ───────────────────────────── */}
+        <section className="mt-24">
+          <div className="mb-7 max-w-2xl">
+            <SectionHeader
+              index="03"
               tag="One file · One prefix"
               title={
                 <>
@@ -609,7 +958,7 @@ export default function Index(props: ReactPageProps<unknown, State>) {
                 key={file}
                 data-reveal
                 style={{ transitionDelay: `${i * 80}ms` }}
-                className="group rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-[3px] hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+                className="group rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.75 hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
               >
                 <div className="flex items-center justify-between">
                   <ModeFile file={file} />
@@ -663,7 +1012,7 @@ export default function Index(props: ReactPageProps<unknown, State>) {
                 key={title}
                 data-reveal
                 style={{ transitionDelay: `${(i % 3) * 80}ms` }}
-                className="rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-[3px] hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+                className="rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.75 hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
               >
                 <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-primary ring-1 ring-primary/10">
                   <Icon path={icon} />

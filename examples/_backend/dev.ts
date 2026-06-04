@@ -1,5 +1,4 @@
 import { HowlBuilder } from "@hushkey/howl/dev";
-import { tailwindPlugin } from "@hushkey/howl/plugins";
 import { app } from "./server/main.ts";
 import type { State } from "./howl.config.ts";
 
@@ -11,10 +10,8 @@ const builder = new HowlBuilder<State>(app, {
   importApp: () => app,
   outDir: "dist",
   serverEntry: "./server/main.ts",
-  clientEntry: "./client/pages/_app.ts",
+  // The only wiring needed for Vue islands: register the SFC esbuild plugin.
 });
-
-tailwindPlugin(builder.getBuilder("default")!);
 
 if (Deno.args.includes("build")) {
   await builder.build();

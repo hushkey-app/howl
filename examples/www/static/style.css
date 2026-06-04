@@ -538,6 +538,26 @@ textarea,
   animation: howl-pulse-dot 2s ease-in-out infinite;
 }
 
+/* Inline engine cycler — slides up through React / Vue / your own.
+   Four items (last duplicates the first) so the loop is seamless. */
+@keyframes engine-slide {
+  0%, 28% {
+    transform: translateY(0);
+  }
+  33%, 61% {
+    transform: translateY(-25%);
+  }
+  66%, 94% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(-75%);
+  }
+}
+.engine-slide {
+  animation: engine-slide 6s cubic-bezier(0.76, 0, 0.24, 1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-reveal] {
     opacity: 1 !important;
