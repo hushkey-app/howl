@@ -7,44 +7,72 @@
       "id": "overview",
       "heading": "Overview",
       "blocks": [
-        { "type": "p", "text": "Server-Sent Events (SSE) let the server push updates to the client over a single long-lived HTTP connection. Unlike WebSockets, SSE is unidirectional (server → client) and uses regular HTTP — great for live feeds, notifications, and progress updates." },
-        { "type": "p", "text": "ctx.sse() handles the SSE framing, headers (Content-Type: text/event-stream, Cache-Control: no-cache), and keep-alive automatically." }
+        {
+          "type": "p",
+          "text": "Server-Sent Events (SSE) let the server push updates to the client over a single long-lived HTTP connection. Unlike WebSockets, SSE is unidirectional (server → client) and uses regular HTTP — great for live feeds, notifications, and progress updates."
+        },
+        {
+          "type": "p",
+          "text": "ctx.sse() handles the SSE framing, headers (Content-Type: text/event-stream, Cache-Control: no-cache), and keep-alive automatically."
+        }
       ]
     },
     {
       "id": "basic-usage",
       "heading": "Basic usage",
       "blocks": [
-        { "type": "code", "lang": "ts", "text": "// In a page handler or API handler\nreturn ctx.sse(async (send) => {\n  // Send an event every second for 10 seconds\n  for (let i = 0; i < 10; i++) {\n    await send({ data: { tick: i }, event: \"tick\" });\n    await new Promise(r => setTimeout(r, 1000));\n  }\n});" }
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// In a page handler or API handler\nreturn ctx.sse(async (send) => {\n  // Send an event every second for 10 seconds\n  for (let i = 0; i < 10; i++) {\n    await send({ data: { tick: i }, event: \"tick\" });\n    await new Promise(r => setTimeout(r, 1000));\n  }\n});"
+        }
       ]
     },
     {
       "id": "sse-event",
       "heading": "SSEEvent interface",
       "blocks": [
-        { "type": "code", "lang": "ts", "text": "interface SSEEvent {\n  data: unknown;          // serialized to JSON\n  event?: string;        // event type (default: \"message\")\n  id?: string | number;  // last-event-id for reconnection\n  retry?: number;        // reconnect delay hint in ms\n}" },
-        { "type": "code", "lang": "ts", "text": "await send({ data: { user: \"leo\" }, event: \"join\", id: 1 });\nawait send({ data: { message: \"hello\" }, event: \"chat\", id: 2, retry: 3000 });" }
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "interface SSEEvent {\n  data: unknown;          // serialized to JSON\n  event?: string;        // event type (default: \"message\")\n  id?: string | number;  // last-event-id for reconnection\n  retry?: number;        // reconnect delay hint in ms\n}"
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "await send({ data: { user: \"leo\" }, event: \"join\", id: 1 });\nawait send({ data: { message: \"hello\" }, event: \"chat\", id: 2, retry: 3000 });"
+        }
       ]
     },
     {
       "id": "client-side",
       "heading": "Client-side (EventSource)",
       "blocks": [
-        { "type": "p", "text": "In a browser island, use the native EventSource API to consume SSE streams." },
-        { "type": "code", "lang": "tsx", "text": "import { useEffect, useState } from \"preact/hooks\";\n\nexport default function LiveFeed() {\n  const [events, setEvents] = useState<string[]>([]);\n\n  useEffect(() => {\n    const es = new EventSource(\"/api/public/live-feed\");\n\n    es.addEventListener(\"update\", (e) => {\n      const data = JSON.parse(e.data);\n      setEvents(prev => [...prev, data.message]);\n    });\n\n    es.onerror = () => es.close();\n\n    return () => es.close();\n  }, []);\n\n  return (\n    <ul>\n      {events.map((e, i) => <li key={i}>{e}</li>)}\n    </ul>\n  );\n}" }
+        {
+          "type": "p",
+          "text": "In a browser island, use the native EventSource API to consume SSE streams."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "import { useEffect, useState } from \"preact/hooks\";\n\nexport default function LiveFeed() {\n  const [events, setEvents] = useState<string[]>([]);\n\n  useEffect(() => {\n    const es = new EventSource(\"/api/public/live-feed\");\n\n    es.addEventListener(\"update\", (e) => {\n      const data = JSON.parse(e.data);\n      setEvents(prev => [...prev, data.message]);\n    });\n\n    es.onerror = () => es.close();\n\n    return () => es.close();\n  }, []);\n\n  return (\n    <ul>\n      {events.map((e, i) => <li key={i}>{e}</li>)}\n    </ul>\n  );\n}"
+        }
       ]
     },
     {
       "id": "use-cases",
       "heading": "Use cases",
       "blocks": [
-        { "type": "list", "items": [
-          "Live notifications — push alerts to connected users without polling",
-          "Progress bars — stream progress of long-running server operations",
-          "Chat feeds — append messages to a live chat UI",
-          "Dashboard metrics — push updated stats every few seconds",
-          "AI streaming — stream LLM token output progressively"
-        ]}
+        {
+          "type": "list",
+          "items": [
+            "Live notifications — push alerts to connected users without polling",
+            "Progress bars — stream progress of long-running server operations",
+            "Chat feeds — append messages to a live chat UI",
+            "Dashboard metrics — push updated stats every few seconds",
+            "AI streaming — stream LLM token output progressively"
+          ]
+        }
       ]
     }
   ]

@@ -573,7 +573,7 @@ export class Builder<State = any> {
           // React has no scoped CSS to carry — the same component chain is reused.
           const aotImport = f.aot === true ? ", aotMountReactPage" : "";
           const aotExport = f.aot === true
-            ? `export function aotMount(props) { aotMountReactPage(_comps, props); }\n`
+            ? `export function aotMount(props: Record<string, unknown>) { aotMountReactPage(_comps, props); }\n`
             : "";
           await Deno.writeTextFile(
             wrapperPath,
@@ -581,7 +581,7 @@ export class Builder<State = any> {
               `import { hydrateReactPage, renderReactPage${aotImport} } from "${REACT_BOOT_SPECIFIER}";\n` +
               `const _comps = [${arr}];\n` +
               `export function hydrate() { hydrateReactPage(_comps); }\n` +
-              `export function render(props) { renderReactPage(_comps, props); }\n` +
+              `export function render(props: Record<string, unknown>) { renderReactPage(_comps, props); }\n` +
               aotExport,
           );
           entryPoints[name] = wrapperPath;

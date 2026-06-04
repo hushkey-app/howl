@@ -2,14 +2,8 @@
  * Options passed to a {@linkcode RenderEngine} when it renders a route.
  */
 export interface RenderEngineRenderOptions {
-  /** Absolute path of the page's source file (e.g. a `.vue` file). */
+  /** Absolute path of the page's source file (e.g. a `.tsx` or `.vue` file). */
   filePath: string;
-  /**
-   * The already-imported page component, for engines that render a component
-   * value rather than a source file — the built-in {@linkcode preactEngine}.
-   * Other engines (Vue/React) load from {@linkcode filePath} and ignore this.
-   */
-  component?: unknown;
   /** Data returned by the route's handler, used as page props. */
   data?: unknown;
   /** Response headers accumulated by middleware / the handler so far. */
@@ -36,13 +30,16 @@ export interface RenderEngineRenderOptions {
 }
 
 /**
- * A pluggable rendering engine. Howl's built-in page rendering is Preact; an
- * engine lets a route be rendered by a different framework (e.g. Vue via
- * `@hushkey/howl-vue`) while reusing Howl's routing, middleware, and context.
+ * A pluggable rendering engine. Howl's core renders nothing — it is routing,
+ * middleware, context, and this seam. An engine turns a matched route into the
+ * HTTP response, so the view layer is a package you pick (e.g. React via
+ * `@hushkey/howl-react`, Vue via `@hushkey/howl-vue`) or write yourself.
  *
  * Register engines on the {@linkcode Howl} constructor's `engines` option,
  * keyed by name; a route opts in by carrying a matching `engine` tag (set by
  * the file-system crawler from the file extension, e.g. `.vue` → `"vue"`).
+ * With no engine registered, a route that returns data falls back to
+ * `ctx.json()`.
  *
  * `Ctx` is loosely typed as `unknown` in core to avoid a config↔context import
  * cycle; implementations narrow it to `Context<State>`.
@@ -50,8 +47,7 @@ export interface RenderEngineRenderOptions {
 export interface RenderEngine<Ctx = unknown> {
   /**
    * Render the matched route to a full HTTP `Response`. The engine owns the
-   * entire document (it does not flow through `ctx.render` or the Preact
-   * app/layout stack).
+   * entire document — it does not flow through any built-in app/layout stack.
    */
   render(
     ctx: Ctx,

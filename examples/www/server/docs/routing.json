@@ -220,7 +220,11 @@
           "headers": ["File", "Mode", "Behaviour"],
           "rows": [
             ["pages/__jobs.tsx", "AOT", "Dynamic SSR + client chunk for instant in-app nav"],
-            ["pages/___about.tsx", "SSG", "Prerendered HTML at build (served instantly) + client chunk"],
+            [
+              "pages/___about.tsx",
+              "SSG",
+              "Prerendered HTML at build (served instantly) + client chunk"
+            ],
             ["pages/index.tsx", "—", "Dynamic SSR every request"]
           ]
         },

@@ -7,57 +7,108 @@
       "id": "howl-options",
       "heading": "Howl app options",
       "blocks": [
-        { "type": "code", "lang": "ts", "text": "const app = new Howl({\n  logger: true,   // log requests to stdout\n  debug: true,    // verbose error overlay in dev\n});" }
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "const app = new Howl({\n  logger: true,   // log requests to stdout\n  debug: true,    // verbose error overlay in dev\n});"
+        }
       ]
     },
     {
       "id": "configure",
       "heading": "app.configure()",
       "blocks": [
-        { "type": "p", "text": "app.configure(fn) runs a callback against the app for modular setup. If the callback returns a Promise the call returns Promise<this> so it can be awaited; otherwise it returns this synchronously and stays chainable." },
-        { "type": "code", "lang": "ts", "text": "// Sync — chainable\napp.configure(middleware).configure(routes);\n\n// Async — awaitable\nawait app.configure(async (app) => {\n  await db.connect();\n  app.use(authMiddleware);\n});" }
+        {
+          "type": "p",
+          "text": "app.configure(fn) runs a callback against the app for modular setup. If the callback returns a Promise the call returns Promise<this> so it can be awaited; otherwise it returns this synchronously and stays chainable."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// Sync — chainable\napp.configure(middleware).configure(routes);\n\n// Async — awaitable\nawait app.configure(async (app) => {\n  await db.connect();\n  app.use(authMiddleware);\n});"
+        }
       ]
     },
     {
       "id": "define-config",
       "heading": "defineConfig",
       "blocks": [
-        { "type": "p", "text": "defineConfig is the central place to configure the API layer — caching, auth, roles, and rate limiting. It returns a typed defineApi helper and a config object to pass to fsApiRoutes." },
-        { "type": "code", "lang": "ts", "text": "import { defineConfig, memoryCache } from \"@hushkey/howl/api\";\n\nexport const { defineApi, config: apiConfig } = defineConfig<State, Role>({\n  roles,\n\n  // Global rate limit (per-route can override)\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n\n  // Cache for API responses\n  cache: memoryCache({ maxSize: 500 }),\n\n  // Separate cache for rate limit counters (shared backend for multi-instance)\n  rateLimitCache: redisCache(redis),\n\n  // Auth strategy — called before every protected endpoint\n  checkPermissionStrategy: async (ctx, allowedRoles) => {\n    const session = ctx.cookies.get(\"session\");\n    if (!session) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    const user = await verifySession(session);\n    if (!user) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    if (!allowedRoles.some(r => user.roles.includes(r))) {\n      return ctx.json({ error: \"Forbidden\" }, { status: 403 });\n    }\n    ctx.state.userContext = user;\n  },\n});" }
+        {
+          "type": "p",
+          "text": "defineConfig is the central place to configure the API layer — caching, auth, roles, and rate limiting. It returns a typed defineApi helper and a config object to pass to fsApiRoutes."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { defineConfig, memoryCache } from \"@hushkey/howl/api\";\n\nexport const { defineApi, config: apiConfig } = defineConfig<State, Role>({\n  roles,\n\n  // Global rate limit (per-route can override)\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n\n  // Cache for API responses\n  cache: memoryCache({ maxSize: 500 }),\n\n  // Separate cache for rate limit counters (shared backend for multi-instance)\n  rateLimitCache: redisCache(redis),\n\n  // Auth strategy — called before every protected endpoint\n  checkPermissionStrategy: async (ctx, allowedRoles) => {\n    const session = ctx.cookies.get(\"session\");\n    if (!session) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    const user = await verifySession(session);\n    if (!user) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    if (!allowedRoles.some(r => user.roles.includes(r))) {\n      return ctx.json({ error: \"Forbidden\" }, { status: 403 });\n    }\n    ctx.state.userContext = user;\n  },\n});"
+        }
       ]
     },
     {
       "id": "fs-routes",
       "heading": "Registering routes",
       "blocks": [
-        { "type": "p", "text": "Pass the config to fsApiRoutes so the builder can crawl and register all .api.ts files." },
-        { "type": "code", "lang": "ts", "text": "// server/main.ts\nimport { apiConfig } from \"../howl.config.ts\";\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();" },
-        { "type": "p", "text": "app.fsClientRoutes() registers all pages, layouts, and the app wrapper from the file system. app.fsApiRoutes() registers all .api.ts files and the OpenAPI spec." }
+        {
+          "type": "p",
+          "text": "Pass the config to fsApiRoutes so the builder can crawl and register all .api.ts files."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// server/main.ts\nimport { apiConfig } from \"../howl.config.ts\";\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();"
+        },
+        {
+          "type": "p",
+          "text": "app.fsClientRoutes() registers all pages, layouts, and the app wrapper from the file system. app.fsApiRoutes() registers all .api.ts files and the OpenAPI spec."
+        }
       ]
     },
     {
       "id": "builder",
       "heading": "HowlBuilder",
       "blocks": [
-        { "type": "p", "text": "HowlBuilder wraps esbuild to bundle islands, apply CSS modules, and run the dev server with hot reload." },
-        { "type": "code", "lang": "ts", "text": "const builder = new HowlBuilder(app, {\n  root: import.meta.dirname ?? \"\",    // project root\n  serverEntry: \"./server/main.ts\",    // server bundle entry\n  clientEntry: \"./client/pages/_app.ts\", // client bundle entry\n  importApp: () => app,               // for dev hot-reload\n  outDir: \"dist\",                     // output directory\n  alias: {                            // esbuild path aliases\n    \"@/\": \"./client/\",\n  },\n  plugins: [],                        // additional esbuild plugins\n});\n\n// Tailwind v4 CSS plugin\ntailwindPlugin(builder.getBuilder(\"default\")!);\n\n// Dev server\nawait builder.listen();\n\n// Production build\nawait builder.build();" }
+        {
+          "type": "p",
+          "text": "HowlBuilder wraps esbuild to bundle islands, apply CSS modules, and run the dev server with hot reload."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "const builder = new HowlBuilder(app, {\n  root: import.meta.dirname ?? \"\",    // project root\n  serverEntry: \"./server/main.ts\",    // server bundle entry\n  clientEntry: \"./client/pages/_app.ts\", // client bundle entry\n  importApp: () => app,               // for dev hot-reload\n  outDir: \"dist\",                     // output directory\n  alias: {                            // esbuild path aliases\n    \"@/\": \"./client/\",\n  },\n  plugins: [],                        // additional esbuild plugins\n});\n\n// Tailwind v4 CSS plugin\ntailwindPlugin(builder.getBuilder(\"default\")!);\n\n// Dev server\nawait builder.listen();\n\n// Production build\nawait builder.build();"
+        }
       ]
     },
     {
       "id": "production",
       "heading": "Production deployment",
       "blocks": [
-        { "type": "code", "lang": "sh", "text": "# Build\ndeno run -A dev.ts build\n\n# Run the compiled server\ndeno run -A dist/compiled-entry.js\n\n# Override host/port via env\nDENO_PORT=9000 DENO_HOSTNAME=0.0.0.0 deno run -A dist/compiled-entry.js" },
-        { "type": "tip", "text": "The production build outputs a single compiled-entry.js. No node_modules, no build tools needed at runtime — just Deno." },
-        { "type": "p", "text": "compiled-entry.js coerces DENO_PORT to a number and throws on a non-numeric value, so a typo fails fast at startup instead of silently picking a random port." }
+        {
+          "type": "code",
+          "lang": "sh",
+          "text": "# Build\ndeno run -A dev.ts build\n\n# Run the compiled server\ndeno run -A dist/compiled-entry.js\n\n# Override host/port via env\nDENO_PORT=9000 DENO_HOSTNAME=0.0.0.0 deno run -A dist/compiled-entry.js"
+        },
+        {
+          "type": "tip",
+          "text": "The production build outputs a single compiled-entry.js. No node_modules, no build tools needed at runtime — just Deno."
+        },
+        {
+          "type": "p",
+          "text": "compiled-entry.js coerces DENO_PORT to a number and throws on a non-numeric value, so a typo fails fast at startup instead of silently picking a random port."
+        }
       ]
     },
     {
       "id": "handler-lifecycle",
       "heading": "Handler lifecycle",
       "blocks": [
-        { "type": "p", "text": "app.handler() is built lazily on first call and cached per listener. app.listen() spawns the main listener plus one secondary listener per WS port — each gets its own cached handler with the same middleware pipeline." },
-        { "type": "warning", "text": "Once handler() has been built, the app is frozen: app.use(...), app.get/post/..., app.fsApiRoutes(...), app.layout(...), app.mountApp(...) all throw with a clear error. Register everything before requesting the handler." }
+        {
+          "type": "p",
+          "text": "app.handler() is built lazily on first call and cached per listener. app.listen() spawns the main listener plus one secondary listener per WS port — each gets its own cached handler with the same middleware pipeline."
+        },
+        {
+          "type": "warning",
+          "text": "Once handler() has been built, the app is frozen: app.use(...), app.get/post/..., app.fsApiRoutes(...), app.layout(...), app.mountApp(...) all throw with a clear error. Register everything before requesting the handler."
+        }
       ]
     }
   ]

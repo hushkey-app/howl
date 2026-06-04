@@ -45,9 +45,19 @@
           "type": "table",
           "headers": ["Mode", "First paint", "Subsequent nav", "Server cost per request"],
           "rows": [
-            ["SSR (default)", "renderer runs", "partial-nav fetch + DOM swap", "renderer per request"],
+            [
+              "SSR (default)",
+              "renderer runs",
+              "partial-nav fetch + DOM swap",
+              "renderer per request"
+            ],
             ["AOT (__page)", "renderer runs", "import() chunk, no network", "renderer per request"],
-            ["SSG (___page)", "cached HTML from snapshot", "import() chunk, no network", "static file read"]
+            [
+              "SSG (___page)",
+              "cached HTML from snapshot",
+              "import() chunk, no network",
+              "static file read"
+            ]
           ]
         },
         {

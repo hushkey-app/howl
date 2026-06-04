@@ -1,9 +1,8 @@
 import { Howl, staticFiles } from "@hushkey/howl";
-import { preactEngine } from "@hushkey/howl-preact";
+import { reactEngine } from "@hushkey/howl-react";
 import { apiConfig, type State } from "../howl.config.ts";
 // import { coalesceRequests, compression } from "@hushkey/howl/middleware";
 import denoJson from "../../../packages/howl/deno.json" with { type: "json" };
-import errors from "@hushkey/howl/api/errors";
 
 const APP_NAME = Deno.env.get("APP_NAME") ?? "HOWL";
 const APP_VERSION = denoJson.version;
@@ -11,7 +10,7 @@ const APP_VERSION = denoJson.version;
 export const app = new Howl<State>({
   logger: true,
   debug: true,
-  engines: { preact: preactEngine() },
+  engines: { react: reactEngine() },
 });
 
 app.use(staticFiles());
@@ -28,10 +27,8 @@ app.use((ctx) => {
     title: APP_NAME,
     version: APP_VERSION,
   };
-  console.log("runs");
   return ctx.next();
 });
-console.log("sss");
 // fs endpoints
 app.fsApiRoutes(apiConfig);
 app.fsClientRoutes();

@@ -1,6 +1,6 @@
 import { HowlBuilder } from "@hushkey/howl/dev";
 import { tailwindPlugin } from "@hushkey/howl/plugins";
-import { vuePlugin } from "@hushkey/howl-vue/plugin";
+import { reactPlugin } from "@hushkey/howl-react/plugin";
 import { app } from "./server/main.ts";
 import type { State } from "./howl.config.ts";
 
@@ -12,8 +12,8 @@ const builder = new HowlBuilder<State>(app, {
   importApp: () => app,
   outDir: "dist",
   serverEntry: "./server/main.ts",
-  clientEntry: "./client/pages/_app.ts",
-  plugins: [vuePlugin()],
+  clientEntry: "./client/pages/_app.tsx",
+  plugins: [reactPlugin()],
 });
 
 tailwindPlugin(builder.getBuilder("default")!);

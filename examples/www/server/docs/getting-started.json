@@ -7,7 +7,10 @@
       "id": "requirements",
       "heading": "Requirements",
       "blocks": [
-        { "type": "p", "text": "Howl runs on Deno 2.x. There is no Node.js, no npm, and no global CLI to install — Deno fetches everything on demand." },
+        {
+          "type": "p",
+          "text": "Howl runs on Deno 2.x. There is no Node.js, no npm, and no global CLI to install — Deno fetches everything on demand."
+        },
         { "type": "list", "items": ["Deno 2.x or newer", "A terminal"] }
       ]
     },
@@ -15,22 +18,50 @@
       "id": "scaffold",
       "heading": "Scaffold a new project",
       "blocks": [
-        { "type": "p", "text": "The fastest way to start a Howl project is the official scaffolder. It is published to JSR and runs straight from the registry — no install, no clone." },
+        {
+          "type": "p",
+          "text": "The fastest way to start a Howl project is the official scaffolder. It is published to JSR and runs straight from the registry — no install, no clone."
+        },
         { "type": "code", "lang": "sh", "text": "deno run -Ar jsr:@hushkey/howl-init" },
-        { "type": "p", "text": "You will be asked for a project name and shown a list of templates to pick from. Each template ships with a working dev/build/start task and an import map already wired to the latest @hushkey/howl version." },
+        {
+          "type": "p",
+          "text": "You will be asked for a project name and shown a list of templates to pick from. Each template ships with a working dev/build/start task and an import map already wired to the latest @hushkey/howl version."
+        },
         {
           "type": "table",
           "headers": ["Template", "What you get"],
           "rows": [
-            ["backend-only", "Minimal API-only project — no client, no styling. Ships ping (GET) + pong (POST with requestBody) as starter routes"],
-            ["fullstack", "Minimal fullstack starter — 1 API, 1 page, 1 island, 1 signal-based component, Tailwind v4 + daisyUI"],
-            ["docs", "Tailwind v4 + daisyUI docs site driven by JSON manifests (this site is built from this template)"],
-            ["cv", "Tailwind v4 + daisyUI developer CV / portfolio with project cards and per-project detail pages"]
+            [
+              "backend-only",
+              "Minimal API-only project — no client, no styling. Ships ping (GET) + pong (POST with requestBody) as starter routes"
+            ],
+            [
+              "fullstack",
+              "Minimal fullstack starter — 1 API, 1 page, 1 island, 1 signal-based component, Tailwind v4 + daisyUI"
+            ],
+            [
+              "docs",
+              "Tailwind v4 + daisyUI docs site driven by JSON manifests (this site is built from this template)"
+            ],
+            [
+              "cv",
+              "Tailwind v4 + daisyUI developer CV / portfolio with project cards and per-project detail pages"
+            ]
           ]
         },
-        { "type": "p", "text": "Skip the picker by passing the template id and project name as flags:" },
-        { "type": "code", "lang": "sh", "text": "deno run -Ar jsr:@hushkey/howl-init my-app --template docs" },
-        { "type": "tip", "text": "The scaffolder keeps its templates in lockstep with the published @hushkey/howl version, so a fresh project always lines up with the docs you are reading." }
+        {
+          "type": "p",
+          "text": "Skip the picker by passing the template id and project name as flags:"
+        },
+        {
+          "type": "code",
+          "lang": "sh",
+          "text": "deno run -Ar jsr:@hushkey/howl-init my-app --template docs"
+        },
+        {
+          "type": "tip",
+          "text": "The scaffolder keeps its templates in lockstep with the published @hushkey/howl version, so a fresh project always lines up with the docs you are reading."
+        }
       ]
     },
     {
@@ -39,44 +70,82 @@
       "blocks": [
         { "type": "p", "text": "Once the scaffolder finishes, jump in and start the dev server." },
         { "type": "code", "lang": "sh", "text": "cd my-app\ndeno task dev" },
-        { "type": "p", "text": "The dev server boots HowlBuilder, runs esbuild for islands and CSS, watches the file system, and serves on http://localhost:8000 by default. Edit any file under pages/ or apis/ and the page reloads." }
+        {
+          "type": "p",
+          "text": "The dev server boots HowlBuilder, runs esbuild for islands and CSS, watches the file system, and serves on http://localhost:8000 by default. Edit any file under pages/ or apis/ and the page reloads."
+        }
       ]
     },
     {
       "id": "project-structure",
       "heading": "Project structure",
       "blocks": [
-        { "type": "p", "text": "Howl is convention over configuration — the file system itself is the router. Both shipped templates use the split-folder layout, with server-side code under server/ and pages/islands under client/:" },
-        { "type": "code", "lang": "text", "text": "my-app/\n  server/\n    apis/\n      public/\n        ping.api.ts      ← GET /api/public/ping\n    main.ts              ← Howl app entry — middleware + routes\n  client/\n    pages/\n      _app.tsx           ← HTML shell (head, scripts)\n      _layout.tsx        ← shared layout for nested routes\n      index.tsx          ← /\n  static/                  ← served at /static/* (and root)\n  howl.config.ts           ← shared State, roles, defineApi\n  dev.ts                   ← dev server entry (HowlBuilder)\n  deno.json                ← imports, tasks, compilerOptions" },
-        { "type": "tip", "text": "Single-folder apps work too — drop the server/ and client/ wrappers and put apis/, pages/, and main.ts at the project root. The framework infers the layout from how you wire HowlBuilder." }
+        {
+          "type": "p",
+          "text": "Howl is convention over configuration — the file system itself is the router. Both shipped templates use the split-folder layout, with server-side code under server/ and pages/islands under client/:"
+        },
+        {
+          "type": "code",
+          "lang": "text",
+          "text": "my-app/\n  server/\n    apis/\n      public/\n        ping.api.ts      ← GET /api/public/ping\n    main.ts              ← Howl app entry — middleware + routes\n  client/\n    pages/\n      _app.tsx           ← HTML shell (head, scripts)\n      _layout.tsx        ← shared layout for nested routes\n      index.tsx          ← /\n  static/                  ← served at /static/* (and root)\n  howl.config.ts           ← shared State, roles, defineApi\n  dev.ts                   ← dev server entry (HowlBuilder)\n  deno.json                ← imports, tasks, compilerOptions"
+        },
+        {
+          "type": "tip",
+          "text": "Single-folder apps work too — drop the server/ and client/ wrappers and put apis/, pages/, and main.ts at the project root. The framework infers the layout from how you wire HowlBuilder."
+        }
       ]
     },
     {
       "id": "add-to-existing",
       "heading": "Adding Howl to an existing Deno project",
       "blocks": [
-        { "type": "p", "text": "If you already have a Deno project, add Howl from JSR. The scaffolder is the recommended path for greenfield apps; this is for grafting onto something existing." },
+        {
+          "type": "p",
+          "text": "If you already have a Deno project, add Howl from JSR. The scaffolder is the recommended path for greenfield apps; this is for grafting onto something existing."
+        },
         { "type": "code", "lang": "sh", "text": "deno add jsr:@hushkey/howl" },
         { "type": "p", "text": "Then wire up your entry. A minimal main.ts looks like this:" },
-        { "type": "code", "lang": "ts", "filename": "main.ts", "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { preactEngine } from \"@hushkey/howl-preact\";\nimport { coalesceRequests, compression } from \"@hushkey/howl/middleware\";\nimport { apiConfig } from \"./howl.config.ts\";\n\n// Page rendering is a registered engine (no implicit default).\nexport const app = new Howl({ logger: true, engines: { preact: preactEngine() } });\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();\n\nexport default { app };" },
-        { "type": "warning", "text": "When grafting Howl into an existing app, make sure compilerOptions.jsx is \"react-jsx\" and jsxImportSource is \"preact\" in your deno.json. The scaffolder sets this for you automatically." }
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "main.ts",
+          "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { preactEngine } from \"@hushkey/howl-preact\";\nimport { coalesceRequests, compression } from \"@hushkey/howl/middleware\";\nimport { apiConfig } from \"./howl.config.ts\";\n\n// Page rendering is a registered engine (no implicit default).\nexport const app = new Howl({ logger: true, engines: { preact: preactEngine() } });\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();\n\nexport default { app };"
+        },
+        {
+          "type": "warning",
+          "text": "When grafting Howl into an existing app, make sure compilerOptions.jsx is \"react-jsx\" and jsxImportSource is \"preact\" in your deno.json. The scaffolder sets this for you automatically."
+        }
       ]
     },
     {
       "id": "config",
       "heading": "howl.config.ts",
       "blocks": [
-        { "type": "p", "text": "The shared config defines your State type, roles, and exports a typed defineApi helper. It is the single place to wire auth, caching, and rate limiting." },
-        { "type": "code", "lang": "ts", "filename": "howl.config.ts", "text": "import { defineConfig, memoryCache } from \"@hushkey/howl/api\";\n\nexport interface State {\n  userContext?: { id: string; roles: Role[] };\n}\n\nexport const roles = [\"USER\", \"ADMIN\"] as const;\nexport type Role = typeof roles[number];\n\nexport const { defineApi, config: apiConfig } = defineConfig<State, Role>({\n  roles,\n  cache: memoryCache({ maxSize: 500 }),\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n  checkPermissionStrategy: (ctx, allowedRoles) => {\n    const user = ctx.state.userContext;\n    if (!user) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    if (!allowedRoles.some((r) => user.roles.includes(r))) {\n      return ctx.json({ error: \"Forbidden\" }, { status: 403 });\n    }\n  },\n});" }
+        {
+          "type": "p",
+          "text": "The shared config defines your State type, roles, and exports a typed defineApi helper. It is the single place to wire auth, caching, and rate limiting."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "howl.config.ts",
+          "text": "import { defineConfig, memoryCache } from \"@hushkey/howl/api\";\n\nexport interface State {\n  userContext?: { id: string; roles: Role[] };\n}\n\nexport const roles = [\"USER\", \"ADMIN\"] as const;\nexport type Role = typeof roles[number];\n\nexport const { defineApi, config: apiConfig } = defineConfig<State, Role>({\n  roles,\n  cache: memoryCache({ maxSize: 500 }),\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n  checkPermissionStrategy: (ctx, allowedRoles) => {\n    const user = ctx.state.userContext;\n    if (!user) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    if (!allowedRoles.some((r) => user.roles.includes(r))) {\n      return ctx.json({ error: \"Forbidden\" }, { status: 403 });\n    }\n  },\n});"
+        }
       ]
     },
     {
       "id": "build",
       "heading": "Building for production",
       "blocks": [
-        { "type": "p", "text": "All scaffolded templates include a build task that produces a single bundled entry under dist/." },
+        {
+          "type": "p",
+          "text": "All scaffolded templates include a build task that produces a single bundled entry under dist/."
+        },
         { "type": "code", "lang": "sh", "text": "deno task build\ndeno task start" },
-        { "type": "p", "text": "The docs template adds a compile task that produces a self-contained binary via deno compile, useful for shipping to bare metal or Docker:" },
+        {
+          "type": "p",
+          "text": "The docs template adds a compile task that produces a self-contained binary via deno compile, useful for shipping to bare metal or Docker:"
+        },
         { "type": "code", "lang": "sh", "text": "deno task compile" }
       ]
     },
@@ -84,12 +153,15 @@
       "id": "next",
       "heading": "Where to go next",
       "blocks": [
-        { "type": "list", "items": [
-          "Routing — file-system pages, layouts, and partial navigation",
-          "API Routes — typed endpoints with Zod validation and OpenAPI generation",
-          "Context — request/response helpers, cookies, headers",
-          "Islands — selective hydration for interactive components"
-        ] }
+        {
+          "type": "list",
+          "items": [
+            "Routing — file-system pages, layouts, and partial navigation",
+            "API Routes — typed endpoints with Zod validation and OpenAPI generation",
+            "Context — request/response helpers, cookies, headers",
+            "Islands — selective hydration for interactive components"
+          ]
+        }
       ]
     }
   ]
