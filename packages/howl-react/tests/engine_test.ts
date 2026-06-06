@@ -119,6 +119,50 @@ Deno.test("reactEngine — renderToString renders a standalone component (notifi
   expect((out as string).replaceAll("<!-- -->", "")).toContain("<h1>Hello Leo</h1>");
 });
 
+Deno.test("reactEngine — serializes howlAtom values into the SSR store script", async () => {
+  const res = await reactEngine().render(
+    makeCtx(),
+    opts({
+      filePath: path.join(FIXTURES, "WithStore.tsx"),
+      data: { count: 5 },
+      chunkUrl: "/_howl/js/abc/page.js",
+    }),
+  );
+  const html = await res.text();
+  // The atom was seeded from data via useHydrateAtoms, then snapshotted.
+  expect(html.replaceAll("<!-- -->", "")).toContain("count:5");
+  expect(html).toContain("window.__HOWL_REACT_STORE__=");
+  expect(html).toContain('"count":5');
+});
+
+Deno.test("reactEngine — escapes U+2028/U+2029 line separators in serialized payloads", async () => {
+  const LS = String.fromCharCode(0x2028); // line separator
+  const PS = String.fromCharCode(0x2029); // paragraph separator
+  const res = await reactEngine().render(
+    makeCtx({ state: { title: `a${LS}b${PS}c` } }),
+    opts({ chunkUrl: "/_howl/js/abc/page.js" }),
+  );
+  const html = await res.text();
+  // Inside the JS script payload the separators must be escaped, never raw
+  // (they're valid JSON but break JS string literals on older engines). They may
+  // still appear raw as HTML text (e.g. in <title>), which is harmless.
+  const script = html.match(/data-howl-react-props>([\s\S]*?)<\/script>/)?.[1] ?? "";
+  expect(script).toContain("\\u2028");
+  expect(script).toContain("\\u2029");
+  expect(script.includes(LS)).toBe(false);
+  expect(script.includes(PS)).toBe(false);
+});
+
+Deno.test("reactEngine — no store script without a client chunk to hydrate it", async () => {
+  const res = await reactEngine().render(
+    makeCtx(),
+    opts({ filePath: path.join(FIXTURES, "WithStore.tsx"), data: { count: 9 } }),
+  );
+  const html = await res.text();
+  expect(html.replaceAll("<!-- -->", "")).toContain("count:9"); // still SSRs
+  expect(html).not.toContain("__HOWL_REACT_STORE__");
+});
+
 Deno.test("reactEngine — serialises ctx.error for an error page payload", async () => {
   const res = await reactEngine().render(
     makeCtx({ error: Object.assign(new Error("Nope"), { status: 404 }) }),

@@ -101,12 +101,16 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Pass httpClientGenPlugin via the builder's plugins array. It hooks esbuild's onStart, regenerating the client before each bundle."
+          "text": "Pass httpClientGenPlugin via the builder's plugins array. It regenerates the client at the start of every build. This holds even for backend-only projects with no islands and no pages — Howl skips the esbuild bundle entirely in that case but still fires the plugin's build-start hook, so the client is generated for pure-API apps too."
         },
         {
           "type": "code",
           "lang": "ts",
           "text": "import { HowlBuilder } from \"@hushkey/howl/dev\";\nimport { httpClientGenPlugin, tailwindPlugin } from \"@hushkey/howl/plugins\";\nimport { app } from \"./server/main.ts\";\n\nconst builder = new HowlBuilder(app, {\n  root: import.meta.dirname,\n  importApp: () => app,\n  serverEntry: \"./server/main.ts\",\n  plugins: [\n    httpClientGenPlugin({\n      apiDir: \"./server/apis\",\n      outputFile: \"./packages/http-client/mod.ts\",\n      // Optional cross-package schema resolution:\n      aliases: { \"@packages/\": \"../../packages/\" },\n    }),\n  ],\n});\n\ntailwindPlugin(builder.getBuilder(\"default\")!);"
+        },
+        {
+          "type": "tip",
+          "text": "The client is rewritten to outputFile on every build. In dev (deno run --watch), exclude that path from the file watcher or the rewrite retriggers the watcher and restarts the process in a loop — e.g. --watch-exclude=generated/."
         }
       ]
     },

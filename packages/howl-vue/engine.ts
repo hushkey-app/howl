@@ -289,7 +289,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
         const props = buildProps(ctx, opts);
         const base = ctx.config.basePath;
 
-        const propsJson = JSON.stringify(props).replaceAll("<", "\\u003c");
+        const propsJson = escapeJsonForScript(JSON.stringify(props));
         const chunkHref = opts.chunkUrl === undefined ? "" : `${base}${opts.chunkUrl}`;
         const hydration = opts.chunkUrl === undefined ? "" : (
           `<script data-howl-vue-props>window.__VUE_PAGE_PROPS__=${propsJson}</script>` +
@@ -301,7 +301,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
         const aotScript = opts.aot === undefined || Object.keys(opts.aot).length === 0
           ? ""
           : `<script data-howl-vue-aot>window.__HOWL_VUE_AOT__=${
-            JSON.stringify(prefixManifest(opts.aot, base)).replaceAll("<", "\\u003c")
+            escapeJsonForScript(JSON.stringify(prefixManifest(opts.aot, base)))
           }</script>`;
         // Preload the hydration chunk (and, via its static imports, the shared Vue
         // runtime) so the browser fetches it in parallel with parsing the body —
@@ -389,7 +389,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           const { headTags, bodyTags } = await resolveHeadTags();
           const piniaScript = pinia === null ? "" : (
             `<script data-howl-pinia>window.__PINIA__=${
-              JSON.stringify(pinia.state.value).replaceAll("<", "\\u003c")
+              escapeJsonForScript(JSON.stringify(pinia.state.value))
             }</script>`
           );
           html = injectBefore(
@@ -497,4 +497,17 @@ function prefixManifest(manifest: Record<string, string>, base: string): Record<
 
 function escapeHtml(s: string): string {
   return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+/**
+ * Harden an already-stringified JSON payload for inlining inside a `<script>`:
+ * escape `<` (so `</script>` / `<!--` can't break out of the tag) and the
+ * U+2028 / U+2029 line separators (legal in JSON strings, but JS parse hazards
+ * when emitted verbatim into a script literal).
+ */
+function escapeJsonForScript(json: string): string {
+  return json
+    .replaceAll("<", "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }

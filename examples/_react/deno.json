@@ -1,5 +1,5 @@
 {
-  "name": "@howl/reacty",
+  "name": "@howl/_react",
   "version": "0.0.1",
   "tasks": {
     "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/ dev.ts",

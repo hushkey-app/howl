@@ -16,7 +16,7 @@ type Engine = "react" | "vue" | "text";
 const ENGINES: { id: Engine; label: string }[] = [
   { id: "react", label: "React" },
   { id: "vue", label: "Vue" },
-  { id: "text", label: "Your own" },
+  { id: "text", label: "BYO" },
 ];
 
 /** The real `server/main.ts` bootstrap for a given engine — the core ships no
@@ -390,7 +390,7 @@ function InstallBar() {
       .catch(() => {});
   };
   return (
-    <div className="overflow-hidden rounded-xl border border-ink/30 bg-ink shadow-[0_18px_40px_-20px_color-mix(in_oklab,var(--color-accent)_60%,transparent)]">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-terminal shadow-[0_18px_40px_-20px_color-mix(in_oklab,var(--color-accent)_60%,transparent)]">
       <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
         <span className="h-2.5 w-2.5 rounded-full bg-magenta/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-yellow/70" />
@@ -437,7 +437,7 @@ function HuskyCard() {
             awooo~
           </span>
         </div>
-        <span className="absolute bottom-4 right-4 rounded-lg border border-ink/30 bg-ink px-2.5 py-1 font-mono text-[10px] text-white/80">
+        <span className="absolute bottom-4 right-4 rounded-lg border border-white/10 bg-terminal px-2.5 py-1 font-mono text-[10px] text-white/80">
           → deno task dev
         </span>
       </div>
@@ -1026,7 +1026,7 @@ export default function Index(props: ReactPageProps<unknown, State>) {
 
         {/* ── CTA ────────────────────────────────────────────── */}
         <section data-reveal className="mt-24 mb-20">
-          <div className="relative overflow-hidden rounded-3xl border border-ink/40 bg-ink px-6 py-12 sm:px-12 sm:py-16">
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-terminal px-6 py-12 sm:px-12 sm:py-16">
             {/* magenta radial glow, top-right */}
             <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-magenta/30 blur-3xl" />
             <div className="pointer-events-none absolute inset-0 bg-grain opacity-[0.05] mix-blend-overlay" />

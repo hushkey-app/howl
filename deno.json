@@ -8,6 +8,7 @@
     "./examples/www",
     "./examples/software-www",
     "./examples/_vue",
+    "./examples/kawaii-www",
     "./examples/_react",
     "./examples/_backend"
   ],

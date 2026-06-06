@@ -81,6 +81,11 @@
   /* Supplementary landing tokens (PRD §6) — generate text-/bg-/border- utilities. */
   --color-paper: #ffffff;
   --color-ink: #1a1430;
+  /* Always-dark surface for terminal / CTA chrome (install bar, deno-task badge,
+     closing CTA). Deliberately NOT remapped in dark mode — unlike --color-ink,
+     which flips to base-content (light) so text-ink stays readable, this stays
+     dark so bg-terminal surfaces don't invert to white. */
+  --color-terminal: #1a1430;
   --color-ink-2: #4b3f6b;
   --color-ink-3: #8a7eb0;
   --color-line: #e4ddf5;
@@ -90,6 +95,37 @@
   --color-magenta-soft: #fbe9fa;
   --color-yellow: #ffd83d;
   --color-code-bg: #fbfaff;
+}
+
+/* Dark theme — the supplementary tokens above are static light values, so on
+   daisyUI's dark theme cards stay white, dividers blow out, and ink text goes
+   dark-on-dark. Remap them onto daisyUI's standard base/primary colors so the
+   landing + docs follow the active theme. Brand magenta/yellow stay bright.
+   Dark is OS-driven here (daisyUI `--prefersdark`), so cover both the
+   prefers-color-scheme media query and an explicit [data-theme="dark"]. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-paper: var(--color-base-200);
+    --color-ink: var(--color-base-content);
+    --color-ink-2: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+    --color-ink-3: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+    --color-line: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+    --color-line-2: color-mix(in oklab, var(--color-base-content) 24%, transparent);
+    --color-accent-soft: color-mix(in oklab, var(--color-primary) 20%, transparent);
+    --color-magenta-soft: color-mix(in oklab, var(--color-magenta) 18%, transparent);
+    --color-code-bg: color-mix(in oklab, var(--color-base-content) 5%, var(--color-base-100));
+  }
+}
+[data-theme="dark"] {
+  --color-paper: var(--color-base-200);
+  --color-ink: var(--color-base-content);
+  --color-ink-2: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+  --color-ink-3: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+  --color-line: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+  --color-line-2: color-mix(in oklab, var(--color-base-content) 24%, transparent);
+  --color-accent-soft: color-mix(in oklab, var(--color-primary) 20%, transparent);
+  --color-magenta-soft: color-mix(in oklab, var(--color-magenta) 18%, transparent);
+  --color-code-bg: color-mix(in oklab, var(--color-base-content) 5%, var(--color-base-100));
 }
 
 @keyframes spin-slow {

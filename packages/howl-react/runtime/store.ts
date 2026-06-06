@@ -19,6 +19,13 @@
  * import { useAtom } from "@hushkey/howl-react/store";
  * const [count, setCount] = useAtom(countAtom);
  * ```
+ *
+ * To carry an atom's value across the SSR→client boundary (the jotai analogue
+ * of a named Pinia store), declare it with {@linkcode howlAtom} instead — its
+ * value is serialized on SSR and hydrated on the client before first paint.
+ * Seed it from server data during SSR with {@linkcode useHydrateAtoms}.
  */
 export { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
+export { useHydrateAtoms } from "jotai/utils";
 export type { Atom, PrimitiveAtom, WritableAtom } from "jotai";
+export { howlAtom } from "./serialize.ts";

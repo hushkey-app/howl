@@ -21,7 +21,7 @@ built-in Preact engine.
 | `_app.tsx` + `_layout.tsx` composition (own the document, SSR + hydrate)                        | ✅ done, tested |
 | Client-nav — `client-nav` link/back-forward re-render, hover prefetch, no reload                | ✅ done, tested |
 | Head/SEO — `useHead` (`@unhead/react`), SSR'd + reactive across client-nav                      | ✅ done, tested |
-| Store — `jotai` atoms (SSR-safe per-request `Provider`) + `useHowlState` (`ctx.state` mirror)   | ✅ done, tested |
+| Store — `jotai` atoms (SSR-safe per-request `Provider`), `howlAtom` (SSR-serialized) + `useHowlState` (`ctx.state` mirror) | ✅ done, tested |
 | AOT (`__`) + SSG (`___`) — client chunk, AOT manifest, no-server-hop nav                        | ✅ done, tested |
 | Prod snapshot + `deno compile` — embedded SSR modules, self-contained binary                    | ✅ done, tested |
 
@@ -115,6 +115,38 @@ import { useHowlState } from "@hushkey/howl-react/state";
 const state = useHowlState<State>(); // re-seeded from ctx.state on every nav
 ```
 
+### `howlAtom` — atoms that survive SSR
+
+A plain `atom()` is client-only: its server-rendered value is discarded, so it resets to its default
+on hydration. To carry an atom's value across the SSR→client boundary — the jotai analogue of a
+named Pinia store — declare it with `howlAtom(key, initial)`. Howl serializes every registered
+`howlAtom` into the SSR HTML and rehydrates the session store **before first paint**, so a full
+reload restores the server-rendered value with no hydration flash:
+
+```tsx
+// store/index.store.ts
+import { howlAtom } from "@hushkey/howl-react/store";
+export const countAtom = howlAtom("count", 0); // string key, like defineStore("count", …)
+```
+
+Seed a value from server data during SSR with `useHydrateAtoms` (re-exported from the store entry);
+the serializer then carries that value to the client:
+
+```tsx
+import { useHydrateAtoms } from "@hushkey/howl-react/store";
+import { countAtom } from "../store/index.store.ts";
+
+export default function Page(props: ReactPageProps<{ count: number }>) {
+  useHydrateAtoms([[countAtom, props.data.count]]); // SSR value → serialized → hydrated
+  const [count] = useAtom(countAtom);
+  // …
+}
+```
+
+Like Pinia, `howlAtom` values hydrate **once** on first paint; afterwards they persist across
+client-nav (only the `ctx.state` mirror re-syncs on every navigation). Keys must be unique across the
+app — a collision clobbers on hydrate (a dev-mode warning fires).
+
 ## AOT and SSG
 
 Filename prefixes opt a route into client-side navigation and/or build-time prerender, identical to
@@ -185,6 +217,7 @@ and sets esbuild to automatic React JSX. Registering it is what routes `.tsx` th
 ### Lightweight entries
 
 - `@hushkey/howl-react/head` — `useHead`, `useSeoMeta` (from `@unhead/react`).
-- `@hushkey/howl-react/store` — `atom`, `useAtom`, `useAtomValue`, `useSetAtom` (from `jotai`).
+- `@hushkey/howl-react/store` — `atom`, `useAtom`, `useAtomValue`, `useSetAtom`, `useHydrateAtoms`
+  (from `jotai`) plus `howlAtom(key, initial)` (SSR-serialized atoms).
 - `@hushkey/howl-react/state` — `useHowlState<S>()`, `howlStateAtom` (the `ctx.state` mirror).
 - `@hushkey/howl-react/boot` — client runtime (imported by the generated hydration chunk).

@@ -775,6 +775,12 @@ export class Builder<State = any> {
           file.hash,
         );
       }
+    } else {
+      // No client artifacts → esbuild's `bundleJs()` is skipped, so plugins
+      // registered for the bundle never receive an `onStart`. Fire their start
+      // hooks directly so build-start side effects (e.g. `httpClientGenPlugin`)
+      // still run for backend-only projects with no islands or FS routes.
+      await runPluginStartHooks(this.config.plugins ?? []);
     }
 
     await buildCache.flush();
@@ -784,6 +790,36 @@ export class Builder<State = any> {
     }
 
     this.#ready.resolve();
+  }
+}
+
+/**
+ * Fire the `onStart` hooks of configured esbuild plugins without running a full
+ * esbuild pass. Used when a project has no client artifacts (no islands, no FS
+ * routes) so `bundleJs()` is skipped — plugins whose only job is a build-start
+ * side effect (e.g. {@linkcode httpClientGenPlugin}) still need to run. Each
+ * plugin's `setup` is invoked with a stub `PluginBuild` that records `onStart`
+ * callbacks; all other registration hooks are no-ops since nothing is bundled.
+ * Failures are logged, never thrown, matching esbuild's plugin-error handling.
+ */
+async function runPluginStartHooks(plugins: EsbuildPlugin[]): Promise<void> {
+  for (const plugin of plugins) {
+    const startCbs: Array<() => unknown> = [];
+    const stub = {
+      initialOptions: {},
+      onStart: (cb: () => unknown) => startCbs.push(cb),
+      onEnd: () => {},
+      onResolve: () => {},
+      onLoad: () => {},
+      onDispose: () => {},
+      // deno-lint-ignore no-explicit-any
+    } as any;
+    try {
+      await plugin.setup(stub);
+      for (const cb of startCbs) await cb();
+    } catch (err) {
+      console.error(`[howl] plugin "${plugin.name}" onStart hook failed:`, err);
+    }
   }
 }
 

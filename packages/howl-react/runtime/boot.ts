@@ -5,6 +5,7 @@ import { createHead, UnheadProvider } from "@unhead/react/client";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { composeReactTree } from "./compose.ts";
 import { howlStateAtom } from "./state.ts";
+import { loadSerializableAtoms } from "./serialize.ts";
 
 // deno-lint-ignore no-explicit-any
 type AnyComponent = ComponentType<any>;
@@ -40,6 +41,8 @@ declare global {
   var __REACT_PAGE_PROPS__: Record<string, unknown> | undefined;
   /** AOT routes: route pattern (`/about/:id`) → client chunk URL. */
   var __HOWL_REACT_AOT__: Record<string, string> | undefined;
+  /** Serialized `howlAtom` values from SSR: atom key → value. */
+  var __HOWL_REACT_STORE__: Record<string, unknown> | undefined;
 }
 
 const HOWL_APP_ID = "howl-app";
@@ -91,6 +94,12 @@ export function hydrateReactPage(components: AnyComponent[]): void {
   if (el === null) return;
   const props = reviveProps(globalThis.__REACT_PAGE_PROPS__ ?? {});
   syncState(props);
+  // Rehydrate `howlAtom`s from their SSR values before the first render so the
+  // markup matches (no hydration flash). Only on first paint — user atoms then
+  // persist across client-nav, like Pinia stores (only `state` re-syncs on nav).
+  if (globalThis.__HOWL_REACT_STORE__ !== undefined) {
+    loadSerializableAtoms(store, globalThis.__HOWL_REACT_STORE__);
+  }
   root = hydrateRoot(el, withProviders(composeReactTree(components, props)));
 }
 

@@ -7,6 +7,7 @@ import { createStore, Provider as JotaiProvider } from "jotai";
 import * as path from "@std/path";
 import { composeReactTree } from "./runtime/compose.ts";
 import { howlStateAtom } from "./runtime/state.ts";
+import { dumpSerializableAtoms, SERIALIZABLE_ATOMS } from "./runtime/serialize.ts";
 
 // deno-lint-ignore no-explicit-any
 type AnyComponent = ComponentType<any>;
@@ -219,6 +220,19 @@ function escapeHtml(s: string): string {
     .replaceAll("'", "&#39;");
 }
 
+/**
+ * Harden an already-stringified JSON payload for inlining inside a `<script>`:
+ * escape `<` (so `</script>` / `<!--` can't break out of the tag) and the
+ * U+2028 / U+2029 line separators (legal in JSON strings, but JS parse hazards
+ * when emitted verbatim into a script literal).
+ */
+function escapeJsonForScript(json: string): string {
+  return json
+    .replaceAll("<", "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 /** Dev-only page shown when a `.tsx` render throws (bad import, runtime error in
  * a component, …) — surfaces the real message + stack so it's debuggable instead
  * of the generic `_error.tsx`. Intentional {@link HttpError}s bypass this and
@@ -289,8 +303,9 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
 
         // Client hydration: serialise the props and import the page chunk, which
         // calls its exported `hydrate()`.
-        const propsJson = JSON.stringify(props, (_k, v) => v instanceof URL ? v.href : v)
-          .replaceAll("<", "\\u003c");
+        const propsJson = escapeJsonForScript(
+          JSON.stringify(props, (_k, v) => v instanceof URL ? v.href : v),
+        );
         const chunkHref = opts.chunkUrl === undefined ? "" : `${base}${opts.chunkUrl}`;
         const hydration = opts.chunkUrl === undefined ? "" : (
           `<script data-howl-react-props>window.__REACT_PAGE_PROPS__=${propsJson}</script>` +
@@ -302,7 +317,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
         const aotScript = opts.aot === undefined || Object.keys(opts.aot).length === 0
           ? ""
           : `<script data-howl-react-aot>window.__HOWL_REACT_AOT__=${
-            JSON.stringify(prefixManifest(opts.aot, base)).replaceAll("<", "\\u003c")
+            escapeJsonForScript(JSON.stringify(prefixManifest(opts.aot, base)))
           }</script>`;
         const preload = chunkHref === "" ? "" : `<link rel="modulepreload" href="${chunkHref}">`;
         const live = opts.dev ? liveReloadScript(base) : "";
@@ -329,6 +344,16 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
             ? ssr.headTags
             : `<title>${escapeHtml(resolveTitle(props))}</title>${ssr.headTags}`;
         };
+        // Serialize every registered `howlAtom`'s post-render value so the client
+        // can rehydrate the session store before first paint (the jotai analogue
+        // of Vue's `__PINIA__`). Skipped when nothing is registered, or when there
+        // is no client chunk to hydrate it. Must be read *after* render so any
+        // `useHydrateAtoms()` seeding from server data is captured.
+        const buildStoreScript = (): string => {
+          if (opts.chunkUrl === undefined || SERIALIZABLE_ATOMS.size === 0) return "";
+          const dump = escapeJsonForScript(JSON.stringify(dumpSerializableAtoms(store)));
+          return `<script data-howl-react-store>window.__HOWL_REACT_STORE__=${dump}</script>`;
+        };
 
         let html: string;
         if (appComp !== null) {
@@ -340,7 +365,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
           if (!doc.includes("<html")) doc = `<html lang="en">${doc}</html>`;
           const headTags = await resolveHeadTags();
           doc = injectBefore(doc, "</head>", preload + headTags);
-          doc = injectBefore(doc, "</body>", aotScript + hydration + live);
+          doc = injectBefore(doc, "</body>", aotScript + buildStoreScript() + hydration + live);
           html = `<!DOCTYPE html>${doc}`;
         } else {
           const appHtml = renderToString(
@@ -350,7 +375,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
           html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
             `<meta name="viewport" content="width=device-width, initial-scale=1">` +
             `${preload}${headTags}</head>` +
-            `<body>${appHtml}${aotScript}${hydration}${live}</body></html>`;
+            `<body>${appHtml}${aotScript}${buildStoreScript()}${hydration}${live}</body></html>`;
         }
 
         // Prod: cache-bust local asset refs (`<link href>` / `<img src>`) so the
