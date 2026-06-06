@@ -7,6 +7,7 @@ import { createPinia, type Pinia } from "pinia";
 import * as path from "@std/path";
 import { compileSfc, prepareTypeResolution } from "./sfc.ts";
 import { composeVueTree } from "./runtime/compose.ts";
+import { createRoute, provideRoute } from "./runtime/router.ts";
 
 /** Pin server-side `.vue` page compiles to the same npm packages the engine uses. */
 const NPM_VUE = "npm:vue@^3.5.13";
@@ -17,6 +18,9 @@ const NPM_PINIA = "npm:pinia@^2.2.0";
 /** `@hushkey/howl-vue/state` is a howl-vue module (the `ctx.state` store), so it
  * rewrites to its `file://` path (not npm) for the SSR data-URL compile. */
 const STATE_MOD = new URL("./runtime/state.ts", import.meta.url).href;
+/** `@hushkey/howl-vue/router` is a howl-vue module (programmatic navigation +
+ * `useRoute`), rewritten to its `file://` path for the SSR data-URL compile. */
+const ROUTER_MOD = new URL("./runtime/router.ts", import.meta.url).href;
 
 /** Rewrite a compiled page's imports so they resolve from a `data:` URL module:
  * bare framework specifiers → npm, howl-vue runtime → `file://`, and **relative**
@@ -38,7 +42,9 @@ function rewriteForSsr(code: string, fromFile: string): string {
     .replaceAll('from "@hushkey/howl-vue/pinia"', `from "${NPM_PINIA}"`)
     .replaceAll("from '@hushkey/howl-vue/pinia'", `from "${NPM_PINIA}"`)
     .replaceAll('from "@hushkey/howl-vue/state"', `from "${STATE_MOD}"`)
-    .replaceAll("from '@hushkey/howl-vue/state'", `from "${STATE_MOD}"`);
+    .replaceAll("from '@hushkey/howl-vue/state'", `from "${STATE_MOD}"`)
+    .replaceAll('from "@hushkey/howl-vue/router"', `from "${ROUTER_MOD}"`)
+    .replaceAll("from '@hushkey/howl-vue/router'", `from "${ROUTER_MOD}"`);
 }
 
 interface CacheEntry {
@@ -303,6 +309,14 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           : `<script data-howl-vue-aot>window.__HOWL_VUE_AOT__=${
             escapeJsonForScript(JSON.stringify(prefixManifest(opts.aot, base)))
           }</script>`;
+        // Dev-only route map (every Vue route + its ssr/aot/ssg mode), consumed by
+        // the Howl Routes DevTools inspector. Omitted entirely in production.
+        const vueRoutes = (opts.routes ?? []).filter((r) => r.engine === "vue");
+        const routesScript = opts.dev !== true || vueRoutes.length === 0
+          ? ""
+          : `<script data-howl-vue-routes>window.__HOWL_ROUTES__=${
+            escapeJsonForScript(JSON.stringify(vueRoutes))
+          }</script>`;
         // Preload the hydration chunk (and, via its static imports, the shared Vue
         // runtime) so the browser fetches it in parallel with parsing the body —
         // the JS is ready the moment hydration kicks off.
@@ -374,6 +388,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
               }),
           });
           ssrApp.use(head);
+          provideRoute(ssrApp, createRoute(props as unknown as Record<string, unknown>));
           // `<body pinia>` → install Pinia and serialize its state for the client.
           let pinia: Pinia | null = null;
           if (usesPinia) {
@@ -395,7 +410,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           html = injectBefore(
             doc,
             "</body>",
-            piniaScript + aotScript + hydration + live + bodyTags,
+            piniaScript + aotScript + routesScript + hydration + live + bodyTags,
           );
           html = injectBefore(html, "</head>", preload + styleTag + headTags);
           // `_app.vue` may render a full `<html>` or just `<head>`+`<body>`.
@@ -409,12 +424,13 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
             : "";
           const ssrApp = createSSRApp(inner);
           ssrApp.use(head);
+          provideRoute(ssrApp, createRoute(props as unknown as Record<string, unknown>));
           const appHtml = await renderToString(ssrApp);
           const { headTags, bodyTags } = await resolveHeadTags();
           html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
             `<meta name="viewport" content="width=device-width, initial-scale=1">` +
             `${preload}${styleTag}${headTags}</head>` +
-            `<body><div id="howl-app">${appHtml}</div>${aotScript}${hydration}${live}${bodyTags}</body></html>`;
+            `<body><div id="howl-app">${appHtml}</div>${aotScript}${routesScript}${hydration}${live}${bodyTags}</body></html>`;
         }
 
         // In prod, cache-bust user-authored local assets so they're served

@@ -181,6 +181,29 @@
       ]
     },
     {
+      "id": "programmatic-navigation",
+      "heading": "Programmatic navigation",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Link clicks navigate automatically, but you often need to navigate from code — after a form submit, a login, a timeout. The React and Vue engines expose a router from @hushkey/howl-react/router and @hushkey/howl-vue/router (same API on both)."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "import { navigate, useNavigate, useRoute } from \"@hushkey/howl-react/router\";\n\nnavigate(\"/dashboard\");                // push + client-render\nnavigate(\"/login\", { replace: true }); // replace current entry\nnavigate(\"/posts\", { scroll: false }); // keep scroll position\nnavigate(-1);                          // back; navigate(1) = forward\n\nfunction Nav() {\n  const navigate = useNavigate();\n  const { path, params, query } = useRoute(); // reactive — re-renders on nav\n  return <button onClick={() => navigate(\"/next\")}>Next ({path})</button>;\n}"
+        },
+        {
+          "type": "p",
+          "text": "navigate() runs the same AOT/SSR swap path as a link click but bypasses the client-nav boundary check, and falls back to a full document navigation before hydration — so it is always safe to call. useRoute() returns { href, path, query, params, hash, route }, seeded on SSR and re-seeded on every navigation."
+        },
+        {
+          "type": "tip",
+          "text": "In dev, the Vue engine installs a vue-router-shaped object on app.config.globalProperties.$router so Vue DevTools' built-in Routes tab populates with every Howl route and the current match — no vue-router required. It is dev-only and adds no runtime dependency."
+        }
+      ]
+    },
+    {
       "id": "link-prefetching",
       "heading": "Link prefetching",
       "blocks": [

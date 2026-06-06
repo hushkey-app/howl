@@ -237,6 +237,7 @@ export async function renderRoute<State>(
       chunkUrl,
       module,
       aot: buildCache.engineAot.size > 0 ? Object.fromEntries(buildCache.engineAot) : undefined,
+      routes: buildCache.features.errorOverlay ? buildCache.getEngineRoutes?.() : undefined,
       dev: buildCache.features.errorOverlay,
     });
   }

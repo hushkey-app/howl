@@ -8,7 +8,8 @@
     "./boot": "./runtime/boot.ts",
     "./head": "./runtime/head.ts",
     "./store": "./runtime/store.ts",
-    "./state": "./runtime/state.ts"
+    "./state": "./runtime/state.ts",
+    "./router": "./runtime/router.ts"
   },
   "imports": {
     "@hushkey/howl": "jsr:@hushkey/howl@^0.10.0",

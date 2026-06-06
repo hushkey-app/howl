@@ -1,5 +1,6 @@
 import * as path from "@std/path";
 import type { Command } from "./commands.ts";
+import type { EngineRouteInfo } from "./engine.ts";
 import { fsItemsToCommands, type FsRouteFile } from "./fs_routes.ts";
 import type { ServerIslandRegistry } from "./context.ts";
 import type { AnyComponent, ComponentType } from "./component.ts";
@@ -94,6 +95,12 @@ export interface BuildCache<State = any> {
   };
   /** Returns the file-system route commands collected at build time. */
   getFsRoutes(): Command<State>[];
+  /**
+   * Returns the engine route map (pattern + `ssr`/`aot`/`ssg` mode) for an
+   * engine's dev DevTools integration. Optional — implemented by the dev build
+   * caches only; absent in production, where the DevTools panel is inactive.
+   */
+  getEngineRoutes?(): EngineRouteInfo[];
   /** Returns the registered API route definitions. */
   getApiRoutes(): unknown[];
   /** Resolves a static file by URL pathname or returns `null` if missing. */

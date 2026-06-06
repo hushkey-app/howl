@@ -1,0 +1,169 @@
+/// <reference lib="dom" />
+import { type App, inject, type InjectionKey, reactive } from "vue";
+
+/** Options for an imperative {@linkcode navigate}. */
+export interface NavigateOptions {
+  /** Replace the current history entry instead of pushing a new one. */
+  replace?: boolean;
+  /** Scroll to the top after navigating. Defaults to `true`. */
+  scroll?: boolean;
+  /** Arbitrary value attached to the new `history.state` entry. */
+  state?: unknown;
+}
+
+/**
+ * The current route. Read reactively with {@linkcode useRoute} — its fields
+ * update (and consuming components re-render) on every navigation.
+ */
+export interface HowlRoute {
+  /** Full href of the current location. */
+  href: string;
+  /** Pathname (no query / hash). */
+  path: string;
+  /** Query-string params as a flat record. */
+  query: Record<string, string>;
+  /** Matched route params (`/users/:id` → `{ id }`). */
+  params: Record<string, string>;
+  /** URL hash including the leading `#`, or `""` when absent. */
+  hash: string;
+  /** Matched route pattern (e.g. `/users/:id`), or `null`. */
+  route: string | null;
+}
+
+/** The route value before any navigation is recorded (SSR/first-paint default). */
+export const EMPTY_ROUTE: HowlRoute = {
+  href: "",
+  path: "",
+  query: {},
+  params: {},
+  hash: "",
+  route: null,
+};
+
+/** Parse `href` into a `URL`, returning `null` when it isn't a valid URL. */
+function safeUrl(href: string): URL | null {
+  try {
+    return new URL(href);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Derive a {@linkcode HowlRoute} from a page-props bag. Shared by the server
+ * engine (to seed the SSR route) and the client boot (to update it on nav), so
+ * both observe an identical route shape.
+ */
+export function toHowlRoute(props: Record<string, unknown>): HowlRoute {
+  const raw = props.url;
+  const url = raw instanceof URL ? raw : typeof raw === "string" ? safeUrl(raw) : null;
+  return {
+    href: url?.href ?? "",
+    path: url?.pathname ?? "",
+    query: (props.query as Record<string, string> | undefined) ??
+      (url !== null ? Object.fromEntries(url.searchParams) : {}),
+    params: (props.params as Record<string, string> | undefined) ?? {},
+    hash: url?.hash ?? "",
+    route: (props.route as string | null | undefined) ?? null,
+  };
+}
+
+/** Injection key for the per-app reactive route object. */
+const ROUTE_KEY: InjectionKey<HowlRoute> = Symbol("howl-route");
+
+/** Create a per-app reactive route from page props (one per SSR request / client session). */
+export function createRoute(props: Record<string, unknown>): HowlRoute {
+  return reactive(toHowlRoute(props));
+}
+
+/** Update an existing reactive route in place so `useRoute()` consumers re-render. */
+export function setRoute(route: HowlRoute, props: Record<string, unknown>): void {
+  Object.assign(route, toHowlRoute(props));
+}
+
+/** Provide `route` on `app` so descendants can read it via {@linkcode useRoute}. */
+export function provideRoute(app: App, route: HowlRoute): void {
+  app.provide(ROUTE_KEY, route);
+}
+
+/**
+ * Read the current {@linkcode HowlRoute} reactively. The component re-renders
+ * whenever the route changes (link click, programmatic nav, or back/forward).
+ *
+ * ```ts
+ * import { useRoute } from "@hushkey/howl-vue/router";
+ * const route = useRoute();          // route.path, route.params, route.query …
+ * ```
+ */
+export function useRoute(): HowlRoute {
+  return inject(ROUTE_KEY, EMPTY_ROUTE);
+}
+
+/**
+ * The client navigation implementation, wired by the engine boot on hydration.
+ * Kept behind this slot so page modules can import the router API without
+ * pulling the (client-only) boot runtime into the server bundle.
+ */
+export interface HowlNavigator {
+  /** Perform a navigation: a URL to push/replace, or a number to move through history. */
+  go(to: string | number, opts: NavigateOptions): void;
+}
+
+let navigator: HowlNavigator | null = null;
+
+/** Register the client navigation implementation. Called by the engine boot. */
+export function registerNavigator(impl: HowlNavigator): void {
+  navigator = impl;
+}
+
+/**
+ * Navigate programmatically — from components, stores, or any client code.
+ *
+ * - `navigate("/about")` pushes a new history entry and client-renders the page.
+ * - `navigate("/about", { replace: true })` replaces the current entry.
+ * - `navigate(-1)` / `navigate(1)` move back / forward through history.
+ *
+ * Before hydration (or during SSR) it falls back to a full document navigation,
+ * so it is always safe to call.
+ *
+ * ```ts
+ * import { navigate } from "@hushkey/howl-vue/router";
+ * navigate("/dashboard", { replace: true });
+ * ```
+ */
+export function navigate(to: string | number, opts: NavigateOptions = {}): void {
+  if (navigator !== null) {
+    navigator.go(to, opts);
+    return;
+  }
+  if (typeof to === "string" && typeof location !== "undefined") {
+    if (opts.replace) location.replace(to);
+    else location.assign(to);
+  }
+}
+
+/** Go back one entry in history — shorthand for `navigate(-1)`. */
+export function back(): void {
+  navigate(-1);
+}
+
+/** Go forward one entry in history — shorthand for `navigate(1)`. */
+export function forward(): void {
+  navigate(1);
+}
+
+/** A stable imperative navigation function, mirroring `navigate`'s signature. */
+export type NavigateFn = (to: string | number, opts?: NavigateOptions) => void;
+
+/**
+ * Returns the imperative {@linkcode navigate} function for use in components.
+ *
+ * ```ts
+ * import { useNavigate } from "@hushkey/howl-vue/router";
+ * const navigate = useNavigate();
+ * // <button @click="navigate('/next')">Next</button>
+ * ```
+ */
+export function useNavigate(): NavigateFn {
+  return navigate;
+}

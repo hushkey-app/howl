@@ -1,4 +1,5 @@
 import { atom, type PrimitiveAtom, useAtomValue } from "jotai";
+import { EMPTY_ROUTE, type HowlRoute } from "./router.ts";
 
 /**
  * The atom mirroring the server `ctx.state` — the request-scoped context Howl
@@ -9,6 +10,13 @@ import { atom, type PrimitiveAtom, useAtomValue } from "jotai";
 export const howlStateAtom: PrimitiveAtom<Record<string, unknown>> = atom<
   Record<string, unknown>
 >({});
+
+/**
+ * The atom mirroring the current route. The engine seeds it on SSR and the
+ * client boot re-seeds it on every navigation, so it always reflects the active
+ * location. Prefer `useRoute()` from `@hushkey/howl-react/router` for reading it.
+ */
+export const howlLocationAtom: PrimitiveAtom<HowlRoute> = atom<HowlRoute>(EMPTY_ROUTE);
 
 /**
  * Read the `ctx.state` mirror anywhere in the tree — no prop-drilling —

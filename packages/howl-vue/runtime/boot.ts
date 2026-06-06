@@ -12,6 +12,15 @@ import { createPinia, type Pinia } from "pinia";
 import { mountVueIsland } from "./mount.ts";
 import { composeVueTree } from "./compose.ts";
 import { VUE_ISLAND_ATTR, VUE_ISLAND_PROPS_ATTR } from "./host.ts";
+import {
+  createRoute,
+  type HowlRoute,
+  type NavigateOptions,
+  provideRoute,
+  registerNavigator,
+  setRoute,
+} from "./router.ts";
+import { installRouterShim } from "./router_shim.ts";
 
 // One head instance for the session — unhead keeps `document.head` in sync as
 // pages mount/unmount across client-nav, so per-page title/meta update on nav.
@@ -64,6 +73,9 @@ function partialFetchUrl(href: string): string {
 let currentApp: App | null = null;
 // The mounted app's root renders this reactive page tree; client-nav swaps it.
 let pageTree: ShallowRef<(() => VNode) | null> | null = null;
+// The session's reactive route — provided on the app, updated on every nav so
+// `useRoute()` consumers re-render.
+let route: HowlRoute | null = null;
 let intentTimer: ReturnType<typeof setTimeout> | undefined;
 let intentLink: HTMLAnchorElement | null = null;
 const prefetchCache = new Map<string, { job: Promise<string>; ts: number }>();
@@ -103,13 +115,22 @@ export function hydrateVuePage(components: Component[]): void {
 
   if (currentApp !== null && pageTree !== null) {
     pageTree.value = render; // client-nav: re-render on the existing app
+    if (route !== null) setRoute(route, props);
     return;
   }
 
   pageTree = shallowRef(render);
+  route = createRoute(props);
   currentApp = createSSRApp({ render: () => pageTree!.value!() });
   currentApp.use(head);
+  provideRoute(currentApp, route);
   if (document.body.hasAttribute("pinia")) currentApp.use(getPinia());
+  // Install the `$router` shim BEFORE mount (dev only): Vue DevTools reads
+  // `app.config.globalProperties.$router` on the `app:init` hook that mounting
+  // fires — set it after mount and the built-in Routes tab stays empty.
+  if ((globalThis as { __HOWL_ROUTES__?: unknown }).__HOWL_ROUTES__ !== undefined) {
+    installRouterShim(currentApp, () => route!);
+  }
   currentApp.mount(el);
 }
 
@@ -255,7 +276,24 @@ async function loadPageHtml(href: string): Promise<string | null> {
  * Falls back to a full browser navigation for non-HTML responses or pages
  * without a `#howl-app` target.
  */
-async function navigateVuePage(url: URL, push: boolean): Promise<void> {
+/** How a client navigation should touch the history stack and scroll. */
+interface NavIntent {
+  /** `push` adds an entry, `replace` swaps the current one, `none` leaves it. */
+  history: "push" | "replace" | "none";
+  /** Whether to reset scroll to the top after the swap. */
+  scroll: boolean;
+  /** Value to attach to the new `history.state` entry. */
+  state?: unknown;
+}
+
+/** Apply `intent` to the history stack for `href`, tagging the entry for popstate. */
+function applyHistory(intent: NavIntent, href: string): void {
+  const entry = { howlVue: true, navState: intent.state };
+  if (intent.history === "push") history.pushState(entry, "", href);
+  else if (intent.history === "replace") history.replaceState(entry, "", href);
+}
+
+async function navigateVuePage(url: URL, intent: NavIntent): Promise<void> {
   const html = await loadPageHtml(url.href);
   if (html === null) {
     location.assign(url.href);
@@ -336,8 +374,8 @@ async function navigateVuePage(url: URL, push: boolean): Promise<void> {
   // during the nav (e.g. `/about` → `/about/1999`) lands the address bar on the
   // final URL, not the clicked one. Falls back to the requested URL.
   const landed = typeof nextProps.url === "string" ? nextProps.url : url.href;
-  if (push) history.pushState({ howlVue: true }, "", landed);
-  scrollTo({ top: 0, left: 0, behavior: "instant" });
+  applyHistory(intent, landed);
+  if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
 
   // Stable chunk URL (no cache-bust) so the preload applies and revisits reuse
   // the loaded module. Re-renders the page tree into `#howl-app` (see boot).
@@ -403,7 +441,7 @@ function currentState(): unknown {
  */
 async function aotNavigate(
   url: URL,
-  push: boolean,
+  intent: NavIntent,
   match: { route: AotRoute; params: Record<string, string> },
 ): Promise<void> {
   const props: Record<string, unknown> = {
@@ -425,17 +463,17 @@ async function aotNavigate(
     location.assign(url.href); // chunk lacks AOT support — full load
     return;
   }
-  if (push) history.pushState({ howlVue: true }, "", url.href);
-  scrollTo({ top: 0, left: 0, behavior: "instant" });
+  applyHistory(intent, url.href);
+  if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
   mod.aotMount(props);
 }
 
 /** Dispatch a client navigation: AOT (client-render) when the destination is an
  * AOT route, else the SSR-HTML fetch-and-swap path. */
-function navigateTo(url: URL, push: boolean): void {
+function navigateTo(url: URL, intent: NavIntent): void {
   const match = matchAot(url.pathname);
-  if (match !== null) void aotNavigate(url, push, match);
-  else void navigateVuePage(url, push);
+  if (match !== null) void aotNavigate(url, intent, match);
+  else void navigateVuePage(url, intent);
 }
 
 /** Mounts a resolved Vue component into its container. */
@@ -512,13 +550,31 @@ if (typeof document !== "undefined") {
     const a = eligibleAnchor(e.target);
     if (a === null) return;
     e.preventDefault();
-    if (a.href !== location.href) navigateTo(new URL(a.href), true);
+    if (a.href !== location.href) {
+      navigateTo(new URL(a.href), { history: "push", scroll: true });
+    }
   });
 
   addEventListener("popstate", (e) => {
     if ((e.state as { howlVue?: boolean } | null)?.howlVue) {
-      navigateTo(new URL(location.href), false);
+      navigateTo(new URL(location.href), { history: "none", scroll: true });
     }
+  });
+
+  // Imperative navigation: `navigate()` / `useNavigate()` route through the same
+  // AOT/SSR swap path as link clicks, bypassing the `client-nav` boundary check.
+  registerNavigator({
+    go(to: string | number, opts: NavigateOptions) {
+      if (typeof to === "number") {
+        history.go(to);
+        return;
+      }
+      navigateTo(new URL(to, location.href), {
+        history: opts.replace ? "replace" : "push",
+        scroll: opts.scroll ?? true,
+        state: opts.state,
+      });
+    },
   });
 
   // Prefetch on intent: warm the destination's SSR HTML on hover / touch /

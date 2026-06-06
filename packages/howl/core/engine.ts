@@ -1,4 +1,17 @@
 /**
+ * A single engine route in the route-map manifest — the shape shipped to the
+ * client (dev only) so an engine's DevTools integration can list every route.
+ */
+export interface EngineRouteInfo {
+  /** URL pattern derived from the file path (e.g. `/users/:id`). */
+  pattern: string;
+  /** How the route is served: server-render, ahead-of-time, or static-gen. */
+  mode: "ssr" | "aot" | "ssg";
+  /** Render-engine name that owns the route (e.g. `"vue"`, `"react"`). */
+  engine: string;
+}
+
+/**
  * Options passed to a {@linkcode RenderEngine} when it renders a route.
  */
 export interface RenderEngineRenderOptions {
@@ -18,6 +31,12 @@ export interface RenderEngineRenderOptions {
    * runtime can intercept nav to these routes. Empty/undefined when none.
    */
   aot?: Record<string, string>;
+  /**
+   * Full engine route map (all patterns + their `ssr`/`aot`/`ssg` mode), for an
+   * engine's dev DevTools integration to list every route. Populated in dev
+   * only; `undefined` in production.
+   */
+  routes?: EngineRouteInfo[];
   /**
    * Precompiled SSR module for this route, when the build produced one (prod).
    * Lets the engine render an already-compiled page instead of compiling the

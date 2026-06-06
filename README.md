@@ -522,6 +522,15 @@ releases.
 > HTML string (emails, notifications) in whatever engine you picked, no page
 > shell.
 >
+> **Programmatic navigation.** The Vue and React engines expose a router from
+> `@hushkey/howl-{vue,react}/router` — `navigate(to, { replace?, scroll? })`,
+> `navigate(-1)` for back/forward, `useNavigate()`, and a reactive `useRoute()`
+> (`{ href, path, query, params, hash, route }`). It drives the same client-nav
+> swap path as link clicks and falls back to a full load before hydration. In
+> dev, the Vue engine also populates Vue DevTools' built-in **Routes** tab (via a
+> `vue-router`-shaped `$router` shim — no `vue-router` dependency). See the
+> engine READMEs.
+>
 > If a **client entry with page routes** is configured but no engine is
 > registered, the build throws (telling you to select one). Backend-only apps
 > (no client entry) are unaffected. Demos:

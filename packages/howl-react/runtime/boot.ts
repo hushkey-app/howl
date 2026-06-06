@@ -4,8 +4,9 @@ import { hydrateRoot, type Root } from "react-dom/client";
 import { createHead, UnheadProvider } from "@unhead/react/client";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { composeReactTree } from "./compose.ts";
-import { howlStateAtom } from "./state.ts";
+import { howlLocationAtom, howlStateAtom } from "./state.ts";
 import { loadSerializableAtoms } from "./serialize.ts";
+import { type NavigateOptions, registerNavigator, toHowlRoute } from "./router.ts";
 
 // deno-lint-ignore no-explicit-any
 type AnyComponent = ComponentType<any>;
@@ -23,6 +24,11 @@ function syncState(props: Record<string, unknown>): void {
   if (props.state !== undefined) {
     store.set(howlStateAtom, props.state as Record<string, unknown>);
   }
+}
+
+/** Push the current route into the session store so `useRoute()` re-renders. */
+function syncLocation(props: Record<string, unknown>): void {
+  store.set(howlLocationAtom, toHowlRoute(props));
 }
 
 /** Wrap a page tree in the session's jotai + unhead providers. */
@@ -94,6 +100,7 @@ export function hydrateReactPage(components: AnyComponent[]): void {
   if (el === null) return;
   const props = reviveProps(globalThis.__REACT_PAGE_PROPS__ ?? {});
   syncState(props);
+  syncLocation(props);
   // Rehydrate `howlAtom`s from their SSR values before the first render so the
   // markup matches (no hydration flash). Only on first paint — user atoms then
   // persist across client-nav, like Pinia stores (only `state` re-syncs on nav).
@@ -118,6 +125,7 @@ export function renderReactPage(
   }
   const revived = reviveProps(props);
   syncState(revived);
+  syncLocation(revived);
   root.render(withProviders(composeReactTree(components, revived)));
 }
 
@@ -225,12 +233,29 @@ async function loadPageHtml(href: string): Promise<string | null> {
   return await res.text();
 }
 
+/** How a client navigation should touch the history stack and scroll. */
+interface NavIntent {
+  /** `push` adds an entry, `replace` swaps the current one, `none` leaves it. */
+  history: "push" | "replace" | "none";
+  /** Whether to reset scroll to the top after the swap. */
+  scroll: boolean;
+  /** Value to attach to the new `history.state` entry. */
+  state?: unknown;
+}
+
+/** Apply `intent` to the history stack for `href`, tagging the entry for popstate. */
+function applyHistory(intent: NavIntent, href: string): void {
+  const entry = { howlReact: true, navState: intent.state };
+  if (intent.history === "push") history.pushState(entry, "", href);
+  else if (intent.history === "replace") history.replaceState(entry, "", href);
+}
+
 /**
  * Client-side navigation: fetch the destination's SSR HTML, import its page
  * chunk, and re-render the page tree on the existing root — no full reload.
  * Falls back to a full navigation for non-HTML / non-Howl-React responses.
  */
-async function navigateReactPage(url: URL, push: boolean): Promise<void> {
+async function navigateReactPage(url: URL, intent: NavIntent): Promise<void> {
   const html = await loadPageHtml(url.href);
   if (html === null) {
     location.assign(url.href);
@@ -263,8 +288,8 @@ async function navigateReactPage(url: URL, push: boolean): Promise<void> {
   // Push the URL the server actually rendered (handles redirects), else the
   // requested URL.
   const landed = typeof nextProps.url === "string" ? nextProps.url : url.href;
-  if (push) history.pushState({ howlReact: true }, "", landed);
-  scrollTo({ top: 0, left: 0, behavior: "instant" });
+  applyHistory(intent, landed);
+  if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
 
   globalThis.__REACT_PAGE_PROPS__ = nextProps;
   mod?.render?.(nextProps);
@@ -326,7 +351,7 @@ function currentState(): unknown {
  */
 async function aotNavigate(
   url: URL,
-  push: boolean,
+  intent: NavIntent,
   match: { route: AotRoute; params: Record<string, string> },
 ): Promise<void> {
   const props: Record<string, unknown> = {
@@ -346,17 +371,17 @@ async function aotNavigate(
     location.assign(url.href); // chunk lacks AOT support — full load
     return;
   }
-  if (push) history.pushState({ howlReact: true }, "", url.href);
-  scrollTo({ top: 0, left: 0, behavior: "instant" });
+  applyHistory(intent, url.href);
+  if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
   mod.aotMount(props);
 }
 
 /** Dispatch a client navigation: AOT (client-render) when the destination is an
  * AOT route, else the SSR-HTML fetch-and-swap path. */
-function navigateTo(url: URL, push: boolean): void {
+function navigateTo(url: URL, intent: NavIntent): void {
   const match = matchAot(url.pathname);
-  if (match !== null) void aotNavigate(url, push, match);
-  else void navigateReactPage(url, push);
+  if (match !== null) void aotNavigate(url, intent, match);
+  else void navigateReactPage(url, intent);
 }
 
 if (typeof document !== "undefined") {
@@ -376,13 +401,31 @@ if (typeof document !== "undefined") {
     const a = eligibleAnchor(e.target);
     if (a === null) return;
     e.preventDefault();
-    if (a.href !== location.href) navigateTo(new URL(a.href), true);
+    if (a.href !== location.href) {
+      navigateTo(new URL(a.href), { history: "push", scroll: true });
+    }
   });
 
   addEventListener("popstate", (e) => {
     if ((e.state as { howlReact?: boolean } | null)?.howlReact) {
-      navigateTo(new URL(location.href), false);
+      navigateTo(new URL(location.href), { history: "none", scroll: true });
     }
+  });
+
+  // Imperative navigation: `navigate()` / `useNavigate()` route through the same
+  // AOT/SSR swap path as link clicks, bypassing the `client-nav` boundary check.
+  registerNavigator({
+    go(to: string | number, opts: NavigateOptions) {
+      if (typeof to === "number") {
+        history.go(to);
+        return;
+      }
+      navigateTo(new URL(to, location.href), {
+        history: opts.replace ? "replace" : "push",
+        scroll: opts.scroll ?? true,
+        state: opts.state,
+      });
+    },
   });
 
   // Prefetch on intent (hover dwell / touch / focus), opt-in via client-prefetch.

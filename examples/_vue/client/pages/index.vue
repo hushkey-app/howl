@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed } from "vue";
 import { useHead } from "@hushkey/howl-vue/head";
 import type { VuePageProps } from "@hushkey/howl-vue";
 import type { State } from "@howl/config";

@@ -6,7 +6,8 @@ import type { FileTransformer } from "./file_transformer.ts";
 import { assertInDir, pathToSpec } from "../core/utils.ts";
 import type { ResolvedBuildConfig } from "./builder.ts";
 import { fsItemsToCommands, type FsRouteFile } from "../core/fs_routes.ts";
-import type { Command } from "../core/commands.ts";
+import { type Command, CommandType } from "../core/commands.ts";
+import type { EngineRouteInfo } from "../core/engine.ts";
 import type { ServerIslandRegistry } from "../core/context.ts";
 import { contentType as getStdContentType } from "@std/media-types/content-type";
 
@@ -74,6 +75,30 @@ export interface DevBuildCache<State> extends BuildCache<State> {
   prepare(): Promise<void>;
 }
 
+/** Drop a trailing slash from a route pattern, except for the root `/`. */
+export function stripTrailingSlash(pattern: string): string {
+  return pattern !== "/" && pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+}
+
+/**
+ * Build the engine route-map manifest from crawled FS route files: every page
+ * route owned by a render engine, tagged with its `ssr`/`aot`/`ssg` mode.
+ */
+export function engineRoutesFromFiles<State>(
+  files: FsRouteFileNoMod<State>[],
+): EngineRouteInfo[] {
+  const routes: EngineRouteInfo[] = [];
+  for (const file of files) {
+    if (file.type !== CommandType.Route || file.engine === undefined) continue;
+    routes.push({
+      pattern: stripTrailingSlash(file.pattern),
+      engine: file.engine,
+      mode: file.ssg === true ? "ssg" : file.aot === true ? "aot" : "ssr",
+    });
+  }
+  return routes;
+}
+
 export class MemoryBuildCache<State> implements DevBuildCache<State> {
   #processedFiles = new Map<string, MemoryFile>();
   #unprocessedFiles = new Map<string, string>();
@@ -120,6 +145,10 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
 
   getFsRoutes(): Command<State>[] {
     return this.#commands;
+  }
+
+  getEngineRoutes(): EngineRouteInfo[] {
+    return engineRoutesFromFiles(this.#fsRoutes.files);
   }
 
   getApiRoutes(): unknown[] {
@@ -339,6 +368,10 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
 
   getFsRoutes(): Command<State>[] {
     return this.#commands;
+  }
+
+  getEngineRoutes(): EngineRouteInfo[] {
+    return engineRoutesFromFiles(this.#fsRoutes.files);
   }
 
   getApiRoutes(): unknown[] {

@@ -147,6 +147,43 @@ Like Pinia, `howlAtom` values hydrate **once** on first paint; afterwards they p
 client-nav (only the `ctx.state` mirror re-syncs on every navigation). Keys must be unique across the
 app — a collision clobbers on hydrate (a dev-mode warning fires).
 
+## Router — `navigate` / `useNavigate` / `useRoute`
+
+Link clicks inside a `client-nav` boundary already navigate without a full reload. For
+**programmatic** navigation — from event handlers, effects, stores, anywhere — import from
+`@hushkey/howl-react/router`:
+
+```tsx
+import { navigate, useNavigate, useRoute } from "@hushkey/howl-react/router";
+
+// Bare function — works in any client code, not just components
+navigate("/dashboard");                  // push + client-render the page
+navigate("/login", { replace: true });   // replace the current history entry
+navigate("/posts", { scroll: false });   // keep scroll position
+navigate(-1);                            // history.go(-1) — back; navigate(1) = forward
+
+// In a component
+function Nav() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate("/next")}>Next</button>;
+}
+
+// Read the current route reactively (re-renders on navigation)
+function Crumb() {
+  const { path, params, query, route } = useRoute();
+  return <span>{path}</span>;
+}
+```
+
+`navigate` routes through the same AOT/SSR swap path as link clicks (AOT routes client-render with no
+server hop; everything else fetches the destination's SSR fragment) but **bypasses** the `client-nav`
+boundary check — you asked to navigate, so it navigates. Before hydration / during SSR it falls back
+to a full document navigation, so it's always safe to call. `back()` and `forward()` are exported as
+shorthands for `navigate(-1)` / `navigate(1)`.
+
+`useRoute()` returns `{ href, path, query, params, hash, route }` (`route` is the matched pattern,
+e.g. `/users/:id`); it is seeded on SSR and re-seeded on every navigation.
+
 ## AOT and SSG
 
 Filename prefixes opt a route into client-side navigation and/or build-time prerender, identical to

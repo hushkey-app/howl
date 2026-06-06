@@ -6,7 +6,8 @@ import { createHead, renderSSRHead, UnheadProvider } from "@unhead/react/server"
 import { createStore, Provider as JotaiProvider } from "jotai";
 import * as path from "@std/path";
 import { composeReactTree } from "./runtime/compose.ts";
-import { howlStateAtom } from "./runtime/state.ts";
+import { howlLocationAtom, howlStateAtom } from "./runtime/state.ts";
+import { toHowlRoute } from "./runtime/router.ts";
 import { dumpSerializableAtoms, SERIALIZABLE_ATOMS } from "./runtime/serialize.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -329,6 +330,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
         // user atoms render server-side without leaking across concurrent requests.
         const store = createStore();
         store.set(howlStateAtom, (props.state ?? {}) as Record<string, unknown>);
+        store.set(howlLocationAtom, toHowlRoute(props as unknown as Record<string, unknown>));
         const withProviders = (node: ReactNode): ReactNode =>
           createElement(
             JotaiProvider,
