@@ -900,15 +900,15 @@
     "members": {
       "examples/_backend": {
         "dependencies": [
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/path@1",
           "npm:zod@4.3.6"
         ]
       },
       "examples/_react": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@^0.0.1",
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl-react@0.12",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/path@1",
           "npm:@types/react@^18.3.0",
           "npm:daisyui@5.5.18",
@@ -919,8 +919,8 @@
       },
       "examples/_vue": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@^0.0.1",
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl-vue@0.12",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/path@1",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
@@ -931,8 +931,8 @@
       },
       "examples/kawaii-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@^0.0.1",
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl-vue@0.12",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/path@1",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
@@ -943,8 +943,8 @@
       },
       "examples/software-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@^0.0.1",
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl-react@0.12",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
           "npm:@types/react@^18.3.0",
@@ -957,8 +957,8 @@
       },
       "examples/www": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@^0.0.1",
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl-react@0.12",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
           "npm:@types/react@^18.3.0",
@@ -1006,7 +1006,7 @@
       },
       "packages/howl-react": {
         "dependencies": [
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
           "npm:@unhead/react@2",
@@ -1018,7 +1018,7 @@
       },
       "packages/howl-vue": {
         "dependencies": [
-          "jsr:@hushkey/howl@0.10",
+          "jsr:@hushkey/howl@0.12",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
           "npm:@unhead/vue@2",

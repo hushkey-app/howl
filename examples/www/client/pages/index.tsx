@@ -78,10 +78,7 @@ const ENGINE_PKG: Record<Engine, string> = {
   text: "(your module)",
 };
 
-/** The files you can open in the §4 IDE panel. */
-type FileId = "engine" | "main" | "api" | "page";
-
-/** The render seam — core ships types only. */
+/** The render seam — core ships types only (shown in the §01 code card). */
 const CORE_CODE = `// Core ships types only — it renders nothing.
 import type { Context } from "@hushkey/howl";
 
@@ -113,30 +110,56 @@ export default function Home({ data }: ReactPageProps) {
   return <h1>Hello {data.name}</h1>;
 }`;
 
-/** Code shown for a given open file + selected engine. */
-function fileCode(file: FileId, engine: Engine): string {
-  switch (file) {
-    case "engine":
-      return CORE_CODE;
-    case "api":
-      return API_CODE;
-    case "page":
-      return PAGE_CODE;
-    default:
-      return mainCode(engine);
-  }
-}
+/** The generated client — params, body, and response inferred from your *.api.ts files. */
+const CLIENT_CODE = `import { http } from "@app/http-client";
+import { useEffect, useState } from "react";
 
-const APP_FILES: { id: FileId; name: string }[] = [
-  { id: "main", name: "server/main.ts" },
-  { id: "api", name: "server/apis/users.api.ts" },
-  { id: "page", name: "client/pages/index.tsx" },
-];
+// One generated client, shaped like your *.api.ts tree. Params,
+// body, and the response type are inferred — change the API and
+// the call won't silently drift.
+export default function UserCard({ id }: { id: string }) {
+  const [user, setUser] = useState<User>();
 
-/** Last path segment — used for the editor tab label. */
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
+  useEffect(() => {
+    http.api.users[":id"].$get({ params: { id } })
+      .then((res) => setUser(res.data));
+    //                       ^? { id: string; name: string; email: string }
+  }, [id]);
+
+  return <h2>{user?.name ?? "…"}</h2>;
+}`;
+
+/** The Vue page — shown when the Vue engine is selected. Paste real code here. */
+const PAGE_CODE_VUE = `<script setup lang="ts">
+import type { VuePageProps } from "@hushkey/howl-vue";
+
+// Pages are components; data comes from the route handler.
+const { data } = defineProps<VuePageProps>();
+</script>
+
+<template>
+  <h1>Hello {{ data.name }}</h1>
+</template>`;
+
+/** The Vue fetch component — the generated client used from a Vue SFC. */
+const CLIENT_CODE_VUE = `<script setup lang="ts">
+import { http } from "@app/http-client";
+import { onMounted, ref } from "vue";
+
+const props = defineProps<{ id: string }>();
+const user = ref<User>();
+
+// Types inferred from your *.api.ts tree — change the API,
+// the call won't silently drift.
+onMounted(async () => {
+  const res = await http.api.users[":id"].$get({ params: { id: props.id } });
+  user.value = res.data;
+});
+</script>
+
+<template>
+  <h2>{{ user?.name ?? "…" }}</h2>
+</template>`;
 
 const RENDER_MODES: { file: string; mode: string; paint: string; nav: string }[] = [
   {
@@ -420,46 +443,28 @@ function InstallBar() {
   );
 }
 
-/** Husky mascot card — the asymmetric hero's right column. */
-function HuskyCard() {
-  return (
-    <div className="relative mx-auto w-full max-w-sm">
-      {/* layered halo */}
-      <div className="pointer-events-none absolute -inset-8 -z-10 rounded-full bg-magenta/20 blur-3xl" />
-      <div className="pointer-events-none absolute -inset-4 -z-10 translate-x-6 rounded-full bg-primary/15 blur-3xl" />
-      <div className="howl-float relative rounded-3xl border border-line bg-paper p-8 shadow-[0_30px_70px_-28px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]">
-        <span className="absolute left-4 top-4 rounded-full border border-line bg-accent-soft px-2.5 py-1 font-mono text-[10px] font-bold text-primary">
-          server-first
-        </span>
-        <div className="flex flex-col items-center gap-3 py-4">
-          <img src="/logo.svg" alt="Howl mascot" className="h-46 w-46 drop-shadow-xl" />
-          <span className="font-mono text-sm font-bold tracking-[0.3em] text-ink-3">
-            awooo~
-          </span>
-        </div>
-        <span className="absolute bottom-4 right-4 rounded-lg border border-white/10 bg-terminal px-2.5 py-1 font-mono text-[10px] text-white/80">
-          → deno task dev
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /** A code sample rendered like a real editor — gutter line numbers + caret. */
-function CodeEditor({ code, caret = true }: { code: string; caret?: boolean }) {
+function CodeEditor(
+  { code, caret = true, minLines = 0 }: {
+    code: string;
+    caret?: boolean;
+    minLines?: number;
+  },
+) {
   const lines = code.split("\n");
+  const rows = Array.from({ length: Math.max(lines.length, minLines) });
   return (
     <div className="flex overflow-x-auto bg-code-bg font-mono text-[12.5px] leading-[1.8]">
       <div
         aria-hidden="true"
         className="select-none border-r border-line/70 px-3 py-4 text-right text-ink-3/50"
       >
-        {lines.map((_, i) => <div key={i}>{i + 1}</div>)}
+        {rows.map((_, i) => <div key={i}>{i + 1}</div>)}
       </div>
       <pre className="flex-1 px-4 py-4">
-        {lines.map((line, i) => (
+        {rows.map((_, i) => (
           <div key={i} className="whitespace-pre">
-            {line ? highlightLine(line) : " "}
+            {lines[i] ? highlightLine(lines[i]) : " "}
             {caret && i === lines.length - 1 && (
               <span className="howl-cursor ml-0.5 text-primary">▍</span>
             )}
@@ -469,6 +474,23 @@ function CodeEditor({ code, caret = true }: { code: string; caret?: boolean }) {
     </div>
   );
 }
+
+/**
+ * The tallest sample the IDE panel can show — used as the editor's `minLines` so
+ * opening a different file never resizes the panel.
+ */
+const PANEL_MAX_LINES: number = Math.max(
+  ...[
+    mainCode("react"),
+    mainCode("vue"),
+    mainCode("text"),
+    PAGE_CODE,
+    PAGE_CODE_VUE,
+    CLIENT_CODE,
+    CLIENT_CODE_VUE,
+    API_CODE,
+  ].map((s) => s.split("\n").length),
+);
 
 /** A standalone, titled code card — used in the routing section. */
 function CodeCard({ name, code }: { name: string; code: string }) {
@@ -569,71 +591,377 @@ function FileGlyph() {
   );
 }
 
-/** A clickable file row in the §4 IDE panel tree. */
-function FileRow(
-  { name, active, badge, onClick }: {
-    name: string;
-    active: boolean;
-    badge?: string;
-    onClick: () => void;
-  },
+/** The file-type a tree row / editor header renders a monogram for. */
+type Lang = "ts" | "tsx" | "vue" | "api" | "deno" | "svg" | "css";
+
+const LANG_BADGE: Record<Lang, { label: string; cls: string }> = {
+  ts: { label: "TS", cls: "bg-info/15 text-info ring-info/30" },
+  tsx: { label: "TSX", cls: "bg-primary/15 text-primary ring-primary/30" },
+  vue: { label: "V", cls: "bg-success/15 text-success ring-success/30" },
+  api: { label: "API", cls: "bg-magenta-soft text-magenta ring-magenta/30" },
+  deno: { label: "{ }", cls: "bg-line/50 text-ink-3 ring-line" },
+  svg: { label: "SVG", cls: "bg-yellow/15 text-yellow ring-yellow/30" },
+  css: { label: "CSS", cls: "bg-info/15 text-info ring-info/30" },
+};
+
+/** A small monogram badge denoting a file's language. */
+function FileIcon({ lang }: { lang: Lang }) {
+  const b = LANG_BADGE[lang];
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex h-4 shrink-0 items-center justify-center rounded-[4px] px-1 font-mono text-[8px] font-black uppercase leading-none ring-1 ${b.cls}`}
+    >
+      {b.label}
+    </span>
+  );
+}
+
+/** A rotating disclosure chevron for a tree folder. */
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`h-3 w-3 shrink-0 text-ink-3 transition-transform duration-150 ${
+        open ? "" : "-rotate-90"
+      }`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** A folder glyph for the tree. */
+function FolderGlyph() {
+  return (
+    <svg
+      className="h-3.5 w-3.5 shrink-0 text-ink-3"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3.8a1.5 1.5 0 0 1 1.06.44L10.8 7h8.7A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"
+      />
+    </svg>
+  );
+}
+
+/** A node in the IDE panel's project tree. */
+type TreeNode =
+  | { t: "dir"; name: string; children: TreeNode[] }
+  | { t: "file"; name: string; lang: Lang };
+
+/** Shared interaction state threaded through the recursive tree. */
+type TreeCtx = {
+  /** Full path of the currently open file. */
+  openPath: string;
+  /** Opens a file by its full path. */
+  onOpen: (path: string) => void;
+  /** Whether a path maps to a featured (openable) file. */
+  isFeatured: (path: string) => boolean;
+};
+
+/** Renders one tree node — a folder, a featured (clickable) file, or context. */
+function TreeItem(
+  { node, prefix, ctx }: { node: TreeNode; prefix: string; ctx: TreeCtx },
 ) {
+  if (node.t === "dir") return <TreeDir node={node} prefix={prefix} ctx={ctx} />;
+  const path = prefix + node.name;
+  if (!ctx.isFeatured(path)) {
+    return (
+      <li>
+        <div className="flex items-center gap-1.5 rounded-md py-1 pr-2 pl-1.5 font-mono text-[12.5px] text-ink-3/45">
+          <span aria-hidden="true" className="w-3 shrink-0" />
+          <span className="opacity-50">
+            <FileIcon lang={node.lang} />
+          </span>
+          <span className="truncate">{node.name}</span>
+        </div>
+      </li>
+    );
+  }
+  const active = path === ctx.openPath;
   return (
     <li>
       <button
         type="button"
-        onClick={onClick}
+        onClick={() => ctx.onOpen(path)}
         aria-current={active ? "true" : undefined}
-        className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-left transition-colors ${
+        className={`flex w-full items-center gap-1.5 rounded-md py-1 pr-2 pl-1.5 text-left font-mono text-[12.5px] transition-colors ${
           active
-            ? "bg-accent-soft font-semibold text-primary"
-            : "text-ink-2 hover:bg-accent-soft/50 hover:text-primary"
+            ? "bg-accent-soft font-semibold text-primary ring-1 ring-primary/15"
+            : "text-ink-2 hover:bg-accent-soft/40 hover:text-primary"
         }`}
       >
-        <FileGlyph />
-        <span className="truncate">{name}</span>
-        {badge && (
-          <span className="ml-auto rounded bg-magenta-soft px-1.5 text-[9px] font-bold text-magenta ring-1 ring-magenta/20">
-            {badge}
-          </span>
-        )}
+        <span aria-hidden="true" className="w-3 shrink-0" />
+        <FileIcon lang={node.lang} />
+        <span className="truncate">{node.name}</span>
       </button>
     </li>
   );
 }
 
-/** The §4 IDE panel — a clickable mini file-explorer over a real Howl app. */
-function ViewLayerPanel() {
-  const [engine, setEngine] = useState<Engine>("react");
-  const [file, setFile] = useState<FileId>("main");
+/** A collapsible folder row plus its indented children. */
+function TreeDir(
+  { node, prefix, ctx }: {
+    node: Extract<TreeNode, { t: "dir" }>;
+    prefix: string;
+    ctx: TreeCtx;
+  },
+) {
+  const [open, setOpen] = useState(true);
+  const childPrefix = `${prefix}${node.name}/`;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 pl-1.5 text-left font-mono text-[12.5px] text-ink-2 transition-colors hover:text-ink"
+      >
+        <Chevron open={open} />
+        <FolderGlyph />
+        <span className="truncate">{node.name}</span>
+      </button>
+      {open && (
+        <ul className="mt-0.5 ml-[13px] space-y-0.5 border-l border-line/60 pl-2.5">
+          {node.children.map((child, i) => (
+            <TreeItem key={i} node={child} prefix={childPrefix} ctx={ctx} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
 
-  // Engine buttons jump to main.ts so their effect on the config is visible.
-  const pickEngine = (id: Engine) => {
-    setEngine(id);
-    setFile("main");
+const ICON_BOLT = "M13 3 4 14h6l-1 7 9-11h-6l1-7z";
+const ICON_ROUTE =
+  "M12 21s-6-5.686-6-10a6 6 0 1 1 12 0c0 4.314-6 10-6 10zM12 7a2 2 0 1 0 0 4 2 2 0 0 0 0-4z";
+const ICON_API = "M4 5h16v6H4zM4 13h16v6H4zM7.5 8h.01M7.5 16h.01";
+const ICON_CLIENT =
+  "M10.5 13.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5l-1 1M13.5 10.5a3.5 3.5 0 0 0-5 0L6 13a3.5 3.5 0 0 0 5 5l1-1";
+
+/** The real Howl project shown in the IDE panel. Featured files (those a
+ * `features()` entry points at by path) are clickable and open in the editor;
+ * the rest are dimmed context so the structure reads as a real app. The view
+ * files take the engine's extension (`.tsx` for React/BYO, `.vue` for Vue). */
+function projectTree(engine: Engine): TreeNode[] {
+  const view: Lang = engine === "vue" ? "vue" : "tsx";
+  const ext = engine === "vue" ? "vue" : "tsx";
+  return [
+    {
+      t: "dir",
+      name: "client",
+      children: [
+        {
+          t: "dir",
+          name: "components",
+          children: [{ t: "file", name: `UserCard.${ext}`, lang: view }],
+        },
+        {
+          t: "dir",
+          name: "pages",
+          children: [
+            {
+              t: "dir",
+              name: "docs",
+              children: [{ t: "file", name: `[slug].${ext}`, lang: view }],
+            },
+            { t: "file", name: `_app.${ext}`, lang: view },
+            { t: "file", name: `_error.${ext}`, lang: view },
+            { t: "file", name: `_layout.${ext}`, lang: view },
+            { t: "file", name: `index.${ext}`, lang: view },
+          ],
+        },
+        {
+          t: "dir",
+          name: "store",
+          children: [{ t: "file", name: "index.store.ts", lang: "ts" }],
+        },
+      ],
+    },
+    {
+      t: "dir",
+      name: "server",
+      children: [
+        {
+          t: "dir",
+          name: "apis",
+          children: [
+            {
+              t: "dir",
+              name: "public",
+              children: [{ t: "file", name: "ping.api.ts", lang: "api" }],
+            },
+            { t: "file", name: "users.api.ts", lang: "api" },
+          ],
+        },
+        { t: "file", name: "main.ts", lang: "ts" },
+      ],
+    },
+    {
+      t: "dir",
+      name: "static",
+      children: [{ t: "file", name: "logo.svg", lang: "svg" }],
+    },
+    { t: "file", name: "deno.json", lang: "deno" },
+    { t: "file", name: "dev.ts", lang: "ts" },
+    { t: "file", name: "howl.config.ts", lang: "ts" },
+    { t: "file", name: "tailwind.config.ts", lang: "ts" },
+  ];
+}
+
+/** A featured file — a top tab that opens a specific file in the project tree. */
+type Feature = {
+  /** Stable id (also the tab key). */
+  id: string;
+  /** Tab label. */
+  label: string;
+  /** Tab icon path. */
+  icon: string;
+  /** Full path of the file it opens — must exist in `projectTree(engine)`. */
+  path: string;
+  /** Language of the opened file. */
+  lang: Lang;
+  /** Code shown when this file is open. */
+  code: string;
+};
+
+/** The featured files / tabs. The engine toggle swaps the bootstrap and the view
+ * files (React `.tsx` ↔ Vue `.vue`); the typed API is engine-agnostic. */
+function features(engine: Engine): Feature[] {
+  const isVue = engine === "vue";
+  const ext = isVue ? "vue" : "tsx";
+  const view: Lang = isVue ? "vue" : "tsx";
+  return [
+    {
+      id: "bootstrap",
+      label: "Bootstrap",
+      icon: ICON_BOLT,
+      path: "server/main.ts",
+      lang: "ts",
+      code: mainCode(engine),
+    },
+    {
+      id: "routing",
+      label: "Routing",
+      icon: ICON_ROUTE,
+      path: `client/pages/index.${ext}`,
+      lang: view,
+      code: isVue ? PAGE_CODE_VUE : PAGE_CODE,
+    },
+    {
+      id: "client",
+      label: "Fetch",
+      icon: ICON_CLIENT,
+      path: `client/components/UserCard.${ext}`,
+      lang: view,
+      code: isVue ? CLIENT_CODE_VUE : CLIENT_CODE,
+    },
+    {
+      id: "api",
+      label: "Typed API",
+      icon: ICON_API,
+      path: "server/apis/users.api.ts",
+      lang: "api",
+      code: API_CODE,
+    },
+  ];
+}
+
+/** The §hero IDE panel — top tabs swap a folder tree + code sample together, and
+ * an engine toggle rewrites the bootstrap to prove the core renders nothing. */
+function ViewLayerPanel({ reveal = true }: { reveal?: boolean } = {}) {
+  const [engine, setEngine] = useState<Engine>("react");
+  const [openPath, setOpenPath] = useState("server/main.ts");
+
+  const feats = features(engine);
+  const featByPath = new Map(feats.map((f) => [f.path, f]));
+  const openFeat = featByPath.get(openPath) ?? feats[0];
+
+  const treeCtx: TreeCtx = {
+    openPath: openFeat.path,
+    onOpen: setOpenPath,
+    isFeatured: (p) => featByPath.has(p),
   };
 
-  const activeName = file === "engine"
-    ? "engine.ts"
-    : baseName(APP_FILES.find((f) => f.id === file)?.name ?? "main.ts");
+  // Switching engine rewrites the bootstrap — open it so the change is visible.
+  const pickEngine = (id: Engine) => {
+    setEngine(id);
+    setOpenPath("server/main.ts");
+  };
 
   return (
     <div
-      data-reveal
+      data-reveal={reveal ? "" : undefined}
       className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_40px_90px_-50px_color-mix(in_oklab,var(--color-accent)_60%,transparent)]"
     >
-      {/* Title bar */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-line bg-base-100/60 px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-magenta/60" />
-          <span className="h-3 w-3 rounded-full bg-yellow/70" />
-          <span className="h-3 w-3 rounded-full bg-line-2" />
+      {/* Featured-file tabs */}
+      <div
+        role="tablist"
+        aria-label="Howl scenarios"
+        className="scrollbar-hide flex items-center gap-1 overflow-x-auto border-b border-line bg-base-100/60 px-2 py-2"
+      >
+        {feats.map((f) => {
+          const active = f.path === openFeat.path;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setOpenPath(f.path)}
+              className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 font-mono text-[13px] transition-colors ${
+                active ? "bg-base-100 text-ink ring-1 ring-line" : "text-ink-3 hover:text-ink-2"
+              }`}
+            >
+              <span className={active ? "text-primary" : ""}>
+                <Icon path={f.icon} />
+              </span>
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Body: file tree + editor */}
+      <div className="grid min-[560px]:grid-cols-[minmax(190px,236px)_1fr]">
+        <aside className="hidden border-r border-line bg-base-100/30 p-2.5 min-[560px]:block">
+          <ul className="space-y-0.5">
+            {projectTree(engine).map((node, i) => (
+              <TreeItem
+                key={i}
+                node={node}
+                prefix=""
+                ctx={treeCtx}
+              />
+            ))}
+          </ul>
+        </aside>
+
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 border-b border-line bg-base-100/40 px-4 py-2.5">
+            <FileIcon lang={openFeat.lang} />
+            <span className="truncate font-mono text-[12.5px] text-ink-2">{openFeat.path}</span>
+          </div>
+          <CodeEditor code={openFeat.code} caret={false} minLines={PANEL_MAX_LINES} />
         </div>
-        <span className="font-mono text-[12px] text-ink-3">howl · my-app</span>
+      </div>
+
+      {/* Engine swap + status */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-base-100/60 px-3 py-2.5">
         <div
           role="tablist"
           aria-label="Render engine"
-          className="ml-auto flex items-center gap-0.5 rounded-lg border border-line bg-base-100 p-0.5"
+          className="flex items-center gap-0.5 rounded-lg border border-line bg-base-100 p-0.5"
         >
           {ENGINES.map(({ id, label }) => (
             <button
@@ -652,85 +980,8 @@ function ViewLayerPanel() {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Body: sidebar + editor */}
-      <div className="grid min-[940px]:grid-cols-[236px_1fr]">
-        {/* File tree — hidden ≤940px */}
-        <aside className="hidden border-r border-line bg-base-100/40 p-3 font-mono text-[12px] min-[940px]:block">
-          <p className="px-2 pb-1.5 text-[10px] uppercase tracking-widest text-ink-3">
-            Core · renders nothing
-          </p>
-          <ul className="mb-3 space-y-0.5">
-            <FileRow
-              name="engine.ts"
-              badge="seam"
-              active={file === "engine"}
-              onClick={() => setFile("engine")}
-            />
-            <li className="flex items-center gap-1.5 rounded px-2 py-1 text-ink-3/60">
-              <FileGlyph />segments.ts
-            </li>
-            <li className="flex items-center gap-1.5 rounded px-2 py-1 text-ink-3/60">
-              <FileGlyph />context.ts
-            </li>
-          </ul>
-          <p className="px-2 pb-1.5 text-[10px] uppercase tracking-widest text-ink-3">
-            Your app
-          </p>
-          <ul className="mb-3 space-y-0.5">
-            {APP_FILES.map((f) => (
-              <FileRow
-                key={f.id}
-                name={f.name}
-                active={file === f.id}
-                onClick={() => setFile(f.id)}
-              />
-            ))}
-          </ul>
-          <p className="px-2 pb-1.5 text-[10px] uppercase tracking-widest text-ink-3">
-            Engine · JSR
-          </p>
-          <ul className="space-y-0.5 text-ink-2">
-            <li className="truncate rounded px-2 py-1 text-magenta">{ENGINE_PKG[engine]}</li>
-          </ul>
-        </aside>
-
-        {/* Editor */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1 border-b border-line bg-base-100/40 px-3 py-2">
-            {/* Mobile file picker — the sidebar is hidden ≤940px */}
-            <div className="flex flex-wrap items-center gap-1 min-[940px]:hidden">
-              {APP_FILES.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setFile(f.id)}
-                  className={`rounded-md px-2 py-1 font-mono text-[11px] transition-colors ${
-                    file === f.id ? "bg-accent-soft text-primary" : "text-ink-3 hover:text-primary"
-                  }`}
-                >
-                  {baseName(f.name)}
-                </button>
-              ))}
-            </div>
-            <span className="hidden items-center gap-1.5 rounded-t-md border-b-2 border-primary px-2 py-1 font-mono text-[12px] text-ink min-[940px]:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              {activeName}
-            </span>
-          </div>
-          <CodeEditor code={fileCode(file, engine)} />
-        </div>
-      </div>
-
-      {/* Status bar */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-primary px-4 py-2 font-mono text-[11px] text-primary-content">
-        <span className="flex items-center gap-1.5">
-          <span className="howl-pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-success" />
-          Deno 2.x
-        </span>
-        <span>engine: {engine}</span>
-        <span className="opacity-80 min-[720px]:ml-auto">
+        <span className="font-mono text-[11px] text-magenta">{ENGINE_PKG[engine]}</span>
+        <span className="ml-auto hidden font-mono text-[11px] text-ink-3 min-[720px]:inline">
           core renders nothing — the engine owns the response
         </span>
       </div>
@@ -738,8 +989,7 @@ function ViewLayerPanel() {
   );
 }
 
-export default function Index(props: ReactPageProps<unknown, State>) {
-  const version = props.state.client?.version ?? "";
+export default function Index(_props: ReactPageProps<unknown, State>) {
   useReveal();
 
   const tagline =
@@ -775,16 +1025,18 @@ export default function Index(props: ReactPageProps<unknown, State>) {
         <div className="absolute inset-0 bg-grain opacity-[0.04] mix-blend-multiply" />
       </div>
 
-      <main className="relative mx-auto max-w-285 px-5 pt-24 sm:px-9 sm:pt-32">
+      <main className="relative mx-auto max-w-360 px-5 pt-24 sm:px-9 sm:pt-32">
         {/* ── Hero ───────────────────────────────────────────── */}
-        <section className="grid items-center gap-12 min-[940px]:grid-cols-[1.12fr_0.88fr]">
-          <div className="order-2 animate-fade-up-1 min-[940px]:order-1">
-            <p className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-3">
+        <section className="grid items-center gap-10 min-[940px]:grid-cols-12 min-[940px]:gap-14">
+          <div className="order-2 animate-fade-up-1 min-[940px]:order-1 min-[940px]:col-start-1 min-[940px]:col-span-6">
+            {
+              /* <p className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-3">
               <span className="rounded-full bg-accent-soft px-2 py-0.5 text-primary">
                 v{version}
               </span>
               <span>Server-first · Deno · No Vite</span>
-            </p>
+            </p> */
+            }
             <h1 className="font-mono text-[2.6rem] font-extrabold leading-[1.02] tracking-tight text-ink sm:text-[4rem]">
               Typed endpoints.<br />
               <em className="text-primary">Zero plumbing.</em>
@@ -834,23 +1086,13 @@ export default function Index(props: ReactPageProps<unknown, State>) {
             </div>
           </div>
 
-          <div className="order-1 animate-fade-up-3 min-[940px]:order-2">
-            <HuskyCard />
+          <div className="order-1 animate-fade-up-3 min-[940px]:order-2 min-[940px]:col-start-7 min-[940px]:col-span-6 min-[940px]:-ml-7 min-[940px]:-mr-[max(36px,50vw-684px)] pr-5">
+            <ViewLayerPanel reveal={false} />
+            <p className="mt-3 text-center font-mono text-[11px] text-ink-3">
+              Switch a tab — the generated client, routing, a typed{" "}
+              <code className="text-primary">defineApi</code> endpoint, or the render seam.
+            </p>
           </div>
-        </section>
-
-        {/* ── Trust strip ────────────────────────────────────── */}
-        <section
-          data-reveal
-          className="mt-16 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-y border-line py-5 text-center font-mono text-[12px] text-ink-3"
-        >
-          <span className="font-semibold text-ink-2">Single JSR package</span>
-          <span className="text-line-2">·</span>
-          <span>Deno 2.x / Zod 4 / esbuild 0.25</span>
-          <span className="text-line-2">·</span>
-          <span>~177 tests</span>
-          <span className="text-line-2">·</span>
-          <span>MIT</span>
         </section>
 
         {/* ── 01 · Rendering is a package ────────────────────── */}
@@ -881,13 +1123,10 @@ export default function Index(props: ReactPageProps<unknown, State>) {
               navigation, state model, and build pipeline. Lineage, not identity.
             </p>
           </div>
-          <ViewLayerPanel />
+          <CodeCard name="packages/howl/engine.ts" code={CORE_CODE} />
           <p data-reveal className="mt-4 text-[13px] leading-relaxed text-ink-3">
-            Click any file in the tree — the render seam, the engine config, a{" "}
-            <code className="rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[12px] text-primary">
-              defineApi
-            </code>{" "}
-            endpoint (typed query, responses, RBAC, rate limit), or a page.
+            One interface, types only. The engine package owns the whole response — swap React for
+            Vue (or your own) from the IDE switcher above without touching the core.
           </p>
         </section>
 
@@ -992,11 +1231,11 @@ export default function Index(props: ReactPageProps<unknown, State>) {
           </p>
         </section>
 
-        {/* ── 03 · What makes Howl, Howl ─────────────────────── */}
+        {/* ── 04 · What makes Howl, Howl ─────────────────────── */}
         <section className="mt-24">
           <div className="mb-7 max-w-2xl">
             <SectionHeader
-              index="03"
+              index="04"
               tag="Batteries included"
               title={
                 <>
