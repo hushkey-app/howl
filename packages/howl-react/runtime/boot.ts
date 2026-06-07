@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import { type ComponentType, createElement, type ReactNode } from "react";
-import { hydrateRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { createHead, UnheadProvider } from "@unhead/react/client";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { composeReactTree } from "./compose.ts";
@@ -108,6 +108,30 @@ export function hydrateReactPage(components: AnyComponent[]): void {
     loadSerializableAtoms(store, globalThis.__HOWL_REACT_STORE__);
   }
   root = hydrateRoot(el, withProviders(composeReactTree(components, props)));
+  maybeMountDevtools();
+}
+
+// Dev-only floating Howl Routes panel. Mounted once into its own root (outside
+// `#howl-app`, so it never touches hydration) and lazily imported only when the
+// engine emitted the route map — so `@hushkey/howl-react/runtime/devtools` and
+// its JSX never ship in production.
+let devtoolsMounted = false;
+function maybeMountDevtools(): void {
+  if (
+    devtoolsMounted ||
+    (globalThis as { __HOWL_REACT_ROUTES__?: unknown }).__HOWL_REACT_ROUTES__ === undefined
+  ) {
+    return;
+  }
+  devtoolsMounted = true;
+  import("./devtools.ts")
+    .then(({ RouteDevtoolsPanel }) => {
+      const el = document.createElement("div");
+      el.id = "howl-devtools";
+      document.body.appendChild(el);
+      createRoot(el).render(withProviders(createElement(RouteDevtoolsPanel)));
+    })
+    .catch(() => {});
 }
 
 /**

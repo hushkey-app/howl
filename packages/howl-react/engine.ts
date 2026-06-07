@@ -320,6 +320,14 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
           : `<script data-howl-react-aot>window.__HOWL_REACT_AOT__=${
             escapeJsonForScript(JSON.stringify(prefixManifest(opts.aot, base)))
           }</script>`;
+        // Dev-only route map (every React route + its ssr/aot/ssg mode), consumed
+        // by the in-app Howl Routes devtools panel. Omitted in production.
+        const reactRoutes = (opts.routes ?? []).filter((r) => r.engine === "react");
+        const routesScript = opts.dev !== true || reactRoutes.length === 0
+          ? ""
+          : `<script data-howl-react-routes>window.__HOWL_REACT_ROUTES__=${
+            escapeJsonForScript(JSON.stringify(reactRoutes))
+          }</script>`;
         const preload = chunkHref === "" ? "" : `<link rel="modulepreload" href="${chunkHref}">`;
         const live = opts.dev ? liveReloadScript(base) : "";
 
@@ -367,7 +375,11 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
           if (!doc.includes("<html")) doc = `<html lang="en">${doc}</html>`;
           const headTags = await resolveHeadTags();
           doc = injectBefore(doc, "</head>", preload + headTags);
-          doc = injectBefore(doc, "</body>", aotScript + buildStoreScript() + hydration + live);
+          doc = injectBefore(
+            doc,
+            "</body>",
+            aotScript + routesScript + buildStoreScript() + hydration + live,
+          );
           html = `<!DOCTYPE html>${doc}`;
         } else {
           const appHtml = renderToString(
@@ -377,7 +389,7 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
           html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
             `<meta name="viewport" content="width=device-width, initial-scale=1">` +
             `${preload}${headTags}</head>` +
-            `<body>${appHtml}${aotScript}${buildStoreScript()}${hydration}${live}</body></html>`;
+            `<body>${appHtml}${aotScript}${routesScript}${buildStoreScript()}${hydration}${live}</body></html>`;
         }
 
         // Prod: cache-bust local asset refs (`<link href>` / `<img src>`) so the

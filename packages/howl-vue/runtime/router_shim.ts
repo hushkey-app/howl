@@ -4,7 +4,6 @@ import { type HowlRoute, navigate } from "./router.ts";
 
 declare global {
   /** Dev-only route map emitted by the Vue engine: every route + its mode. */
-  // deno-lint-ignore no-var
   var __HOWL_ROUTES__: Array<{ pattern: string; mode: string; engine: string }> | undefined;
 }
 

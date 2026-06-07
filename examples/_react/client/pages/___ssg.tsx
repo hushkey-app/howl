@@ -22,15 +22,15 @@ export default function Ssg(_props: ReactPageProps<unknown, State>) {
       <header>
         <h1 className="text-2xl font-bold mb-2">🧊 Static (SSG) page</h1>
         <p className="text-base-content/70">
-          This page is <strong>prerendered at build time</strong> and served as a
-          static file — no server render on request. It still hydrates into a live
+          This page is <strong>prerendered at build time</strong>{" "}
+          and served as a static file — no server render on request. It still hydrates into a live
           SPA, and navigation to/from it uses the AOT client chunk.
         </p>
       </header>
       <section className="mt-4">
         <p>
-          The jotai counter starts at its build-time default (<code>0</code>),
-          then is live after hydration and persists across navigation:
+          The jotai counter starts at its build-time default (<code>0</code>), then is live after
+          hydration and persists across navigation:
         </p>
         <button
           type="button"
@@ -40,10 +40,9 @@ export default function Ssg(_props: ReactPageProps<unknown, State>) {
           count = {count}
         </button>
         <p className="text-xs text-base-content/50 mt-3">
-          Note: a value computed in the component (e.g. <code>new Date()</code>)
-          is not frozen — it recomputes on hydration and would mismatch the
-          static HTML. Frozen values must be serialized. View Source to see the
-          build artifact.
+          Note: a value computed in the component (e.g.{" "}
+          <code>new Date()</code>) is not frozen — it recomputes on hydration and would mismatch the
+          static HTML. Frozen values must be serialized. View Source to see the build artifact.
         </p>
       </section>
     </main>

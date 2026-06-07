@@ -25,7 +25,13 @@ export interface Hub {
 /** The four hubs, ordered west-of-day-start → end so handoffs read left→right. */
 export const HUBS: Hub[] = [
   { city: "Tokyo", country: "Japan", tz: "Asia/Tokyo", zone: "JST · UTC+9", bands: [[0, 10]] },
-  { city: "Perth", country: "Australia", tz: "Australia/Perth", zone: "AWST · UTC+8", bands: [[1, 11]] },
+  {
+    city: "Perth",
+    country: "Australia",
+    tz: "Australia/Perth",
+    zone: "AWST · UTC+8",
+    bands: [[1, 11]],
+  },
   { city: "Palermo", country: "Italy", tz: "Europe/Rome", zone: "CEST · UTC+2", bands: [[7, 17]] },
   {
     city: "San Francisco",

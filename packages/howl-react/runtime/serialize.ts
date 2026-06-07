@@ -4,7 +4,7 @@
  * re-export entry so a page importing the public jotai helpers doesn't drag
  * jotai's full type graph through that module.
  */
-import { atom, type Atom, type PrimitiveAtom } from "jotai";
+import { type Atom, atom, type PrimitiveAtom } from "jotai";
 
 /**
  * Registry of SSR-serializable atoms keyed by their stable id, populated as

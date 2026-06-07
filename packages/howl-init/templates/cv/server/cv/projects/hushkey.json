@@ -13,26 +13,35 @@
       "id": "overview",
       "heading": "Overview",
       "blocks": [
-        { "type": "p", "text": "Hushkey is an end-to-end encrypted password manager with native iOS, a Chrome extension, and a sync server. The threat model assumes the server is compromised — secrets never leave a device unencrypted." }
+        {
+          "type": "p",
+          "text": "Hushkey is an end-to-end encrypted password manager with native iOS, a Chrome extension, and a sync server. The threat model assumes the server is compromised — secrets never leave a device unencrypted."
+        }
       ]
     },
     {
       "id": "what-i-built",
       "heading": "What I built",
       "blocks": [
-        { "type": "list", "items": [
-          "The sync protocol: per-vault keys derived client-side, server stores only opaque ciphertext",
-          "iOS app — vault UI, autofill extension, biometrics-gated unlock",
-          "Chrome extension — autofill, vault preview, secure cross-origin messaging",
-          "Sync server in Deno on top of Howl, deployed on Cloudflare with Postgres"
-        ] }
+        {
+          "type": "list",
+          "items": [
+            "The sync protocol: per-vault keys derived client-side, server stores only opaque ciphertext",
+            "iOS app — vault UI, autofill extension, biometrics-gated unlock",
+            "Chrome extension — autofill, vault preview, secure cross-origin messaging",
+            "Sync server in Deno on top of Howl, deployed on Cloudflare with Postgres"
+          ]
+        }
       ]
     },
     {
       "id": "outcome",
       "heading": "Outcome",
       "blocks": [
-        { "type": "p", "text": "Hushkey shipped to the App Store and Chrome Web Store with a fully zero-knowledge sync protocol. The Howl framework was extracted from this codebase." }
+        {
+          "type": "p",
+          "text": "Hushkey shipped to the App Store and Chrome Web Store with a fully zero-knowledge sync protocol. The Howl framework was extracted from this codebase."
+        }
       ]
     }
   ]

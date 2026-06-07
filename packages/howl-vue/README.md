@@ -132,10 +132,10 @@ Link clicks inside a `client-nav` boundary already navigate without a full reloa
 import { navigate, useNavigate, useRoute } from "@hushkey/howl-vue/router";
 
 // Bare function — works in any client code, not just components
-navigate("/dashboard");                  // push + client-render the page
-navigate("/login", { replace: true });   // replace the current history entry
-navigate("/posts", { scroll: false });   // keep scroll position
-navigate(-1);                            // history.go(-1) — back; navigate(1) = forward
+navigate("/dashboard"); // push + client-render the page
+navigate("/login", { replace: true }); // replace the current history entry
+navigate("/posts", { scroll: false }); // keep scroll position
+navigate(-1); // history.go(-1) — back; navigate(1) = forward
 ```
 
 ```vue
@@ -150,22 +150,22 @@ const route = useRoute();   // reactive: route.path, route.params, route.query, 
 </template>
 ```
 
-`navigate` routes through the same AOT/SSR swap path as link clicks but **bypasses** the `client-nav`
-boundary check; before hydration / during SSR it falls back to a full navigation, so it's always
-safe to call. `back()` / `forward()` are exported shorthands. `useRoute()` returns a reactive
-`{ href, path, query, params, hash, route }` (provided via `inject`, so it's per-request on SSR and
-per-session on the client — no cross-request leak).
+`navigate` routes through the same AOT/SSR swap path as link clicks but **bypasses** the
+`client-nav` boundary check; before hydration / during SSR it falls back to a full navigation, so
+it's always safe to call. `back()` / `forward()` are exported shorthands. `useRoute()` returns a
+reactive `{ href, path, query, params, hash, route }` (provided via `inject`, so it's per-request on
+SSR and per-session on the client — no cross-request leak).
 
 ### DevTools — the built-in Routes tab
 
 In dev, the engine emits a route map (`window.__HOWL_ROUTES__`) and the boot runtime installs a
 minimal `vue-router`-shaped object on `app.config.globalProperties.$router` **before mount** — the
 exact surface Vue DevTools' built-in **Routes** tab reads (`$router.options.routes` +
-`$router.currentRoute.value`, navigation via `$router.push`). So the native Routes tab populates with
-every Howl route and its current match, even though Howl doesn't use `vue-router`. It's dev-only
-(gated on the route map's presence) and adds no runtime dependency — just a plain object fed by
-Howl's route map and reactive route. Must be installed before `app.mount()`: DevTools reads `$router`
-on the `app:init` hook that mounting fires.
+`$router.currentRoute.value`, navigation via `$router.push`). So the native Routes tab populates
+with every Howl route and its current match, even though Howl doesn't use `vue-router`. It's
+dev-only (gated on the route map's presence) and adds no runtime dependency — just a plain object
+fed by Howl's route map and reactive route. Must be installed before `app.mount()`: DevTools reads
+`$router` on the `app:init` hook that mounting fires.
 
 ## API
 

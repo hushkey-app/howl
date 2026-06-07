@@ -14,16 +14,16 @@ built-in Preact engine.
 
 ## Status
 
-| Piece                                                                                           | State           |
-| ----------------------------------------------------------------------------------------------- | --------------- |
-| `RenderEngine` seam — `.tsx` routes SSR'd by `react-dom/server`, hydrated by `react-dom/client` | ✅ done, tested |
-| esbuild plugin (`reactPlugin`) — declares `.tsx`/`.jsx` → react, sets automatic JSX             | ✅ done, tested |
-| `_app.tsx` + `_layout.tsx` composition (own the document, SSR + hydrate)                        | ✅ done, tested |
-| Client-nav — `client-nav` link/back-forward re-render, hover prefetch, no reload                | ✅ done, tested |
-| Head/SEO — `useHead` (`@unhead/react`), SSR'd + reactive across client-nav                      | ✅ done, tested |
+| Piece                                                                                                                      | State           |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `RenderEngine` seam — `.tsx` routes SSR'd by `react-dom/server`, hydrated by `react-dom/client`                            | ✅ done, tested |
+| esbuild plugin (`reactPlugin`) — declares `.tsx`/`.jsx` → react, sets automatic JSX                                        | ✅ done, tested |
+| `_app.tsx` + `_layout.tsx` composition (own the document, SSR + hydrate)                                                   | ✅ done, tested |
+| Client-nav — `client-nav` link/back-forward re-render, hover prefetch, no reload                                           | ✅ done, tested |
+| Head/SEO — `useHead` (`@unhead/react`), SSR'd + reactive across client-nav                                                 | ✅ done, tested |
 | Store — `jotai` atoms (SSR-safe per-request `Provider`), `howlAtom` (SSR-serialized) + `useHowlState` (`ctx.state` mirror) | ✅ done, tested |
-| AOT (`__`) + SSG (`___`) — client chunk, AOT manifest, no-server-hop nav                        | ✅ done, tested |
-| Prod snapshot + `deno compile` — embedded SSR modules, self-contained binary                    | ✅ done, tested |
+| AOT (`__`) + SSG (`___`) — client chunk, AOT manifest, no-server-hop nav                                                   | ✅ done, tested |
+| Prod snapshot + `deno compile` — embedded SSR modules, self-contained binary                                               | ✅ done, tested |
 
 Browser-verified end-to-end in [`examples/reacty`](../../examples/reacty) (a 1:1 mirror of
 [`examples/vuety`](../../examples/vuety)).
@@ -144,8 +144,8 @@ export default function Page(props: ReactPageProps<{ count: number }>) {
 ```
 
 Like Pinia, `howlAtom` values hydrate **once** on first paint; afterwards they persist across
-client-nav (only the `ctx.state` mirror re-syncs on every navigation). Keys must be unique across the
-app — a collision clobbers on hydrate (a dev-mode warning fires).
+client-nav (only the `ctx.state` mirror re-syncs on every navigation). Keys must be unique across
+the app — a collision clobbers on hydrate (a dev-mode warning fires).
 
 ## Router — `navigate` / `useNavigate` / `useRoute`
 
@@ -157,10 +157,10 @@ Link clicks inside a `client-nav` boundary already navigate without a full reloa
 import { navigate, useNavigate, useRoute } from "@hushkey/howl-react/router";
 
 // Bare function — works in any client code, not just components
-navigate("/dashboard");                  // push + client-render the page
-navigate("/login", { replace: true });   // replace the current history entry
-navigate("/posts", { scroll: false });   // keep scroll position
-navigate(-1);                            // history.go(-1) — back; navigate(1) = forward
+navigate("/dashboard"); // push + client-render the page
+navigate("/login", { replace: true }); // replace the current history entry
+navigate("/posts", { scroll: false }); // keep scroll position
+navigate(-1); // history.go(-1) — back; navigate(1) = forward
 
 // In a component
 function Nav() {
@@ -175,16 +175,26 @@ function Crumb() {
 }
 ```
 
-`navigate` routes through the same AOT/SSR swap path as link clicks (AOT routes client-render with no
-server hop; everything else fetches the destination's SSR fragment) but **bypasses** the `client-nav`
-boundary check — you asked to navigate, so it navigates. Before hydration / during SSR it falls back
-to a full document navigation, so it's always safe to call. `back()` and `forward()` are exported as
-shorthands for `navigate(-1)` / `navigate(1)`.
+`navigate` routes through the same AOT/SSR swap path as link clicks (AOT routes client-render with
+no server hop; everything else fetches the destination's SSR fragment) but **bypasses** the
+`client-nav` boundary check — you asked to navigate, so it navigates. Before hydration / during SSR
+it falls back to a full document navigation, so it's always safe to call. `back()` and `forward()`
+are exported as shorthands for `navigate(-1)` / `navigate(1)`.
 
 `useRoute()` returns `{ href, path, query, params, hash, route }` (`route` is the matched pattern,
 e.g. `/users/:id`); it is seeded on SSR and re-seeded on every navigation.
 
-## AOT and SSG
+### DevTools — the Howl Routes panel
+
+React DevTools exposes no plugin API for a custom tab, so — following the React-ecosystem convention
+(TanStack Router / React Query devtools) — the engine ships a **dev-only in-app floating panel**. In
+dev it emits a route map (`window.__HOWL_REACT_ROUTES__`) and the boot runtime auto-mounts a small
+`⚡ routes` badge (bottom-right) that expands to list every route with its `ssr`/`aot`/`ssg` mode,
+highlights the active one, and shows the current path. Click a static route to navigate; a param
+route (`/users/:id`) expands an inline editor — one field per param — so you can fill values and
+jump to the resolved path (Enter or **Go →**). It mounts in its **own** React root outside
+`#howl-app` (never touches hydration) and is lazily imported only when the route map is present, so
+it adds nothing to production bundles.
 
 Filename prefixes opt a route into client-side navigation and/or build-time prerender, identical to
 the Preact/Vue engines:

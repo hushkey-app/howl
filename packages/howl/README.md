@@ -248,8 +248,8 @@ export default function Layout({ Component, state }: PageProps<unknown, State>):
 > server-side. `shared.ts` exports `Partial`, `IS_BROWSER`, `asset`, and `Head` safely for both
 > server and client.
 
-> **Partial-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource
-> (a file download, an image, a `Content-Disposition: attachment` response, etc.), the client SPA
+> **Partial-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource (a
+> file download, an image, a `Content-Disposition: attachment` response, etc.), the client SPA
 > detects the non-HTML `Content-Type` and falls back to a full browser navigation instead of trying
 > to apply the response as a partial. API routes are not the intended target for `<a href>` — use
 > `fetch()` for those — but the same fallback applies if you accidentally link to one.
@@ -258,18 +258,20 @@ export default function Layout({ Component, state }: PageProps<unknown, State>):
 
 Add a `client-prefetch` boundary to **prefetch on intent** — when the pointer hovers (after a brief
 ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals intent. AOT routes
-pre-`import()` their JS chunk; SSR routes pre-fetch their partial response. The eventual click reuses
-the warmed result, so navigation feels instant — the same idea as Hotwired Turbo / instant.page.
+pre-`import()` their JS chunk; SSR routes pre-fetch their partial response. The eventual click
+reuses the warmed result, so navigation feels instant — the same idea as Hotwired Turbo /
+instant.page.
 
-It's **opt-in** (off by default — matching the Vue/React engines), and respects the user's data-saver
-preference (`Save-Data` / `prefers-reduced-data`). Turn it on for a subtree, or exclude one with
-`client-prefetch="false"`:
+It's **opt-in** (off by default — matching the Vue/React engines), and respects the user's
+data-saver preference (`Save-Data` / `prefers-reduced-data`). Turn it on for a subtree, or exclude
+one with `client-prefetch="false"`:
 
 ```tsx
-<body client-nav client-prefetch>          {/* prefetch every client-nav link inside */}
+<body client-nav client-prefetch>
+  {/* prefetch every client-nav link inside */}
   …
-  <a href="/huge-report" client-prefetch="false">Report</a>   {/* …except this one */}
-</body>
+  <a href="/huge-report" client-prefetch="false">Report</a> {/* …except this one */}
+</body>;
 ```
 
 **`client/pages/index.tsx`**
@@ -654,16 +656,18 @@ Earlier releases warned and continued; that masked subtle hydration bugs, so it'
 > `<VueIsland name="…" />`. Built with Howl's existing esbuild toolchain (no Vite); requires
 > `vuePlugin()` in your builder. See that package's README.
 
-> **Pluggable render engines — Preact, Vue & React.** Page rendering is a registered engine with **no
-> implicit default**. Four packages: `@hushkey/howl` (core + Preact runtime) · `@hushkey/howl-preact` ·
-> `@hushkey/howl-vue` · `@hushkey/howl-react`. Select one on the app — `new Howl({ engines: { preact:
-> preactEngine() } })` (or `vue: vueEngine()` / `react: reactEngine()`) — plus the matching builder
-> plugin (`preactPlugin()` / `vuePlugin()` / `reactPlugin()`). The shared backend (routing, APIs,
-> middleware, `client-nav` + `client-prefetch`, AOT/SSG, `deno compile`) is reused; only the renderer
-> differs. Each engine also backs `ctx.renderToString(component, props?)` — render a standalone
-> template to an HTML string (emails, notifications) in your chosen engine, with no page shell. If a
-> client entry with page routes is configured but no engine is registered, the build throws.
-> Backend-only apps (no client entry) are unaffected.
+> **Pluggable render engines — Preact, Vue & React.** Page rendering is a registered engine with
+> **no implicit default**. Four packages: `@hushkey/howl` (core + Preact runtime) ·
+> `@hushkey/howl-preact` · `@hushkey/howl-vue` · `@hushkey/howl-react`. Select one on the app —
+> `new Howl({ engines: { preact:
+> preactEngine() } })` (or `vue: vueEngine()` /
+> `react: reactEngine()`) — plus the matching builder plugin (`preactPlugin()` / `vuePlugin()` /
+> `reactPlugin()`). The shared backend (routing, APIs, middleware, `client-nav` + `client-prefetch`,
+> AOT/SSG, `deno compile`) is reused; only the renderer differs. Each engine also backs
+> `ctx.renderToString(component, props?)` — render a standalone template to an HTML string (emails,
+> notifications) in your chosen engine, with no page shell. If a client entry with page routes is
+> configured but no engine is registered, the build throws. Backend-only apps (no client entry) are
+> unaffected.
 
 ```
 client/islands/Counter.island.tsx          ✅
@@ -702,8 +706,8 @@ emission for that route: the page still SSRs (or serves prerendered HTML for SSG
 navigation falls back to a full document load. Apps that intentionally drop `client-nav` keep
 AOT/SSG prefixes working without forcing a `<Partial>` they don't need.
 
-AOT navigation respects `client-nav`. Without a `client-nav` ancestor on the clicked element
-(or with the attribute explicitly set to `"false"`), the AOT navigator stands down and the browser
+AOT navigation respects `client-nav`. Without a `client-nav` ancestor on the clicked element (or
+with the attribute explicitly set to `"false"`), the AOT navigator stands down and the browser
 performs a regular document-level navigation — matching how SSR partial nav already behaved, so
 removing `client-nav` cleanly disables SPA mode for the whole app.
 

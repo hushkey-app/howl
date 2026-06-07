@@ -204,7 +204,12 @@ html {
     padding: 13px 20px;
     border-radius: 9px;
     white-space: nowrap;
-    transition: transform 0.18s ease, background 0.2s ease, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+    transition:
+      transform 0.18s ease,
+      background 0.2s ease,
+      border-color 0.2s,
+      color 0.2s,
+      box-shadow 0.2s;
     background: var(--grad);
     background-size: 160% 160%;
     color: var(--on-accent);
@@ -384,7 +389,9 @@ html {
   .reveal {
     opacity: 0;
     transform: translateY(16px);
-    transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition:
+      opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
   }
   .reveal.in {
     opacity: 1;

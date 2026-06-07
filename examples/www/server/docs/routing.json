@@ -199,7 +199,7 @@
         },
         {
           "type": "tip",
-          "text": "In dev, the Vue engine installs a vue-router-shaped object on app.config.globalProperties.$router so Vue DevTools' built-in Routes tab populates with every Howl route and the current match — no vue-router required. It is dev-only and adds no runtime dependency."
+          "text": "In dev each engine ships a route inspector. Vue installs a vue-router-shaped object on app.config.globalProperties.$router so Vue DevTools' built-in Routes tab populates with every Howl route and the current match (no vue-router required). React auto-mounts an in-app floating Howl Routes panel, the React-ecosystem convention since React DevTools has no plugin-tab API. Both are dev-only and add no runtime dependency."
         }
       ]
     },

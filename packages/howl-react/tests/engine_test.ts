@@ -99,6 +99,23 @@ Deno.test("reactEngine — emits the AOT manifest when opts.aot is present", asy
   expect(html).toContain('"/about/:id":"/_howl/js/abc/aot.js"');
 });
 
+Deno.test("reactEngine — emits __HOWL_REACT_ROUTES__ (dev only, react routes only)", async () => {
+  const routes = [
+    { pattern: "/", mode: "ssr" as const, engine: "react" },
+    { pattern: "/about/:id", mode: "aot" as const, engine: "react" },
+    { pattern: "/v", mode: "ssr" as const, engine: "vue" },
+  ];
+  const dev = await reactEngine().render(makeCtx(), opts({ dev: true, routes }));
+  const html = await dev.text();
+  expect(html).toContain("window.__HOWL_REACT_ROUTES__=");
+  expect(html).toContain('"/about/:id"');
+  expect(html).not.toContain('"/v"'); // vue route filtered out
+
+  // Not emitted in production (no dev flag).
+  const prod = await reactEngine().render(makeCtx(), opts({ routes }));
+  expect(await prod.text()).not.toContain("__HOWL_REACT_ROUTES__");
+});
+
 Deno.test("reactEngine — merges ctx.headers (cookies append) into the response", async () => {
   const headers = new Headers();
   headers.append("set-cookie", "a=1");
