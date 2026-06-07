@@ -1,10 +1,12 @@
 import { Howl, staticFiles } from "@hushkey/howl";
+import { preactEngine } from "@hushkey/howl-preact";
 import { apiConfig, type State } from "../howl.config.ts";
 
 const APP_NAME = Deno.env.get("APP_NAME") ?? "{{PROJECT_NAME}}";
 
 export const app = new Howl<State>({
   logger: true,
+  engines: { preact: preactEngine() },
 });
 
 // Seed request-scoped state. Anything in ctx.state is also exposed in

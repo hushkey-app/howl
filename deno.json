@@ -2,27 +2,34 @@
   "nodeModulesDir": "auto",
   "workspace": [
     "./packages/howl",
+    "./packages/howl-vue",
+    "./packages/howl-react",
     "./packages/howl-init",
     "./examples/www",
     "./examples/software-www",
-    "./examples/hybrid-spa"
+    "./examples/_vue",
+    "./examples/kawaii-www",
+    "./examples/_react",
+    "./examples/_backend"
   ],
   "tasks": {
-    "dev:fullstack": "deno run -A --watch examples/fullstack/dev.ts",
-    "build:fullstack": "deno run -A examples/fullstack/dev.ts build",
-    "start:fullstack": "deno run -A examples/fullstack/dist/compiled-entry.js",
-    "dev:www": "deno run -A --watch examples/www/dev.ts",
-    "build:www": "deno run -A examples/www/dev.ts build",
-    "start:www": "deno run -A examples/www/dist/compiled-entry.js",
+    "dev:vuety": "deno run -A --watch examples/vuety/dev.ts",
+    "build:vuety": "deno run -A examples/vuety/dev.ts build",
+    "start:vuety": "deno run -A examples/vuety/dist/compiled-entry.js",
+    "dev:reacty": "deno run -A --watch examples/reacty/dev.ts",
+    "build:reacty": "deno run -A examples/reacty/dev.ts build",
+    "start:reacty": "deno run -A examples/reacty/dist/compiled-entry.js",
     "lint": "deno lint",
     "fmt": "deno fmt",
     "check": "deno check packages/howl/core/mod.ts packages/howl/dev/mod.ts",
-    "test": "deno test -A --no-check packages/howl/tests/ packages/howl-init/tests/",
+    "test": "deno test -A --no-check packages/howl/tests/ packages/howl-init/tests/ packages/howl-vue/tests/ packages/howl-react/tests/",
+    "test:vue": "deno test -A --no-check packages/howl-vue/tests/",
+    "test:react": "deno test -A --no-check packages/howl-react/tests/",
     "test:integration": "deno test -A --no-check packages/howl/tests/integration/",
     "test:api": "deno test -A --no-check packages/howl/tests/api/",
     "test:unit": "deno test -A --no-check packages/howl/tests/unit/",
     "test:init": "deno test -A --no-check packages/howl-init/tests/",
-    "doc:lint": "cd packages/howl && deno doc --lint core/mod.ts core/runtime/shared.ts dev/mod.ts plugins/mod.ts api/mod.ts api/errors.ts api/cache/mod.ts core/middlewares/mod.ts core/middlewares/cors.ts core/middlewares/csrf.ts core/middlewares/csp.ts core/middlewares/trailing_slashes.ts core/middlewares/static_files.ts"
+    "doc:lint": "cd packages/howl && deno doc --lint core/mod.ts core/client.ts dev/mod.ts plugins/mod.ts api/mod.ts api/errors.ts api/cache/mod.ts core/middlewares/mod.ts core/middlewares/cors.ts core/middlewares/csrf.ts core/middlewares/csp.ts core/middlewares/trailing_slashes.ts core/middlewares/static_files.ts"
   },
   "lint": {
     "rules": {
@@ -50,15 +57,6 @@
       "**/_howl"
     ]
   },
-  "imports": {
-    "@preact/signals": "npm:@preact/signals@^2.8.2",
-    "react": "npm:preact/compat",
-    "react-dom": "npm:preact/compat",
-    "react/jsx-runtime": "npm:preact/jsx-runtime",
-    "react/jsx-dev-runtime": "npm:preact/jsx-dev-runtime"
-  },
-  "compilerOptions": {
-    "jsx": "precompile",
-    "jsxImportSource": "preact"
-  }
+  "imports": {},
+  "allowScripts": ["npm:vue-demi@0.14.10"]
 }

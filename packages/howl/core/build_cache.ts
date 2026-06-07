@@ -1,8 +1,9 @@
 import * as path from "@std/path";
 import type { Command } from "./commands.ts";
+import type { EngineRouteInfo } from "./engine.ts";
 import { fsItemsToCommands, type FsRouteFile } from "./fs_routes.ts";
 import type { ServerIslandRegistry } from "./context.ts";
-import type { AnyComponent, ComponentType } from "preact";
+import type { AnyComponent, ComponentType } from "./component.ts";
 import { UniqueNamer } from "./utils.ts";
 import { setBuildId } from "../utils/build-id.ts";
 
@@ -44,6 +45,16 @@ export interface BuildSnapshot<State> {
   aotRoutes?: Map<string, string>;
   /** Map of route pattern → prerendered HTML for SSG-flagged pages. */
   ssgPages?: Map<string, string>;
+  /** Map of Vue island name → client chunk URL (`@hushkey/howl-vue`). */
+  vueIslands?: Map<string, string>;
+  /** Client chunk URL of the Vue island boot runtime; absent when no Vue islands. */
+  vueBoot?: string;
+  /** Map of AOT `.vue` route pattern → client chunk URL (client-rendered on nav). */
+  engineAot?: Map<string, string>;
+  /** Map of `.vue` page file path → client hydration chunk URL. */
+  enginePages?: Map<string, string>;
+  /** Map of `.vue` page file path → precompiled SSR module namespace (prod). */
+  engineSsrModules?: Map<string, unknown>;
 }
 
 /**
@@ -84,6 +95,12 @@ export interface BuildCache<State = any> {
   };
   /** Returns the file-system route commands collected at build time. */
   getFsRoutes(): Command<State>[];
+  /**
+   * Returns the engine route map (pattern + `ssr`/`aot`/`ssg` mode) for an
+   * engine's dev DevTools integration. Optional — implemented by the dev build
+   * caches only; absent in production, where the DevTools panel is inactive.
+   */
+  getEngineRoutes?(): EngineRouteInfo[];
   /** Returns the registered API route definitions. */
   getApiRoutes(): unknown[];
   /** Resolves a static file by URL pathname or returns `null` if missing. */
@@ -102,6 +119,37 @@ export interface BuildCache<State = any> {
    * the dynamic renderer to short-circuit request handling.
    */
   ssgPages: Map<string, string>;
+  /**
+   * Map of Vue island name (the `.island.vue` basename) → client chunk URL.
+   * Empty unless the project contains `.island.vue` files built with
+   * `@hushkey/howl-vue`'s `vuePlugin`. Emitted to the page as
+   * `window.__HOWL_VUE__` so the Vue boot runtime can mount each island.
+   */
+  vueIslands: Map<string, string>;
+  /**
+   * Client chunk URL of the Vue island boot runtime (`@hushkey/howl-vue/boot`),
+   * or `""` when the project has no Vue islands.
+   */
+  vueBoot: string;
+  /**
+   * Map of AOT `.vue` route pattern (`/about/:id`) → client chunk URL. Populated
+   * for `__`-prefixed `.vue` routes; emitted as `window.__HOWL_VUE_AOT__` so the
+   * client renders these routes on navigation without a server round-trip.
+   */
+  engineAot: Map<string, string>;
+  /**
+   * Map of `.vue` page source-file path → client hydration chunk URL. Looked up
+   * by the Vue render engine to inject the right hydration script. Empty unless
+   * the project contains `.vue` page routes.
+   */
+  enginePages: Map<string, string>;
+  /**
+   * Map of `.vue` page file path → its precompiled SSR module (export shape
+   * `{ app, layouts, page, styles, pinia }`). Statically imported by the
+   * production snapshot so a `deno compile` binary needs no `.vue` source on
+   * disk. Empty in dev, where the Vue engine compiles each page per request.
+   */
+  engineSsrModules: Map<string, unknown>;
 }
 
 /**
@@ -122,6 +170,16 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   aotRoutes: Map<string, string>;
   /** Map of route pattern → prerendered HTML, populated from the snapshot. */
   ssgPages: Map<string, string>;
+  /** Map of Vue island name → client chunk URL, populated from the snapshot. */
+  vueIslands: Map<string, string>;
+  /** Vue island boot runtime chunk URL, populated from the snapshot. */
+  vueBoot: string;
+  /** Map of AOT `.vue` route pattern → client chunk URL, from the snapshot. */
+  engineAot: Map<string, string>;
+  /** Map of `.vue` page file path → hydration chunk URL, from the snapshot. */
+  enginePages: Map<string, string>;
+  /** Map of `.vue` page file path → precompiled SSR module, from the snapshot. */
+  engineSsrModules: Map<string, unknown>;
 
   /** Build a production cache from a serialised snapshot. */
   constructor(public root: string, snapshot: BuildSnapshot<State>) {
@@ -131,6 +189,11 @@ export class ProdBuildCache<State> implements BuildCache<State> {
     this.clientEntry = snapshot.clientEntry;
     this.aotRoutes = snapshot.aotRoutes ?? new Map();
     this.ssgPages = snapshot.ssgPages ?? new Map();
+    this.vueIslands = snapshot.vueIslands ?? new Map();
+    this.vueBoot = snapshot.vueBoot ?? "";
+    this.engineAot = snapshot.engineAot ?? new Map();
+    this.enginePages = snapshot.enginePages ?? new Map();
+    this.engineSsrModules = snapshot.engineSsrModules ?? new Map();
 
     // Populate apiRegistry from snapshot
     for (const api of snapshot.apiRoutes ?? []) {

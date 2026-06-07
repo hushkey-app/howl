@@ -42,6 +42,14 @@ export interface Route<State> {
   handler?: RouteHandler<unknown, State>;
   /** CSS asset URLs to preload alongside the route. */
   css?: string[];
+  /**
+   * Name of the render engine that owns this route (e.g. `"vue"`). When set,
+   * the matching engine from `config.engines` renders the response instead of
+   * the built-in Preact path. Set by the crawler from the file extension.
+   */
+  engine?: string;
+  /** Absolute source-file path — passed to the render engine. */
+  filePath?: string;
 }
 
 /** A lazy-loaded value — typically used for code-split routes/middleware. */

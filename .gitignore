@@ -79,3 +79,4 @@ test-output/
 
 my-howl-app
 backend
+examples/_backend/generated/

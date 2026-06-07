@@ -6,6 +6,5 @@
  *
  * @module
  */
-
-export { ClientOnly } from "./client_only.tsx";
 export { IS_BROWSER, IS_SERVER } from "./guards.ts";
+export { type ErrorStatus, HttpError, isHttpError } from "./error.ts";

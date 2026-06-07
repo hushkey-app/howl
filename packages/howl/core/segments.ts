@@ -1,11 +1,11 @@
-import type { AnyComponent } from "preact";
+import type { AnyComponent } from "./component.ts";
 import type { MaybeLazyMiddleware, Middleware } from "./middlewares/mod.ts";
 import { type Method, patternToSegments } from "./router.ts";
 import type { LayoutConfig, Route } from "./types.ts";
-import { type Context, getInternals } from "./context.ts";
+import { type Context, getBuildCache, getInternals } from "./context.ts";
 import { recordSpanError, tracer } from "./otel.ts";
 import { type HandlerFn, isHandlerByMethod } from "./handlers.ts";
-import { type AsyncAnyComponent, type PageProps, renderRouteComponent } from "./render.ts";
+import type { AsyncAnyComponent, PageProps } from "./render.ts";
 import { isHttpError } from "./error.ts";
 
 export type RouteComponent<State> =
@@ -209,20 +209,40 @@ export async function renderRoute<State>(
     }
   }
 
-  let vnode = null;
-  if (route.component !== undefined) {
-    const result = await renderRouteComponent(ctx, {
-      component: route.component,
-      // deno-lint-ignore no-explicit-any
-      props: res.data as any,
-    }, () => null);
-
-    if (result instanceof Response) {
-      return result;
+  // Page rendering is delegated to a registered engine, picked by the route's
+  // engine tag (`.vue` → "vue", `.tsx` + reactPlugin → "react"). Engines are
+  // explicit — a registered engine owns the whole response.
+  const engineName = route.engine;
+  if (engineName !== undefined) {
+    const engine = ctx.config.engines[engineName];
+    if (engine === undefined) {
+      throw new Error(
+        `Route "${route.filePath ?? ""}" needs the "${engineName}" render engine, but ` +
+          `it isn't registered in the Howl \`engines\` option ` +
+          `(e.g. \`new Howl({ engines: { ${engineName}: ${engineName}Engine() } })\`).`,
+      );
     }
-
-    vnode = result;
+    const buildCache = getBuildCache(ctx);
+    const chunkUrl = route.filePath !== undefined
+      ? buildCache.enginePages.get(route.filePath)
+      : undefined;
+    const module = route.filePath !== undefined
+      ? buildCache.engineSsrModules.get(route.filePath)
+      : undefined;
+    return await engine.render(ctx, {
+      filePath: route.filePath ?? "",
+      data: res.data,
+      headers,
+      status,
+      chunkUrl,
+      module,
+      aot: buildCache.engineAot.size > 0 ? Object.fromEntries(buildCache.engineAot) : undefined,
+      routes: buildCache.features.errorOverlay ? buildCache.getEngineRoutes?.() : undefined,
+      dev: buildCache.features.errorOverlay,
+    });
   }
 
-  return ctx.render(vnode, { headers, status });
+  // The handler returned data but the route has no render engine — return the
+  // data as JSON (a page route would carry an engine tag).
+  return ctx.json(res.data ?? null, { headers, status });
 }

@@ -7,80 +7,156 @@
       "id": "define-api",
       "heading": "defineApi",
       "blocks": [
-        { "type": "p", "text": "API routes are defined with defineApi, exported from howl.config.ts. The file system location determines the URL path automatically." },
-        { "type": "code", "lang": "ts", "text": "// server/apis/public/ping.api.ts → GET /api/public/ping\nimport { defineApi } from \"../../howl.config.ts\";\nimport { z } from \"zod\";\n\nexport default defineApi({\n  name: \"Ping\",\n  directory: \"public\",\n  method: \"GET\",\n  roles: [],              // [] = public, no auth\n  responses: {\n    200: z.object({ message: z.string() }),\n  },\n  handler: (ctx) => ({\n    statusCode: 200,\n    message: `pong — ${new Date().toISOString()}`,\n  }),\n});" }
+        {
+          "type": "p",
+          "text": "API routes are defined with defineApi, exported from howl.config.ts. The file system location determines the URL path automatically."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// server/apis/public/ping.api.ts → GET /api/public/ping\nimport { defineApi } from \"../../howl.config.ts\";\nimport { z } from \"zod\";\n\nexport default defineApi({\n  name: \"Ping\",\n  directory: \"public\",\n  method: \"GET\",\n  roles: [],              // [] = public, no auth\n  responses: {\n    200: z.object({ message: z.string() }),\n  },\n  handler: (ctx) => ({\n    statusCode: 200,\n    message: `pong — ${new Date().toISOString()}`,\n  }),\n});"
+        }
       ]
     },
     {
       "id": "path-inference",
       "heading": "Path inference",
       "blocks": [
-        { "type": "p", "text": "The URL is inferred from the file path. You can override it with the path field." },
-        { "type": "table", "headers": ["File", "URL"], "rows": [
-          ["apis/public/users.api.ts", "/api/public/users"],
-          ["apis/private/user/profile.api.ts", "/api/private/user/profile"],
-          ["apis/[id]/delete.api.ts", "/api/:id/delete"]
-        ]},
-        { "type": "code", "lang": "ts", "text": "// Explicit path override — useful for webhooks or versioned routes\nexport default defineApi({\n  path: \"/webhooks/stripe\",\n  method: \"POST\",\n  // ...\n});\n\n// Multiple paths from one definition\nexport default defineApi({\n  path: [\"/api/v1/users\", \"/api/v2/users\"],\n  // ...\n});" }
+        {
+          "type": "p",
+          "text": "The URL is inferred from the file path. You can override it with the path field."
+        },
+        {
+          "type": "table",
+          "headers": ["File", "URL"],
+          "rows": [
+            ["apis/public/users.api.ts", "/api/public/users"],
+            ["apis/private/user/profile.api.ts", "/api/private/user/profile"],
+            ["apis/[id]/delete.api.ts", "/api/:id/delete"]
+          ]
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// Explicit path override — useful for webhooks or versioned routes\nexport default defineApi({\n  path: \"/webhooks/stripe\",\n  method: \"POST\",\n  // ...\n});\n\n// Multiple paths from one definition\nexport default defineApi({\n  path: [\"/api/v1/users\", \"/api/v2/users\"],\n  // ...\n});"
+        }
       ]
     },
     {
       "id": "request-body",
       "heading": "Request body",
       "blocks": [
-        { "type": "p", "text": "Declare a Zod schema in requestBody. Howl validates the JSON body before your handler runs. ctx.req.body is fully typed." },
-        { "type": "code", "lang": "ts", "text": "export default defineApi({\n  name: \"Create User\",\n  method: \"POST\",\n  requestBody: z.object({\n    email: z.string().email(),\n    name: z.string().min(2),\n    password: z.string().min(8),\n  }),\n  handler: (ctx) => {\n    const { email, name } = ctx.req.body; // fully typed\n    return { statusCode: 201, id: crypto.randomUUID(), email, name };\n  },\n});" },
-        { "type": "warning", "text": "Howl no longer auto-redacts response fields. Earlier releases scrubbed any field literally named `password` from the response, but that gave a false sense of safety: `apiKey`, `token`, `secret`, `pwd`, `accessToken` etc. all leaked. Strip sensitive fields from the response object yourself before returning." }
+        {
+          "type": "p",
+          "text": "Declare a Zod schema in requestBody. Howl validates the JSON body before your handler runs. ctx.req.body is fully typed."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "export default defineApi({\n  name: \"Create User\",\n  method: \"POST\",\n  requestBody: z.object({\n    email: z.string().email(),\n    name: z.string().min(2),\n    password: z.string().min(8),\n  }),\n  handler: (ctx) => {\n    const { email, name } = ctx.req.body; // fully typed\n    return { statusCode: 201, id: crypto.randomUUID(), email, name };\n  },\n});"
+        },
+        {
+          "type": "warning",
+          "text": "Howl no longer auto-redacts response fields. Earlier releases scrubbed any field literally named `password` from the response, but that gave a false sense of safety: `apiKey`, `token`, `secret`, `pwd`, `accessToken` etc. all leaked. Strip sensitive fields from the response object yourself before returning."
+        }
       ]
     },
     {
       "id": "query-params",
       "heading": "Query params",
       "blocks": [
-        { "type": "p", "text": "Declare a Zod schema in query. Values are parsed and validated. ctx.query() returns the typed object; ctx.query(key) returns a single value." },
-        { "type": "code", "lang": "ts", "text": "export default defineApi({\n  query: z.object({\n    page: z.string().optional(),\n    limit: z.string().optional(),\n    search: z.string().optional(),\n  }),\n  handler: (ctx) => {\n    const { page = \"1\", limit = \"20\", search } = ctx.query();\n    const p = parseInt(page);\n    const l = Math.min(parseInt(limit), 100);\n    // ...\n  },\n});" }
+        {
+          "type": "p",
+          "text": "Declare a Zod schema in query. Values are parsed and validated. ctx.query() returns the typed object; ctx.query(key) returns a single value."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "export default defineApi({\n  query: z.object({\n    page: z.string().optional(),\n    limit: z.string().optional(),\n    search: z.string().optional(),\n  }),\n  handler: (ctx) => {\n    const { page = \"1\", limit = \"20\", search } = ctx.query();\n    const p = parseInt(page);\n    const l = Math.min(parseInt(limit), 100);\n    // ...\n  },\n});"
+        }
       ]
     },
     {
       "id": "roles",
       "heading": "Roles and auth",
       "blocks": [
-        { "type": "p", "text": "Set roles to require authentication. Howl calls checkPermissionStrategy from your config before the handler runs. An empty array means the route is public." },
-        { "type": "code", "lang": "ts", "text": "export default defineApi({\n  roles: [\"USER\", \"ADMIN\"], // any of these roles can access\n  handler: (ctx) => {\n    // ctx.state.userContext is guaranteed to be set\n    return { statusCode: 200, user: ctx.state.userContext };\n  },\n});" }
+        {
+          "type": "p",
+          "text": "Set roles to require authentication. Howl calls checkPermissionStrategy from your config before the handler runs. An empty array means the route is public."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "export default defineApi({\n  roles: [\"USER\", \"ADMIN\"], // any of these roles can access\n  handler: (ctx) => {\n    // ctx.state.userContext is guaranteed to be set\n    return { statusCode: 200, user: ctx.state.userContext };\n  },\n});"
+        }
       ]
     },
     {
       "id": "caching",
       "heading": "Response caching",
       "blocks": [
-        { "type": "p", "text": "Add caching.ttl (seconds) to cache the response. Authenticated routes are cached per user; public routes are shared." },
-        { "type": "code", "lang": "ts", "text": "export default defineApi({\n  caching: { ttl: 60 }, // cache for 60 seconds\n  handler: async (ctx) => {\n    const data = await db.query(\"SELECT ...\");\n    return { statusCode: 200, data };\n  },\n});" }
+        {
+          "type": "p",
+          "text": "Add caching.ttl (seconds) to cache the response. Authenticated routes are cached per user; public routes are shared."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "export default defineApi({\n  caching: { ttl: 60 }, // cache for 60 seconds\n  handler: async (ctx) => {\n    const data = await db.query(\"SELECT ...\");\n    return { statusCode: 200, data };\n  },\n});"
+        }
       ]
     },
     {
       "id": "response-shape",
       "heading": "Response shape",
       "blocks": [
-        { "type": "p", "text": "Handler return == response body. Howl pulls `status`/`statusCode` out as the HTTP status, strips `ok`, and emits the rest of the object verbatim with `ok: true` injected. Middleware-set headers are merged in." },
-        { "type": "code", "lang": "ts", "text": "// Flat handler:\nreturn { statusCode: 200, id: \"u_1\", email: \"x@y\" };\n// Wire: { \"ok\": true, \"id\": \"u_1\", \"email\": \"x@y\" }\n\n// Wrapped handler — `data` is preserved as a body field, not nested:\nreturn { status: 200, data: [{ id: 1 }, { id: 2 }] };\n// Wire: { \"ok\": true, \"data\": [{ \"id\": 1 }, { \"id\": 2 }] }\n\n// 204 short-circuits to an empty body:\nreturn { statusCode: 204 };\n\n// Pagination metadata flows through verbatim:\nreturn { statusCode: 200, items: [...], meta_pagination: { page: 1, total: 42 } };" },
-        { "type": "warning", "text": "If a handler's response schema declares a `data` field, return `{ status, data: ... }` — Howl will not double-wrap it. The `responses[xxx]` zod schema describes the wire body and must match the shape the handler returns (minus `status`/`statusCode`/`ok`)." }
+        {
+          "type": "p",
+          "text": "Handler return == response body. Howl pulls `status`/`statusCode` out as the HTTP status, strips `ok`, and emits the rest of the object verbatim with `ok: true` injected. Middleware-set headers are merged in."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// Flat handler:\nreturn { statusCode: 200, id: \"u_1\", email: \"x@y\" };\n// Wire: { \"ok\": true, \"id\": \"u_1\", \"email\": \"x@y\" }\n\n// Wrapped handler — `data` is preserved as a body field, not nested:\nreturn { status: 200, data: [{ id: 1 }, { id: 2 }] };\n// Wire: { \"ok\": true, \"data\": [{ \"id\": 1 }, { \"id\": 2 }] }\n\n// 204 short-circuits to an empty body:\nreturn { statusCode: 204 };\n\n// Pagination metadata flows through verbatim:\nreturn { statusCode: 200, items: [...], meta_pagination: { page: 1, total: 42 } };"
+        },
+        {
+          "type": "warning",
+          "text": "If a handler's response schema declares a `data` field, return `{ status, data: ... }` — Howl will not double-wrap it. The `responses[xxx]` zod schema describes the wire body and must match the shape the handler returns (minus `status`/`statusCode`/`ok`)."
+        }
       ]
     },
     {
       "id": "error-envelope",
       "heading": "Error envelope",
       "blocks": [
-        { "type": "p", "text": "Errors thrown from a handler (or from the auth/validation pipeline) come back as `{ error, correlationId }`. The same id is set on the response as `X-Howl-Correlation-Id`, so a client report and the matching server log line line up." },
-        { "type": "code", "lang": "json", "text": "{\n  \"error\": \"Forbidden\",\n  \"correlationId\": \"5b6e1d2c-1f8d-4d9c-9f0e-7c4b1c1f3a5b\"\n}" },
-        { "type": "p", "text": "The full route descriptor (DIR/NAME/METHOD) is logged server-side only. The wire payload no longer leaks internal naming, which used to give attackers a free fingerprinting channel." }
+        {
+          "type": "p",
+          "text": "Errors thrown from a handler (or from the auth/validation pipeline) come back as `{ error, correlationId }`. The same id is set on the response as `X-Howl-Correlation-Id`, so a client report and the matching server log line line up."
+        },
+        {
+          "type": "code",
+          "lang": "json",
+          "text": "{\n  \"error\": \"Forbidden\",\n  \"correlationId\": \"5b6e1d2c-1f8d-4d9c-9f0e-7c4b1c1f3a5b\"\n}"
+        },
+        {
+          "type": "p",
+          "text": "The full route descriptor (DIR/NAME/METHOD) is logged server-side only. The wire payload no longer leaks internal naming, which used to give attackers a free fingerprinting channel."
+        }
       ]
     },
     {
       "id": "openapi",
       "heading": "OpenAPI spec",
       "blocks": [
-        { "type": "p", "text": "Howl generates an OpenAPI 3.x spec from all registered APIs. Expose it on any route you choose." },
-        { "type": "code", "lang": "ts", "text": "import { getApiSpecs } from \"@hushkey/howl/api\";\n\n// In main.ts, add a route to serve the spec\napp.get(\"/api/openapi.json\", (ctx) => ctx.json(getApiSpecs()));\n\n// Or restrict to admins\napp.get(\"/api/openapi.json\", adminOnly, (ctx) => ctx.json(getApiSpecs()));" }
+        {
+          "type": "p",
+          "text": "Howl generates an OpenAPI 3.x spec from all registered APIs. Expose it on any route you choose."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { getApiSpecs } from \"@hushkey/howl/api\";\n\n// In main.ts, add a route to serve the spec\napp.get(\"/api/openapi.json\", (ctx) => ctx.json(getApiSpecs()));\n\n// Or restrict to admins\napp.get(\"/api/openapi.json\", adminOnly, (ctx) => ctx.json(getApiSpecs()));"
+        }
       ]
     }
   ]

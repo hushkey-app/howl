@@ -7,7 +7,11 @@
   "available": "Open to senior IC roles · Q3 2026",
   "social": [
     { "label": "GitHub", "handle": "@adalovelace", "url": "https://github.com/adalovelace" },
-    { "label": "LinkedIn", "handle": "in/adalovelace", "url": "https://linkedin.com/in/adalovelace" },
+    {
+      "label": "LinkedIn",
+      "handle": "in/adalovelace",
+      "url": "https://linkedin.com/in/adalovelace"
+    },
     { "label": "X", "handle": "@ada", "url": "https://x.com/ada" },
     { "label": "Email", "handle": "ada@example.com", "url": "mailto:ada@example.com" }
   ],
@@ -30,7 +34,13 @@
     },
     {
       "category": "Strengths",
-      "items": ["API design", "Performance profiling", "Observability", "Mentoring", "Technical writing"]
+      "items": [
+        "API design",
+        "Performance profiling",
+        "Observability",
+        "Mentoring",
+        "Technical writing"
+      ]
     }
   ],
   "experience": [

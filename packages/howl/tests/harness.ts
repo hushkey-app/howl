@@ -27,7 +27,11 @@ export function makeApp<State = any>(
   options: HowlOptions = {},
 ): TestApp<State> {
   const app = new Howl<State>(options);
-  setBuildCache(app, new MockBuildCache([], options.mode ?? "production"), options.mode ?? "production");
+  setBuildCache(
+    app,
+    new MockBuildCache([], options.mode ?? "production"),
+    options.mode ?? "production",
+  );
 
   let handler: ((req: Request) => Promise<Response>) | null = null;
   const ensureHandler = () => {

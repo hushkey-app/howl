@@ -11,26 +11,35 @@
       "id": "overview",
       "heading": "Overview",
       "blocks": [
-        { "type": "p", "text": "Acme Cloud's request router was Node.js, allocating per request. Steady-state CPU was 60% router overhead before the user code ran. We rewrote it in Rust." }
+        {
+          "type": "p",
+          "text": "Acme Cloud's request router was Node.js, allocating per request. Steady-state CPU was 60% router overhead before the user code ran. We rewrote it in Rust."
+        }
       ]
     },
     {
       "id": "approach",
       "heading": "Approach",
       "blocks": [
-        { "type": "list", "items": [
-          "Allocation-free hot path — pre-sized buffers, arena allocators per request",
-          "Zero-copy header parsing built on top of httparse",
-          "Match table compiled at startup from the routing config — O(1) lookup",
-          "WASI shim so user code that targeted the Node runtime kept working"
-        ] }
+        {
+          "type": "list",
+          "items": [
+            "Allocation-free hot path — pre-sized buffers, arena allocators per request",
+            "Zero-copy header parsing built on top of httparse",
+            "Match table compiled at startup from the routing config — O(1) lookup",
+            "WASI shim so user code that targeted the Node runtime kept working"
+          ]
+        }
       ]
     },
     {
       "id": "outcome",
       "heading": "Outcome",
       "blocks": [
-        { "type": "p", "text": "Steady-state CPU dropped 60%, p99 routing latency dropped from ~1.4ms to ~120µs. The migration was fleet-wide over six weeks with no customer-visible regressions." }
+        {
+          "type": "p",
+          "text": "Steady-state CPU dropped 60%, p99 routing latency dropped from ~1.4ms to ~120µs. The migration was fleet-wide over six weeks with no customer-visible regressions."
+        }
       ]
     }
   ]

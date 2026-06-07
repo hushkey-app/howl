@@ -56,7 +56,9 @@ Deno.test("aot source — multi-layout chunk chains stable Inner wrappers", () =
   // Inner1 wraps Layout1 with PageOutlet as its Component.
   expect(src).toMatch(/function Inner1\(\)\s*\{[\s\S]*?Layout1[\s\S]*?Component:\s*PageOutlet/);
   // Component (outermost) wraps Layout0 with Inner1 as its Component.
-  expect(src).toMatch(/export function Component\(props\)[\s\S]*?Layout0[\s\S]*?Component:\s*Inner1/);
+  expect(src).toMatch(
+    /export function Component\(props\)[\s\S]*?Layout0[\s\S]*?Component:\s*Inner1/,
+  );
   expect(src).not.toContain(`Component: () =>`);
 });
 

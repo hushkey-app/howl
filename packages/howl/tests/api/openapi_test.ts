@@ -60,9 +60,7 @@ Deno.test("openapi — query/path schemas surface as parameters", () => {
   });
   const spec = generateOpenApiSpec([search]);
   const op = spec.paths!["/api/items/{tenant}/search"]!.get!;
-  const names = (op.parameters ?? []).map((p) =>
-    "name" in p ? `${p.in}:${p.name}` : null
-  );
+  const names = (op.parameters ?? []).map((p) => "name" in p ? `${p.in}:${p.name}` : null);
   expect(names).toContain("path:tenant");
   expect(names).toContain("query:q");
   expect(names).toContain("query:limit");

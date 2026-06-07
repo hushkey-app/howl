@@ -11,7 +11,7 @@
 export { tailwindPlugin, type TailwindPluginOptions } from "./tailwind.plugin.ts";
 export { baseConfig as tailwindConfigBase } from "./tailwind.config.base.ts";
 export {
-  type BuildHttpClientConfig,
   buildHttpClient,
+  type BuildHttpClientConfig,
   httpClientGenPlugin,
 } from "./http-client-gen.plugin.ts";

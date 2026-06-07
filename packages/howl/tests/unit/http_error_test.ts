@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { HttpError } from "../../core/error.ts";
-import { HttpError as HttpErrorRuntime } from "../../core/runtime/shared.ts";
+import { HttpError as HttpErrorRuntime } from "../../core/error.ts";
 
 Deno.test("HttpError — instance carries the status code", () => {
   const err = new HttpError(404, "Nothing here");

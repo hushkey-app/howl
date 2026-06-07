@@ -145,11 +145,11 @@
         {
           "type": "code",
           "lang": "tsx",
-          "text": "// pages/_app.tsx\nimport { Partial } from \"@hushkey/howl/runtime\";\n\nexport default function App({ Component }) {\n  return (\n    <html>\n      <head>\n        <meta charset=\"utf-8\" />\n        <title>My App</title>\n        <link rel=\"stylesheet\" href=\"/style.css\" />\n      </head>\n      <body f-client-nav>\n        <Partial name=\"main\">\n          <Component />\n        </Partial>\n      </body>\n    </html>\n  );\n}"
+          "text": "// pages/_app.tsx\nimport { Partial } from \"@hushkey/howl/runtime\";\n\nexport default function App({ Component }) {\n  return (\n    <html>\n      <head>\n        <meta charset=\"utf-8\" />\n        <title>My App</title>\n        <link rel=\"stylesheet\" href=\"/style.css\" />\n      </head>\n      <body client-nav>\n        <Partial name=\"main\">\n          <Component />\n        </Partial>\n      </body>\n    </html>\n  );\n}"
         },
         {
           "type": "warning",
-          "text": "The f-client-nav attribute enables SPA navigation. Without it, every link click triggers a full page reload."
+          "text": "The client-nav attribute enables SPA navigation. Without it, every link click triggers a full page reload."
         }
       ]
     },
@@ -159,7 +159,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "When f-client-nav is set on <body>, Howl intercepts link clicks and fetches only the <Partial> region that changed — no full page reloads."
+          "text": "When client-nav is set on <body>, Howl intercepts link clicks and fetches only the <Partial> region that changed — no full page reloads."
         },
         {
           "type": "p",
@@ -181,6 +181,56 @@
       ]
     },
     {
+      "id": "programmatic-navigation",
+      "heading": "Programmatic navigation",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Link clicks navigate automatically, but you often need to navigate from code — after a form submit, a login, a timeout. The React and Vue engines expose a router from @hushkey/howl-react/router and @hushkey/howl-vue/router (same API on both)."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "import { navigate, useNavigate, useRoute } from \"@hushkey/howl-react/router\";\n\nnavigate(\"/dashboard\");                // push + client-render\nnavigate(\"/login\", { replace: true }); // replace current entry\nnavigate(\"/posts\", { scroll: false }); // keep scroll position\nnavigate(-1);                          // back; navigate(1) = forward\n\nfunction Nav() {\n  const navigate = useNavigate();\n  const { path, params, query } = useRoute(); // reactive — re-renders on nav\n  return <button onClick={() => navigate(\"/next\")}>Next ({path})</button>;\n}"
+        },
+        {
+          "type": "p",
+          "text": "navigate() runs the same AOT/SSR swap path as a link click but bypasses the client-nav boundary check, and falls back to a full document navigation before hydration — so it is always safe to call. useRoute() returns { href, path, query, params, hash, route }, seeded on SSR and re-seeded on every navigation."
+        },
+        {
+          "type": "tip",
+          "text": "In dev each engine ships a route inspector. Vue installs a vue-router-shaped object on app.config.globalProperties.$router so Vue DevTools' built-in Routes tab populates with every Howl route and the current match (no vue-router required). React auto-mounts an in-app floating Howl Routes panel, the React-ecosystem convention since React DevTools has no plugin-tab API. Both are dev-only and add no runtime dependency."
+        }
+      ]
+    },
+    {
+      "id": "link-prefetching",
+      "heading": "Link prefetching",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Add a client-prefetch boundary to prefetch client-nav links inside it on intent. When the pointer hovers a link (after a brief ~65ms dwell so quick pass-overs don't fire), or a touch or keyboard focus signals intent, Howl warms the destination ahead of the click."
+        },
+        {
+          "type": "p",
+          "text": "AOT routes pre-import() their JS chunk; SSR routes pre-fetch their partial response. The eventual click reuses the warmed result, so navigation feels instant — the same idea as Hotwired Turbo or instant.page."
+        },
+        {
+          "type": "p",
+          "text": "Prefetching is opt-in (off by default, matching the Vue/React engines) and respects the user's data-saver preference (Save-Data and prefers-reduced-data). Turn it on for a subtree with client-prefetch, and exclude a single link or region with client-prefetch=\"false\":"
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "<body client-nav client-prefetch>\n  <a href=\"/huge-report\" client-prefetch=\"false\">Report</a>\n  {/* …every other client-nav link is prefetched */}\n</body>"
+        },
+        {
+          "type": "tip",
+          "text": "Prefetch reuses the same partial response a click would request, so warmed navigations also benefit from server-side response caching and request coalescing."
+        }
+      ]
+    },
+    {
       "id": "aot-ssg",
       "heading": "AOT pages and SSG",
       "blocks": [
@@ -193,7 +243,11 @@
           "headers": ["File", "Mode", "Behaviour"],
           "rows": [
             ["pages/__jobs.tsx", "AOT", "Dynamic SSR + client chunk for instant in-app nav"],
-            ["pages/___about.tsx", "SSG", "Prerendered HTML at build (served instantly) + client chunk"],
+            [
+              "pages/___about.tsx",
+              "SSG",
+              "Prerendered HTML at build (served instantly) + client chunk"
+            ],
             ["pages/index.tsx", "—", "Dynamic SSR every request"]
           ]
         },
@@ -203,11 +257,11 @@
         },
         {
           "type": "p",
-          "text": "AOT chunks need a <Partial> in _app.tsx or the layout chain to mount into. The boundary is detected at build time by a static scan of each file's source for the literal Partial identifier in JSX (<Partial …>) or h/jsx-call form (h(Partial, …)). Aliased imports ({ Partial as P }) are not detected — use the literal Partial name. When no <Partial> is found, chunk emission is silently skipped: the page still SSRs (or serves prerendered HTML for SSG), and client navigation falls back to a full document load. Apps that intentionally don't use f-client-nav can keep AOT/SSG prefixes without adding a <Partial>."
+          "text": "AOT chunks need a <Partial> in _app.tsx or the layout chain to mount into. The boundary is detected at build time by a static scan of each file's source for the literal Partial identifier in JSX (<Partial …>) or h/jsx-call form (h(Partial, …)). Aliased imports ({ Partial as P }) are not detected — use the literal Partial name. When no <Partial> is found, chunk emission is silently skipped: the page still SSRs (or serves prerendered HTML for SSG), and client navigation falls back to a full document load. Apps that intentionally don't use client-nav can keep AOT/SSG prefixes without adding a <Partial>."
         },
         {
           "type": "p",
-          "text": "AOT navigation honours f-client-nav. Drop the attribute from <body> (or set it to \"false\") and clicks on AOT links fall through to a full document load — same gate that already governs SSR partial nav. Use f-client-nav=\"false\" on a nested subtree to opt that region out while keeping the rest of the app on SPA-style routing."
+          "text": "AOT navigation honours client-nav. Drop the attribute from <body> (or set it to \"false\") and clicks on AOT links fall through to a full document load — same gate that already governs SSR partial nav. Use client-nav=\"false\" on a nested subtree to opt that region out while keeping the rest of the app on SPA-style routing."
         },
         {
           "type": "p",
@@ -238,11 +292,11 @@
     },
     {
       "id": "partial-forms",
-      "heading": "Forms inside f-client-nav",
+      "heading": "Forms inside client-nav",
       "blocks": [
         {
           "type": "p",
-          "text": "Forms inside an f-client-nav body are only intercepted for partial submission when they explicitly opt in. A form opts in by setting one of: an f-partial attribute, an action attribute, or having a submit button with formaction. Otherwise, the form submits normally with a full page reload — even though the surrounding body has f-client-nav."
+          "text": "Forms inside a client-nav body are only intercepted for partial submission when they explicitly opt in. A form opts in by setting one of: an f-partial attribute, an action attribute, or having a submit button with formaction. Otherwise, the form submits normally with a full page reload — even though the surrounding body has client-nav."
         },
         {
           "type": "code",
@@ -280,7 +334,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "When a link inside f-client-nav points to a resource that returns a non-HTML Content-Type — a file download, an image, a Content-Disposition: attachment response, etc. — the SPA detects the non-HTML response and falls back to a full browser navigation. The browser lands on the raw response, just like a non-SPA page would."
+          "text": "When a link inside client-nav points to a resource that returns a non-HTML Content-Type — a file download, an image, a Content-Disposition: attachment response, etc. — the SPA detects the non-HTML response and falls back to a full browser navigation. The browser lands on the raw response, just like a non-SPA page would."
         },
         {
           "type": "code",

@@ -1,0 +1,432 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+/* ============================================================
+   kawaii(x,y) — "sunrise" palette mapped INTO daisyUI themes.
+   Light & airy, near-monochrome ink, energetic coral→amber→pink
+   accent. base-100 is the card surface; the page sits on --bg.
+   ============================================================ */
+@plugin "daisyui/theme" {
+  name: "light";
+  color-scheme: "light";
+  default: true;
+  --color-base-100: #ffffff;
+  --color-base-200: #f4f3ee;
+  --color-base-300: #e7e5dc;
+  --color-base-content: #16150f;
+  --color-primary: #ff4d3d;
+  --color-primary-content: #ffffff;
+  --color-secondary: #ff9d2f;
+  --color-secondary-content: #2a1500;
+  --color-accent: #ff3e84;
+  --color-accent-content: #ffffff;
+  --color-neutral: #16150f;
+  --color-neutral-content: #fafaf7;
+  --color-info: #3d6bff;
+  --color-info-content: #ffffff;
+  --color-success: #1f8a5b;
+  --color-success-content: #ffffff;
+  --color-warning: #ff9d2f;
+  --color-warning-content: #2a1500;
+  --color-error: #ff4d3d;
+  --color-error-content: #ffffff;
+  --radius-selector: 100px;
+  --radius-field: 0.56rem;
+  --radius-box: 0.9rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  color-scheme: "dark";
+  prefersdark: true;
+  --color-base-100: #15161a;
+  --color-base-200: #1b1d22;
+  --color-base-300: #25272d;
+  --color-base-content: #f2f1ea;
+  --color-primary: #ff4d3d;
+  --color-primary-content: #ffffff;
+  --color-secondary: #ff9d2f;
+  --color-secondary-content: #2a1500;
+  --color-accent: #ff3e84;
+  --color-accent-content: #ffffff;
+  --color-neutral: #f2f1ea;
+  --color-neutral-content: #0d0e11;
+  --color-info: #5b86ff;
+  --color-info-content: #07101f;
+  --color-success: #3bd396;
+  --color-success-content: #07130d;
+  --color-warning: #ff9d2f;
+  --color-warning-content: #2a1500;
+  --color-error: #ff6a5c;
+  --color-error-content: #1a0603;
+  --radius-selector: 100px;
+  --radius-field: 0.56rem;
+  --radius-box: 0.9rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ---- kawaii semantic tokens (drive the custom component layer) ---- */
+:root,
+[data-theme="light"] {
+  --bg: #fafaf7;
+  --surface: #ffffff;
+  --surface-2: #f4f3ee;
+  --ink: #16150f;
+  --ink-2: #56554c;
+  --ink-3: #8c8b80;
+  --line: #e7e5dc;
+  --line-2: #d9d7cc;
+  --accent: #ff4d3d;
+  --accent-2: #ff9d2f;
+  --accent-3: #ff3e84;
+  --on-accent: #ffffff;
+  --grad: linear-gradient(110deg, var(--accent-2) 0%, var(--accent) 52%, var(--accent-3) 100%);
+  --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  --hair: 1px;
+  --shadow: 0 1px 2px rgba(20, 20, 12, 0.04), 0 8px 30px -16px rgba(20, 20, 12, 0.12);
+  --shadow-lg: 0 2px 4px rgba(20, 20, 12, 0.05), 0 24px 60px -24px rgba(20, 20, 12, 0.18);
+}
+
+[data-theme="dark"] {
+  --bg: #0d0e11;
+  --surface: #15161a;
+  --surface-2: #1b1d22;
+  --ink: #f2f1ea;
+  --ink-2: #a4a399;
+  --ink-3: #6c6d67;
+  --line: #25272d;
+  --line-2: #34363d;
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 34px -16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 30px 70px -28px rgba(0, 0, 0, 0.7);
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  background: var(--bg);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    line-height: 1.5;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+}
+
+/* ============================================================
+   Custom component layer — only the signature pieces Tailwind /
+   daisyUI primitives can't express cleanly. Uniquely `k-`/`mono`
+   prefixed so nothing collides with daisyUI component classes.
+   ============================================================ */
+@layer components {
+  .mono {
+    font-family: var(--font-mono);
+  }
+
+  /* gradient-clipped text (hero accent, big quote mark, headings) */
+  .k-grad-text {
+    background: var(--grad);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .k-grad-anim {
+    animation: k-grad-shift 14s ease-in-out infinite;
+  }
+
+  /* eyebrow + section labels (code-comment styling) */
+  .k-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: var(--ink-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .k-eyebrow::before {
+    content: "";
+    width: 22px;
+    height: var(--hair);
+    background: var(--accent);
+  }
+  .k-label {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  .k-label b {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .k-tag {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .k-tag::before {
+    content: "#";
+    color: var(--accent);
+  }
+
+  /* call-to-action buttons (mono, gradient primary) */
+  .k-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 13px 20px;
+    border-radius: 9px;
+    white-space: nowrap;
+    transition:
+      transform 0.18s ease,
+      background 0.2s ease,
+      border-color 0.2s,
+      color 0.2s,
+      box-shadow 0.2s;
+    background: var(--grad);
+    background-size: 160% 160%;
+    color: var(--on-accent);
+    box-shadow: 0 6px 20px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .k-cta:hover {
+    transform: translateY(-1px);
+    background-position: 100% 50%;
+    box-shadow: 0 10px 26px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .k-cta:active {
+    transform: translateY(1px);
+  }
+  .k-cta--ghost {
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--hair) solid var(--line-2);
+    box-shadow: none;
+  }
+  .k-cta--ghost:hover {
+    border-color: var(--ink);
+    transform: translateY(-1px);
+    box-shadow: none;
+  }
+  .k-cta .arr {
+    transition: transform 0.2s ease;
+  }
+  .k-cta:hover .arr {
+    transform: translateX(3px);
+  }
+
+  /* hero ambient glow */
+  .k-glow {
+    position: absolute;
+    inset: -10% -10% auto auto;
+    width: min(60vw, 680px);
+    height: 480px;
+    background: var(--grad);
+    filter: blur(90px);
+    opacity: 0.1;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 50%;
+  }
+  [data-theme="dark"] .k-glow {
+    opacity: 0.22;
+  }
+
+  /* live "Active/Resting" status pill */
+  .k-pulse {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .k-status.is-live .k-pulse {
+    animation: k-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* animated gradient panel (proof / metrics) */
+  .k-grad-panel {
+    background: var(--grad);
+    background-size: 160% 160%;
+    animation: k-grad-shift 14s ease-in-out infinite;
+  }
+
+  /* ---- timeline ---- */
+  .k-tl {
+    --tl-gutter: 116px;
+  }
+  .k-tl-ruler {
+    position: relative;
+    height: 18px;
+    margin-left: var(--tl-gutter);
+    border-bottom: var(--hair) solid var(--line);
+  }
+  .k-tl-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    transform: translateX(-50%);
+  }
+  .k-tl-tick::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 16px;
+    width: var(--hair);
+    height: 6px;
+    background: var(--line-2);
+  }
+  .k-tl-lanes {
+    position: relative;
+    margin-top: 6px;
+  }
+  .k-tl-lane {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--tl-gutter) 1fr;
+    align-items: center;
+    height: 52px;
+  }
+  .k-tl-overlay {
+    position: absolute;
+    left: var(--tl-gutter);
+    right: 0;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+  }
+  .k-tl-track {
+    position: relative;
+    height: 100%;
+  }
+  .k-tl-track::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: var(--hair);
+    background: var(--line);
+    transform: translateY(-50%);
+  }
+  .k-tl-band {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 16px;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+    border: var(--hair) solid color-mix(in srgb, var(--accent) 30%, transparent);
+    transition: background 0.35s ease, box-shadow 0.35s ease, border-color 0.35s;
+  }
+  .k-tl-band.is-on {
+    background: var(--grad);
+    border-color: transparent;
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .k-tl-zone {
+    transition: color 0.3s;
+  }
+  .k-tl-lane.is-on .k-tl-zone {
+    color: var(--accent);
+  }
+  .k-tl-sweep {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    background: var(--ink);
+    z-index: 5;
+    transform: translateX(-1px);
+  }
+  .k-tl-sweep::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--surface) 80%, transparent);
+  }
+}
+
+@layer utilities {
+  /* reveal-on-scroll */
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes k-grad-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes k-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .k-grad-anim,
+  .k-grad-panel {
+    animation: none;
+  }
+}

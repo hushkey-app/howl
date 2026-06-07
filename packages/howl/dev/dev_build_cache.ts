@@ -6,7 +6,8 @@ import type { FileTransformer } from "./file_transformer.ts";
 import { assertInDir, pathToSpec } from "../core/utils.ts";
 import type { ResolvedBuildConfig } from "./builder.ts";
 import { fsItemsToCommands, type FsRouteFile } from "../core/fs_routes.ts";
-import type { Command } from "../core/commands.ts";
+import { type Command, CommandType } from "../core/commands.ts";
+import type { EngineRouteInfo } from "../core/engine.ts";
 import type { ServerIslandRegistry } from "../core/context.ts";
 import { contentType as getStdContentType } from "@std/media-types/content-type";
 
@@ -57,6 +58,8 @@ export interface ApiEntry {
 
 export interface DevBuildCache<State> extends BuildCache<State> {
   islandModNameToChunk: Map<string, IslandModChunk>;
+  /** Build artifact: `.vue` page file path → SSR module path (relative to dist). */
+  engineSsrPages: Map<string, string>;
   /** Registry of API definitions keyed by METHOD:path */
   apiRegistry: Map<string, unknown>;
   getApiRoutes(): unknown[];
@@ -70,6 +73,30 @@ export interface DevBuildCache<State> extends BuildCache<State> {
   ): Promise<void>;
   flush(): Promise<void>;
   prepare(): Promise<void>;
+}
+
+/** Drop a trailing slash from a route pattern, except for the root `/`. */
+export function stripTrailingSlash(pattern: string): string {
+  return pattern !== "/" && pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+}
+
+/**
+ * Build the engine route-map manifest from crawled FS route files: every page
+ * route owned by a render engine, tagged with its `ssr`/`aot`/`ssg` mode.
+ */
+export function engineRoutesFromFiles<State>(
+  files: FsRouteFileNoMod<State>[],
+): EngineRouteInfo[] {
+  const routes: EngineRouteInfo[] = [];
+  for (const file of files) {
+    if (file.type !== CommandType.Route || file.engine === undefined) continue;
+    routes.push({
+      pattern: stripTrailingSlash(file.pattern),
+      engine: file.engine,
+      mode: file.ssg === true ? "ssg" : file.aot === true ? "aot" : "ssr",
+    });
+  }
+  return routes;
 }
 
 export class MemoryBuildCache<State> implements DevBuildCache<State> {
@@ -89,6 +116,12 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   features = { errorOverlay: false };
   aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
+  vueIslands: Map<string, string> = new Map();
+  vueBoot = "";
+  engineAot: Map<string, string> = new Map();
+  enginePages: Map<string, string> = new Map();
+  engineSsrModules: Map<string, unknown> = new Map();
+  engineSsrPages: Map<string, string> = new Map();
 
   constructor(
     config: ResolvedBuildConfig,
@@ -112,6 +145,10 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
 
   getFsRoutes(): Command<State>[] {
     return this.#commands;
+  }
+
+  getEngineRoutes(): EngineRouteInfo[] {
+    return engineRoutesFromFiles(this.#fsRoutes.files);
   }
 
   getApiRoutes(): unknown[] {
@@ -270,6 +307,11 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
 
   async prepare(): Promise<void> {
     const files = await Promise.all(this.#fsRoutes.files.map(async (file) => {
+      if (file.engine !== undefined) {
+        // `.vue` (and other engine) routes aren't importable by Deno; the
+        // render engine compiles + loads them at request time.
+        return { ...file, mod: { default: undefined } };
+      }
       const fileUrl = maybeToFileUrl(file.filePath);
       return {
         ...file,
@@ -296,6 +338,13 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   features = { errorOverlay: false };
   aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
+  vueIslands: Map<string, string> = new Map();
+  vueBoot = "";
+  engineAot: Map<string, string> = new Map();
+  enginePages: Map<string, string> = new Map();
+  engineSsrModules: Map<string, unknown> = new Map();
+  /** Build artifact: `.vue` page file path → SSR module path (relative to dist). */
+  engineSsrPages: Map<string, string> = new Map();
   #commands: Command<State>[] = [];
 
   constructor(
@@ -319,6 +368,10 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
 
   getFsRoutes(): Command<State>[] {
     return this.#commands;
+  }
+
+  getEngineRoutes(): EngineRouteInfo[] {
+    return engineRoutesFromFiles(this.#fsRoutes.files);
   }
 
   getApiRoutes(): unknown[] {
@@ -401,6 +454,11 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
     // is what enables the SSG prerender pass to dispatch through the app
     // handler during the build itself.
     const files = await Promise.all(this.#fsRoutes.files.map(async (file) => {
+      if (file.engine !== undefined) {
+        // `.vue` (and other engine) routes aren't importable by Deno; the
+        // render engine compiles + loads them at request time.
+        return { ...file, mod: { default: undefined } };
+      }
       const fileUrl = maybeToFileUrl(file.filePath);
       return {
         ...file,
@@ -473,6 +531,11 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
         apiEntries: this.#apiEntries,
         aotRoutes: this.aotRoutes,
         ssgPages: this.ssgPages,
+        vueIslands: this.vueIslands,
+        vueBoot: this.vueBoot,
+        engineAot: this.engineAot,
+        enginePages: this.enginePages,
+        engineSsrPages: this.engineSsrPages,
         outDir: root,
         entryAssets: [],
       }),
@@ -558,10 +621,30 @@ export async function generateSnapshotServer(
     entryAssets: string[];
     aotRoutes: Map<string, string>;
     ssgPages: Map<string, string>;
+    vueIslands: Map<string, string>;
+    vueBoot: string;
+    engineAot: Map<string, string>;
+    enginePages: Map<string, string>;
+    engineSsrPages: Map<string, string>;
     writeSpecifier: (filePath: string) => string;
   },
 ): Promise<string> {
   const { islands, writeSpecifier, fsRoutesFiles, outDir } = options;
+
+  // Emit an expression that, at runtime, resolves a snapshot-relative specifier
+  // (e.g. `"../client/pages/index.vue"`) to an absolute filesystem path. Engine
+  // routes are read from disk by the render engine, so their `filePath` and the
+  // `enginePages` chunk-map keys must resolve to the same absolute path on the
+  // deploy machine — both go through this so they always match.
+  const fileUrlExpr = (jsonSpec: string): string =>
+    `decodeURIComponent(new URL(${jsonSpec}, import.meta.url).pathname)`;
+
+  const serializeRuntimePathMap = (map: Map<string, string>): string =>
+    Array.from(map.entries())
+      .map(([filePath, url]) =>
+        `  [${fileUrlExpr(JSON.stringify(writeSpecifier(filePath)))}, ${JSON.stringify(url)}],`
+      )
+      .join("\n");
 
   const islandImports = islands
     .map((item) => {
@@ -576,11 +659,18 @@ export async function generateSnapshotServer(
   // runtime, so the route silently fails to register and every request
   // falls through to DEFAULT_NOT_FOUND. Static imports get bundled by the
   // build and are guaranteed to work in compiled binaries.
+  //
+  // Engine routes (e.g. `.vue`) are the exception: Deno can't import a `.vue`
+  // module, so they are NEVER statically imported. The render engine compiles
+  // + loads them from disk at request time (same as dev). They carry a
+  // runtime-resolvable `filePath` instead — see `serializedFsRoutes`.
   const fsRouteImports = fsRoutesFiles
     .map((item, i) => {
+      if (item.engine !== undefined) return null;
       const spec = writeSpecifier(item.filePath);
       return `import * as fsRoute_${i} from "${spec}"`;
     })
+    .filter((line): line is string => line !== null)
     .join("\n");
 
   const islandMarkers = islands.map((item) => {
@@ -596,6 +686,30 @@ export async function generateSnapshotServer(
       const pattern = JSON.stringify(item.pattern);
       const type = JSON.stringify(item.type);
       const routePattern = JSON.stringify(item.routePattern);
+
+      // Engine routes carry no importable module. They resolve their source
+      // file from disk at request time, so serialize a runtime-resolvable
+      // `filePath` (relative to the snapshot, via `import.meta.url`) plus the
+      // engine name and the AOT/SSG flags so those modes can light up later.
+      if (item.engine !== undefined) {
+        const spec = JSON.stringify(writeSpecifier(item.filePath));
+        const engine = JSON.stringify(item.engine);
+        const fields = [
+          `id: ${id}`,
+          `type: ${type}`,
+          `pattern: ${pattern}`,
+          `routePattern: ${routePattern}`,
+          `engine: ${engine}`,
+          `filePath: ${fileUrlExpr(spec)}`,
+          `mod: { default: undefined }`,
+        ];
+        if (item.overrideConfig !== undefined) {
+          fields.push(`overrideConfig: ${JSON.stringify(item.overrideConfig)}`);
+        }
+        if (item.aot === true) fields.push(`aot: true`);
+        if (item.ssg === true) fields.push(`ssg: true`);
+        return `  { ${fields.join(", ")} },`;
+      }
 
       const mod = `fsRoute_${i}`;
 
@@ -632,14 +746,37 @@ export async function generateSnapshotServer(
     }).join(",\n");
 
   const serializedAotRoutes = Array.from(options.aotRoutes.entries())
-    .map(([pattern, chunkUrl]) =>
-      `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`
-    )
+    .map(([pattern, chunkUrl]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
   const serializedSsgPages = Array.from(options.ssgPages.entries())
-    .map(([pattern, html]) =>
-      `  [${JSON.stringify(pattern)}, ${JSON.stringify(html)}],`
+    .map(([pattern, html]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(html)}],`)
+    .join("\n");
+
+  const serializedVueIslands = Array.from(options.vueIslands.entries())
+    .map(([name, chunkUrl]) => `  [${JSON.stringify(name)}, ${JSON.stringify(chunkUrl)}],`)
+    .join("\n");
+
+  const serializedEngineAot = Array.from(options.engineAot.entries())
+    .map(([pattern, chunkUrl]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`)
+    .join("\n");
+
+  // `enginePages` is keyed by the page's absolute source path. Re-key through
+  // `fileUrlExpr` so the keys resolve to the same runtime path as each engine
+  // route's `filePath` — otherwise the hydration-chunk lookup in `segments.ts`
+  // misses and the page SSRs without hydrating.
+  const serializedEnginePages = serializeRuntimePathMap(options.enginePages);
+
+  // Precompiled Vue SSR page modules are **statically imported** (so a
+  // `deno compile` binary embeds them) and mapped by the same runtime-resolved
+  // path as each engine route's `filePath`, so the engine finds the module.
+  const vueSsrEntries = Array.from(options.engineSsrPages.entries());
+  const vueSsrImports = vueSsrEntries
+    .map(([, moduleRel], i) => `import * as vueSsr_${i} from "./${moduleRel}";`)
+    .join("\n");
+  const serializedEngineSsrModules = vueSsrEntries
+    .map(([filePath], i) =>
+      `  [${fileUrlExpr(JSON.stringify(writeSpecifier(filePath)))}, vueSsr_${i}],`
     )
     .join("\n");
 
@@ -648,6 +785,7 @@ import { IslandPreparer } from "@hushkey/howl";
 ${islandImports}
 ${apiImports}
 ${fsRouteImports}
+${vueSsrImports}
 
 export const clientEntry = ${JSON.stringify(options.clientEntry)}
 export const version = ${JSON.stringify(options.buildId)}
@@ -668,6 +806,24 @@ ${serializedAotRoutes}
 
 export const ssgPages = new Map([
 ${serializedSsgPages}
+]);
+
+export const vueIslands = new Map([
+${serializedVueIslands}
+]);
+
+export const vueBoot = ${JSON.stringify(options.vueBoot)};
+
+export const engineAot = new Map([
+${serializedEngineAot}
+]);
+
+export const enginePages = new Map([
+${serializedEnginePages}
+]);
+
+export const engineSsrModules = new Map([
+${serializedEngineSsrModules}
 ]);
 
 export const fsRoutes = [

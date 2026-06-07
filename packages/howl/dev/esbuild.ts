@@ -109,6 +109,21 @@ export async function bundleJs(
     await startEsbuild();
   }
 
+  // A real-React app (registers `reactPlugin`, which declares its engine under
+  // the `howl.engine` symbol) must NOT get the React→Preact compat shim, so its
+  // `react` / `react-dom` imports resolve to real React.
+  // deno-lint-ignore no-explicit-any
+  const realReact = (options.plugins ?? []).some((p: any) =>
+    p?.[Symbol.for("howl.engine")]?.engine === "react"
+  );
+  let alias = options.alias;
+  if (realReact && alias !== undefined) {
+    alias = { ...alias };
+    for (const k of ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"]) {
+      delete alias[k];
+    }
+  }
+
   try {
     await Deno.mkdir(options.cwd, { recursive: true });
   } catch (err) {
@@ -145,8 +160,8 @@ export async function bundleJs(
     write: false,
     metafile: true,
 
-    // React → Preact/compat shim and other aliases
-    alias: options.alias,
+    // React → Preact/compat shim and other aliases (stripped for real React)
+    alias,
 
     define: {
       "process.env.NODE_ENV": JSON.stringify(
@@ -158,7 +173,7 @@ export async function bundleJs(
       preactDebugger(PREACT_ENV),
       buildIdPlugin(options.buildId),
       windowsPathFixer(),
-      reactCompatPlugin(options.cwd),
+      ...(realReact ? [] : [reactCompatPlugin(options.cwd)]),
       ...(options.plugins ?? []),
       denoPlugin({
         preserveJsx: true,
@@ -217,6 +232,68 @@ export async function bundleJs(
   }
 
   return { files, entryToChunk, dependencies };
+}
+
+/**
+ * Bundle Vue page **server** (SSR) entries into importable ESM modules — one per
+ * page — that the production snapshot statically imports (so a `deno compile`
+ * binary needs no `.vue` source on disk).
+ *
+ * Bare imports (`vue`, `vue/server-renderer`, `pinia`, `@unhead/vue`,
+ * `@hushkey/howl-vue/*`) are left **external** (`packages: "external"`) so the
+ * precompiled components share the exact runtime instances the render engine
+ * uses — a bundled-in Vue would be a different instance and mismatch the
+ * engine's `renderToString`. Relative imports (e.g. a colocated store) are
+ * bundled in. Returns a map of entry name → output filename (in `outDir`).
+ */
+export async function bundleVueSsr(
+  options: {
+    cwd: string;
+    outDir: string;
+    dev: boolean;
+    buildId: string;
+    entryPoints: Record<string, string>;
+    plugins?: EsbuildPlugin[];
+  },
+): Promise<Map<string, string>> {
+  if (esbuild === null) {
+    await startEsbuild();
+  }
+  await Deno.mkdir(options.outDir, { recursive: true });
+
+  await esbuild!.build({
+    entryPoints: options.entryPoints,
+    platform: "neutral",
+    format: "esm",
+    bundle: true,
+    splitting: false,
+    treeShaking: true,
+    // Bare deps stay external so the precompiled component shares the engine's
+    // runtime instances. `@hushkey/howl-vue/*` must be external too (not bundled
+    // via node_modules) so its `pinia` / `@unhead/vue` deps resolve through
+    // howl-vue's own import map — and the user need not declare them.
+    packages: "external",
+    external: ["@hushkey/howl-vue/*"],
+    minify: !options.dev,
+    absWorkingDir: options.cwd,
+    outdir: options.outDir,
+    entryNames: "[name]",
+    write: true,
+    logOverride: {
+      "suspicious-nullish-coalescing": "silent",
+      "unsupported-jsx-comment": "silent",
+    },
+    plugins: [
+      buildIdPlugin(options.buildId),
+      ...(options.plugins ?? []),
+    ],
+  });
+
+  const entryToFile = new Map<string, string>();
+  for (const name of Object.keys(options.entryPoints)) {
+    entryToFile.set(name, `${name}.js`);
+  }
+  return entryToFile;
 }
 
 let initialized = false;

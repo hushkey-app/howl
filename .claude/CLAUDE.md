@@ -200,35 +200,40 @@ defineConfig({
 - `blockDurationMs?` — lockout duration after hitting the limit (defaults to remaining window)
 
 Rate limit keys are `ratelimit:{identifier}:{method}:{pathname}`. The identifier is resolved via
-`getRateLimitIdentifier(ctx)` on `HowlApiConfig` (e.g. `ctx.state.user?.id`). When the hook is
-unset or returns `undefined`, the limiter falls back to the client IP from `x-forwarded-for` /
-`x-real-ip` / `remoteAddr`. Per-user response cache keys use the same hook (falling back to
-`"anonymous"`).
+`getRateLimitIdentifier(ctx)` on `HowlApiConfig` (e.g. `ctx.state.user?.id`). When the hook is unset
+or returns `undefined`, the limiter falls back to the client IP from `x-forwarded-for` / `x-real-ip`
+/ `remoteAddr`. Per-user response cache keys use the same hook (falling back to `"anonymous"`).
 
 ---
 
 ## Islands
 
-- Files end in `.island.tsx` (convention enforced by warning in `dev/fs_crawl.ts`; non-matching files in the islands dir still register but log a rename hint at build time)
+- Files end in `.island.tsx` (convention enforced by warning in `dev/fs_crawl.ts`; non-matching
+  files in the islands dir still register but log a rename hint at build time)
 - Default islands SSR via `renderToString` and **hydrate** on the client — no flash on initial mount
-- Skip SSR for the whole island: `export const howl = { ssr: false }` (empty markers, client uses `render()`)
-- Skeleton placeholder for `ssr: false` islands: `export const howl = { ssr: false, skeleton: () => <Placeholder /> }` — receives the same props as the island, replaced by the real component on first client render
-- One nested element opt-out: `<ClientOnly>{() => <Component />}</ClientOnly>` — for cases where most of the island SSRs fine but one child can't (e.g. sonner `<Toaster />`)
-- Inline env guards: `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` for branching individual lines
+- Skip SSR for the whole island: `export const howl = { ssr: false }` (empty markers, client uses
+  `render()`)
+- Skeleton placeholder for `ssr: false` islands:
+  `export const howl = { ssr: false, skeleton: () => <Placeholder /> }` — receives the same props as
+  the island, replaced by the real component on first client render
+- One nested element opt-out: `<ClientOnly>{() => <Component />}</ClientOnly>` — for cases where
+  most of the island SSRs fine but one child can't (e.g. sonner `<Toaster />`)
+- Inline env guards: `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` for branching
+  individual lines
 - Island CSS is automatically preloaded via `Link` response headers
 
 ---
 
 ## AOT and SSG pages
 
-Page-file prefix opts a route into client-side navigation and/or build-time prerender. The prefix
-is stripped from the URL pattern, so `pages/jobs/__index.tsx` mounts at `/jobs/`.
+Page-file prefix opts a route into client-side navigation and/or build-time prerender. The prefix is
+stripped from the URL pattern, so `pages/jobs/__index.tsx` mounts at `/jobs/`.
 
-| Prefix         | Mode | First paint                                      | Client nav to this route                  |
-| -------------- | ---- | ------------------------------------------------ | ----------------------------------------- |
-| (none)         | SSR  | Renderer runs every request                      | Partial-nav fetches the partial fragment  |
-| `__page.tsx`   | AOT  | Renderer runs every request                      | Dynamic-imports a client chunk, no server |
-| `___page.tsx`  | SSG  | Prerendered HTML served from snapshot (no render) | Dynamic-imports a client chunk, no server |
+| Prefix        | Mode | First paint                                       | Client nav to this route                  |
+| ------------- | ---- | ------------------------------------------------- | ----------------------------------------- |
+| (none)        | SSR  | Renderer runs every request                       | Partial-nav fetches the partial fragment  |
+| `__page.tsx`  | AOT  | Renderer runs every request                       | Dynamic-imports a client chunk, no server |
+| `___page.tsx` | SSG  | Prerendered HTML served from snapshot (no render) | Dynamic-imports a client chunk, no server |
 
 How it's wired:
 
@@ -236,53 +241,53 @@ How it's wired:
   `FsRouteFileNoMod` (`dev/dev_build_cache.ts`).
 - **AOT chunk emission** — `dev/plugins/aot.ts` is a virtual esbuild plugin that synthesises an
   entry file per AOT route. The chunk contains only what would appear **inside** the active
-  `<Partial>` markers on an SSR response: inner layouts (those rendered below the partial) plus
-  the page. Files above the partial — the `_app.tsx` shell and any outer `_layout.tsx` — are
-  intentionally not bundled; they stay in the DOM across AOT navs so layout-level islands keep
-  their state. The boundary is found by `dev/partial_boundary.ts`, which scans each file's source
-  for the literal `Partial` identifier in JSX (`<Partial …>`) or `h`/`jsx`-call form. Aliased
-  imports (`{ Partial as P }`) are not detected — use the literal `Partial` name. When no
-  `<Partial>` is found in an AOT page's chain, chunk emission is silently skipped for that route:
-  the page still SSRs (or serves prerendered HTML for SSG-prefixed routes) and client navigation
-  falls through to a full document load — same fallback path as a regular SSR route. Inner-layout wrappers in the generated chunk
-  use **module-scoped functions** (`PageOutlet`, `Inner1`, …) with a shared `_props` slot rather
-  than inline `Component: () => child` arrows — that way Preact sees stable vnode `type`s for
-  each layout's `<Component />` outlet and can preserve component instances across same-chunk
-  re-renders (e.g. same-route param changes). `dev/builder.ts` registers AOT entries alongside
-  islands during `bundleJs()`. Chunk URL pattern is `/_howl/js/{BUILD_ID}/aot_{slug}.js`.
-- **Manifest** — `BuildCache.aotRoutes: Map<routePattern, chunkUrl>` is populated by the builder
-  and emitted into the SSR response as `window.__HOWL_AOT__ = { ... }` (inline `<script>` injected
-  by `HowlRuntimeScript` in `runtime/server/preact_hooks.ts`). Also emits
+  `<Partial>` markers on an SSR response: inner layouts (those rendered below the partial) plus the
+  page. Files above the partial — the `_app.tsx` shell and any outer `_layout.tsx` — are
+  intentionally not bundled; they stay in the DOM across AOT navs so layout-level islands keep their
+  state. The boundary is found by `dev/partial_boundary.ts`, which scans each file's source for the
+  literal `Partial` identifier in JSX (`<Partial …>`) or `h`/`jsx`-call form. Aliased imports
+  (`{ Partial as P }`) are not detected — use the literal `Partial` name. When no `<Partial>` is
+  found in an AOT page's chain, chunk emission is silently skipped for that route: the page still
+  SSRs (or serves prerendered HTML for SSG-prefixed routes) and client navigation falls through to a
+  full document load — same fallback path as a regular SSR route. Inner-layout wrappers in the
+  generated chunk use **module-scoped functions** (`PageOutlet`, `Inner1`, …) with a shared `_props`
+  slot rather than inline `Component: () => child` arrows — that way Preact sees stable vnode
+  `type`s for each layout's `<Component />` outlet and can preserve component instances across
+  same-chunk re-renders (e.g. same-route param changes). `dev/builder.ts` registers AOT entries
+  alongside islands during `bundleJs()`. Chunk URL pattern is `/_howl/js/{BUILD_ID}/aot_{slug}.js`.
+- **Manifest** — `BuildCache.aotRoutes: Map<routePattern, chunkUrl>` is populated by the builder and
+  emitted into the SSR response as `window.__HOWL_AOT__ = { ... }` (inline `<script>` injected by
+  `HowlRuntimeScript` in `runtime/server/preact_hooks.ts`). Also emits
   `window.__HOWL_USER_STATE__ = JSON.stringify(ctx.state)` so client hooks can read the SSR state.
 - **Client runtime** — `runtime/client/aot.ts` (imported by `runtime/client/mod.ts`) reads the
   manifest, intercepts `<a>` clicks + popstate, dynamic-imports the matching chunk on AOT-route
   navigation, and updates the live `PartialComp` via `setState` (keeps `ACTIVE_PARTIALS` intact so
   partial-nav back to SSR routes still works). Same-URL clicks are no-ops (no duplicate history
   entries).
-- **SSG prerender** — `HowlBuilder.build()` runs the app handler at build time for each
-  param-less SSG route (`/properties/:id` falls through with a warning until `getStaticPaths` is
-  built). Captured HTML is stored in `BuildCache.ssgPages: Map<routePattern, html>`. Snapshot is
-  re-flushed so the production runtime sees it. Request-time short-circuit lives in
-  `core/app.ts handler()` — checks `ssgPages.get(pattern)` for `GET`/`HEAD` non-partial requests
-  before dispatching the middleware/handler chain.
-- **Cache headers** — AOT chunks are served with `Cache-Control: public, max-age=31536000,
-  immutable` in production. `BUILD_ID` rotates per build, so each deploy gets unique chunk URLs
-  → automatic cache invalidation. Build-ID lives in `packages/utils/build-id.ts` (UUID or
-  `DENO_DEPLOYMENT_ID` / `GITHUB_SHA`).
+- **SSG prerender** — `HowlBuilder.build()` runs the app handler at build time for each param-less
+  SSG route (`/properties/:id` falls through with a warning until `getStaticPaths` is built).
+  Captured HTML is stored in `BuildCache.ssgPages: Map<routePattern, html>`. Snapshot is re-flushed
+  so the production runtime sees it. Request-time short-circuit lives in `core/app.ts handler()` —
+  checks `ssgPages.get(pattern)` for `GET`/`HEAD` non-partial requests before dispatching the
+  middleware/handler chain.
+- **Cache headers** — AOT chunks are served with
+  `Cache-Control: public, max-age=31536000,
+  immutable` in production. `BUILD_ID` rotates per
+  build, so each deploy gets unique chunk URLs → automatic cache invalidation. Build-ID lives in
+  `packages/utils/build-id.ts` (UUID or `DENO_DEPLOYMENT_ID` / `GITHUB_SHA`).
 - **Head component** — `runtime/head.ts` mounts a `ClientHead` on the browser that imperatively
-  syncs `document.head` after each render commit. SSR-emitted Head elements carry
-  `data-howl-head` markers (server adds the attribute in `runtime/server/preact_hooks.ts`).
-  `<title>` is written via `document.title` directly (no DOM-element race during transitions);
-  meta / link upsert by their natural key (`name`, `property`, `rel`); other elements append and
-  track for clean unmount.
+  syncs `document.head` after each render commit. SSR-emitted Head elements carry `data-howl-head`
+  markers (server adds the attribute in `runtime/server/preact_hooks.ts`). `<title>` is written via
+  `document.title` directly (no DOM-element race during transitions); meta / link upsert by their
+  natural key (`name`, `property`, `rel`); other elements append and track for clean unmount.
 
 Limits / gotchas:
 
-- SSG handlers run with an empty `ctx` — no `req`, no cookies, no per-user state. Anything
-  per-user must stay on dynamic SSR.
+- SSG handlers run with an empty `ctx` — no `req`, no cookies, no per-user state. Anything per-user
+  must stay on dynamic SSR.
 - Dynamic params on SSG fall through with a `console.warn` until `getStaticPaths` is built.
-- AOT chunk re-uses one cached `createRootFragment` outlet across renders — preact reconciles
-  the same container rather than fresh-mounting against preact-tagged DOM.
+- AOT chunk re-uses one cached `createRootFragment` outlet across renders — preact reconciles the
+  same container rather than fresh-mounting against preact-tagged DOM.
 - AOT pages currently hydrate via the partial-nav path on first paint. The page function isn't
   re-invoked client-side until a subsequent AOT click; `useEffect` inside the page won't fire on
   direct URL landings (auto-promote-on-paint is a roadmap item).
@@ -458,19 +463,18 @@ your end-of-turn summary and skip — but the default is to update all three.
 
 ## Testing
 
-All tests live under `packages/tests/` (no co-located `*_test.ts` files in
-`core/`, `api/`, `dev/`). Three layers:
+All tests live under `packages/tests/` (no co-located `*_test.ts` files in `core/`, `api/`, `dev/`).
+Three layers:
 
-| Layer        | Path                          | What it covers                                                                  |
-| ------------ | ----------------------------- | ------------------------------------------------------------------------------- |
-| Integration  | `packages/tests/integration/` | Routing, middleware order, ctx helpers, cookies, SSE, CORS, CSP, coalesce       |
-| API          | `packages/tests/api/`         | `defineApi`, auth, Zod validation, rate limit, caching, OpenAPI generation      |
-| Unit         | `packages/tests/unit/`        | `UrlPatternRouter`, `CookieManager`, utils, cache adapters (`memoryCache`, `tryCache`) |
+| Layer       | Path                          | What it covers                                                                         |
+| ----------- | ----------------------------- | -------------------------------------------------------------------------------------- |
+| Integration | `packages/tests/integration/` | Routing, middleware order, ctx helpers, cookies, SSE, CORS, CSP, coalesce              |
+| API         | `packages/tests/api/`         | `defineApi`, auth, Zod validation, rate limit, caching, OpenAPI generation             |
+| Unit        | `packages/tests/unit/`        | `UrlPatternRouter`, `CookieManager`, utils, cache adapters (`memoryCache`, `tryCache`) |
 
-Harness: [`packages/tests/harness.ts`](../packages/tests/harness.ts) exports
-`makeApp(opts)` returning `{ app, fetch }`. Tests dispatch through the handler
-directly — no TCP port. Use `MockBuildCache` from `core/test_utils.ts` if you
-need to seed FS routes or islands.
+Harness: [`packages/tests/harness.ts`](../packages/tests/harness.ts) exports `makeApp(opts)`
+returning `{ app, fetch }`. Tests dispatch through the handler directly — no TCP port. Use
+`MockBuildCache` from `core/test_utils.ts` if you need to seed FS routes or islands.
 
 Tasks (defined in root `deno.json`):
 
@@ -479,10 +483,13 @@ Tasks (defined in root `deno.json`):
 - `deno task doc:lint` — JSDoc coverage check (must stay clean)
 
 **Test conventions:**
+
 - Use `@std/expect` (`expect(...).toBe(...)`); avoid `assertEquals` etc. for consistency.
-- Default `Deno.test("name", async () => {...})` — never disable `sanitizeOps`/`sanitizeResources`. If a test trips a leak, the production code is leaking; fix it there.
+- Default `Deno.test("name", async () => {...})` — never disable `sanitizeOps`/`sanitizeResources`.
+  If a test trips a leak, the production code is leaking; fix it there.
 - Each test sets up its own `makeApp()` — no shared mutable fixtures.
-- Browser-based fixtures + helpers live in `packages/tests/test_utils.tsx` (uses Astral). Most tests should not need it; reach for it only when you genuinely need a real browser.
+- Browser-based fixtures + helpers live in `packages/tests/test_utils.tsx` (uses Astral). Most tests
+  should not need it; reach for it only when you genuinely need a real browser.
 
 ---
 

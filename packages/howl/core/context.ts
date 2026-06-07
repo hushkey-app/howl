@@ -1,28 +1,8 @@
-import {
-  type AnyComponent,
-  type ComponentType,
-  Fragment,
-  type FunctionComponent,
-  h,
-  isValidElement,
-  type VNode,
-} from "preact";
-import { jsxTemplate } from "preact/jsx-runtime";
-import { SpanStatusCode } from "@opentelemetry/api";
+import { type AnyComponent, type ComponentType, type FunctionComponent } from "./component.ts";
 import type { ResolvedHowlConfig } from "./config.ts";
 import type { BuildCache } from "./build_cache.ts";
-import type { LayoutConfig } from "./types.ts";
-import { HowlScripts, RenderState, setRenderState } from "./runtime/server/preact_hooks.ts";
-import { DEV_ERROR_OVERLAY_URL, PARTIAL_SEARCH_PARAM } from "./constants.ts";
-import { tracer } from "./otel.ts";
-import {
-  type ComponentDef,
-  isAsyncAnyComponent,
-  type PageProps,
-  renderAsyncAnyComponent,
-  renderRouteComponent,
-} from "./render.ts";
-import { renderToString } from "preact-render-to-string";
+import { PARTIAL_SEARCH_PARAM } from "./constants.ts";
+import type { ComponentDef, PageProps } from "./render.ts";
 import { CookieManager } from "./cookies.ts";
 
 const ENCODER = new TextEncoder();
@@ -298,212 +278,33 @@ export class Context<State> {
   }
 
   /**
-   * Render JSX and return an HTML `Response` instance.
-   * ```tsx
-   * ctx.render(<h1>hello world</h1>);
+   * Render a standalone component to an HTML string using the app's registered
+   * render engine — for emails, notifications, or partial fragments rendered
+   * **outside** the page/layout/request flow. The engine (Preact / Vue / React)
+   * determines the template language, so a Vue app authors notifications as Vue
+   * templates, a React app as `.tsx`, etc. No layouts, app shell, or headers —
+   * just the component to markup.
+   *
+   * ```ts
+   * const html = await ctx.renderToString(WelcomeEmail, { name: user.name });
    * ```
+   *
+   * Throws if no registered engine implements `renderToString`. When several
+   * engines are registered, the first one that provides it is used.
    */
-  async render(
-    // deno-lint-ignore no-explicit-any
-    vnode: VNode<any> | null,
-    init: ResponseInit | undefined = {},
-    config: LayoutConfig = {},
-  ): Promise<Response> {
-    if (arguments.length === 0) {
-      throw new Error(`No arguments passed to: ctx.render()`);
-    } else if (vnode !== null && !isValidElement(vnode)) {
-      throw new Error(`Non-JSX element passed to: ctx.render()`);
+  renderToString(
+    component: unknown,
+    props?: Record<string, unknown>,
+  ): Promise<string> | string {
+    for (const engine of Object.values(this.config.engines)) {
+      if (engine.renderToString !== undefined) {
+        return engine.renderToString(component, props);
+      }
     }
-
-    const defs = config.skipInheritedLayouts ? [] : this.#internal.layouts;
-    const appDef = config.skipAppWrapper ? null : this.#internal.app;
-    const props = this as Context<State>;
-
-    // Compose final vnode tree
-    for (let i = defs.length - 1; i >= 0; i--) {
-      const child = vnode;
-      props.Component = () => child;
-
-      const def = defs[i];
-
-      const result = await renderRouteComponent(this, def, () => child);
-      if (result instanceof Response) {
-        return result;
-      }
-
-      vnode = result;
-    }
-
-    const appChild = vnode;
-    // deno-lint-ignore no-explicit-any
-    let appVNode: VNode<any>;
-
-    let hasApp = true;
-
-    if (isAsyncAnyComponent(appDef)) {
-      props.Component = () => appChild;
-      const result = await renderAsyncAnyComponent(appDef, props);
-      if (result instanceof Response) {
-        return result;
-      }
-
-      appVNode = result;
-    } else if (appDef !== null) {
-      appVNode = h(appDef, {
-        Component: () => appChild,
-        config: this.config,
-        data: null,
-        error: this.error,
-        info: this.info,
-        isPartial: this.isPartial,
-        params: this.params,
-        req: this.req,
-        state: this.state,
-        url: this.url,
-        route: this.route,
-      });
-    } else {
-      hasApp = false;
-      appVNode = appChild ?? h(Fragment, null);
-    }
-
-    const headers = getHeadersFromInit(init);
-    headers.set("Content-Type", "text/html; charset=utf-8");
-
-    // Merge ctx.headers into render response — cookies and headers set in
-    // middleware are automatically included in the page response
-    this.headers.forEach((value, key) => {
-      if (key.toLowerCase() === "set-cookie") {
-        headers.append(key, value);
-      } else {
-        headers.set(key, value);
-      }
-    });
-
-    const responseInit: ResponseInit = {
-      status: init.status ?? 200,
-      headers,
-      statusText: init.statusText,
-    };
-
-    let partialId = "";
-    if (this.url.searchParams.has(PARTIAL_SEARCH_PARAM)) {
-      partialId = crypto.randomUUID();
-      headers.set("X-Howl-Id", partialId);
-    }
-
-    const html = tracer.startActiveSpan("render", (span) => {
-      span.setAttribute("howl.span_type", "render");
-      const state = new RenderState(
-        this,
-        this.#buildCache,
-        partialId,
-      );
-
-      if (this.#additionalStyles !== null) {
-        for (let i = 0; i < this.#additionalStyles.length; i++) {
-          const css = this.#additionalStyles[i];
-          state.islandAssets.add(css);
-        }
-      }
-
-      try {
-        setRenderState(state);
-
-        // Two-pass render: first pass populates state.headComponents with
-        // <Head> children encountered inside <body>; second pass emits them
-        // via <RemainingHead> when <head> is processed (depth-first <head>
-        // runs before <body>, so a single pass leaves head components
-        // collected too late to render).
-        const rootVNode = hasApp ? appVNode : (vnode ?? h(Fragment, null));
-        renderToString(rootVNode);
-        state.resetForSecondPass();
-        if (this.#additionalStyles !== null) {
-          for (let i = 0; i < this.#additionalStyles.length; i++) {
-            state.islandAssets.add(this.#additionalStyles[i]);
-          }
-        }
-        let html = renderToString(rootVNode);
-
-        if (
-          !state.renderedHtmlBody || !state.renderedHtmlHead ||
-          !state.renderedHtmlTag
-        ) {
-          let fallback: VNode = jsxTemplate([html]);
-          if (!state.renderedHtmlBody) {
-            let scripts: VNode | null = null;
-
-            if (
-              this.url.pathname !== this.config.basePath + DEV_ERROR_OVERLAY_URL
-            ) {
-              scripts = h(HowlScripts, null) as VNode;
-            }
-
-            fallback = h("body", null, fallback, scripts);
-          }
-          if (!state.renderedHtmlHead) {
-            fallback = h(
-              Fragment,
-              null,
-              h("head", null, h("meta", { charset: "utf-8" })),
-              fallback,
-            );
-          }
-          if (!state.renderedHtmlTag) {
-            fallback = h("html", null, fallback);
-          }
-
-          html = renderToString(fallback);
-        }
-
-        return `<!DOCTYPE html>${html}`;
-      } catch (err) {
-        if (err instanceof Error) {
-          span.recordException(err);
-        } else {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: String(err),
-          });
-        }
-        throw err;
-      } finally {
-        // Zero-JS default: nothing on the page needs the client runtime
-        // (no island, no <Partial>, no f-client-nav, no f-view-transition)
-        // → skip the modulepreload Link header entirely. Pages with only CSS
-        // still preload styles below.
-        const basePath = this.config.basePath;
-        const linkParts: string[] = [];
-        if (state.needsClientRuntime) {
-          const runtimeUrl = state.buildCache.clientEntry.startsWith(".")
-            ? state.buildCache.clientEntry.slice(1)
-            : state.buildCache.clientEntry;
-          linkParts.push(
-            `<${encodeURI(`${basePath}${runtimeUrl}`)}>; rel="modulepreload"; as="script"`,
-          );
-          state.islands.forEach((island) => {
-            const specifier = `${basePath}${
-              island.file.startsWith(".") ? island.file.slice(1) : island.file
-            }`;
-            linkParts.push(`<${encodeURI(specifier)}>; rel="modulepreload"; as="script"`);
-          });
-        }
-        // CSS preloads: browser fetches island stylesheets from HTTP headers,
-        // before it has parsed the <link> tags in the HTML body.
-        state.islandAssets.forEach((css) => {
-          linkParts.push(`<${encodeURI(css)}>; rel="preload"; as="style"`);
-        });
-        if (linkParts.length > 0) {
-          headers.append("Link", linkParts.join(", "));
-        }
-
-        state.clear();
-        setRenderState(null);
-
-        span.end();
-      }
-    });
-    return new Response(html, responseInit);
+    throw new Error(
+      "ctx.renderToString: no registered render engine provides it — register " +
+        "an engine (preactEngine() / vueEngine() / reactEngine()).",
+    );
   }
 
   // Helper to merge ctx.headers into ResponseInit
@@ -663,14 +464,4 @@ export class Context<State> {
     }
     return result;
   }
-}
-
-function getHeadersFromInit(init?: ResponseInit) {
-  if (init === undefined) {
-    return new Headers();
-  }
-
-  return init.headers !== undefined
-    ? init.headers instanceof Headers ? init.headers : new Headers(init.headers)
-    : new Headers();
 }

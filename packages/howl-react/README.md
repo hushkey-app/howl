@@ -1,0 +1,270 @@
+# @hushkey/howl-react
+
+> **Experimental.** Full **React** page support for [Howl](../howl), built on Howl's existing
+> **esbuild** toolchain — **no Vite, no Next**.
+
+Howl is Preact-native. This package adds a second render engine so React `.tsx` components can be
+**full routes** alongside Preact (and Vue) in the same project. It plugs into Howl's build pipeline
+rather than replacing it; the shared backend (routing, APIs, middleware, client navigation + link
+prefetch, AOT/SSG, `deno compile`) is reused unchanged.
+
+Unlike Vue, React needs **no SFC compiler**: Deno imports `.tsx` natively, so the engine renders the
+source directly (dev) and embeds it into the production snapshot (prod) — the same model as the
+built-in Preact engine.
+
+## Status
+
+| Piece                                                                                                                      | State           |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `RenderEngine` seam — `.tsx` routes SSR'd by `react-dom/server`, hydrated by `react-dom/client`                            | ✅ done, tested |
+| esbuild plugin (`reactPlugin`) — declares `.tsx`/`.jsx` → react, sets automatic JSX                                        | ✅ done, tested |
+| `_app.tsx` + `_layout.tsx` composition (own the document, SSR + hydrate)                                                   | ✅ done, tested |
+| Client-nav — `client-nav` link/back-forward re-render, hover prefetch, no reload                                           | ✅ done, tested |
+| Head/SEO — `useHead` (`@unhead/react`), SSR'd + reactive across client-nav                                                 | ✅ done, tested |
+| Store — `jotai` atoms (SSR-safe per-request `Provider`), `howlAtom` (SSR-serialized) + `useHowlState` (`ctx.state` mirror) | ✅ done, tested |
+| AOT (`__`) + SSG (`___`) — client chunk, AOT manifest, no-server-hop nav                                                   | ✅ done, tested |
+| Prod snapshot + `deno compile` — embedded SSR modules, self-contained binary                                               | ✅ done, tested |
+
+Browser-verified end-to-end in [`examples/reacty`](../../examples/reacty) (a 1:1 mirror of
+[`examples/vuety`](../../examples/vuety)).
+
+## Full React pages (`reactEngine`)
+
+A `.tsx` file under your pages directory is a full route rendered by React: **SSR on first load
+(crawlable SEO HTML) → hydrate → live SPA** — the universal-SSR model. Howl core stays Preact;
+`.tsx` routes are dispatched to the engine via the pluggable `RenderEngine` seam (`config.engines`),
+opted in by registering `reactPlugin()` (which declares that `.tsx` routes render with React).
+
+```ts
+// server/main.ts
+import { reactEngine } from "@hushkey/howl-react";
+export const app = new Howl<State>({ engines: { react: reactEngine() } });
+```
+
+```ts
+// dev.ts — register the esbuild plugin + your client entry (the _app.tsx shell)
+import { reactPlugin } from "@hushkey/howl-react/plugin";
+new HowlBuilder(app, {
+  clientEntry: "./client/pages/_app.tsx",
+  plugins: [reactPlugin()],
+});
+```
+
+```tsx
+// client/pages/index.tsx → GET /, server-rendered then hydrated
+import type { ReactPageProps } from "@hushkey/howl-react";
+export default function Index(props: ReactPageProps) {
+  return <h1>Home at {props.url.pathname}</h1>;
+}
+```
+
+Pages receive `ReactPageProps` — `{ url, params, query, state, data, route, isPartial, error }` — a
+serialisable mirror of the server `ctx`, JSON-embedded into the hydration payload so the client tree
+sees the same shape.
+
+**`_app.tsx` + `_layout.tsx`.** An `_app.tsx` at the pages root owns the **whole document**: write
+`<html>`, `<head>` (CSS, meta, fonts), and `<body>` directly, rendering the page tree at the
+`props.Component` outlet. `_layout.tsx` files wrap the page per-directory. Howl renders `_app.tsx`
+once server-side (it is **not** hydrated — head + static markup stay put) and scopes hydration to an
+inner `#howl-app` holding the `[…Layouts, Page]` tree.
+
+**Client navigation.** Put `client-nav` on `<body>` in `_app.tsx`. Link clicks and back/forward
+inside that boundary fetch the destination's SSR HTML and **re-render** the page tree on the
+persistent React root — no full reload, no re-hydration. Everything outside `#howl-app` (the
+`_app.tsx` shell, plus any module-level singleton like the jotai store) stays alive across
+navigations.
+
+**Prefetch on intent.** Add a `client-prefetch` boundary to warm links on hover (after a brief
+dwell), touch, or focus. Opt-in; respects `Save-Data` / `prefers-reduced-data`; exclude a subtree
+with `client-prefetch="false"`.
+
+## Head / SEO — `useHead`
+
+Per-page `<title>` and meta via [`@unhead/react`](https://unhead.unjs.io), re-exported from a
+lightweight entry so importing it into a page doesn't pull in the engine's `react-dom/server`:
+
+```tsx
+import { useHead } from "@hushkey/howl-react/head";
+useHead({ title: "About", meta: [{ name: "description", content: "…" }] });
+```
+
+The engine installs an unhead provider around the tree on both server and client, so these tags are
+**SSR'd** into `<head>` and stay **reactive across client navigations**. With no
+`useHead({ title })` the document title falls back to `state.title` (configurable via
+`reactEngine({ title })`).
+
+## Store — jotai atoms + `useHowlState`
+
+```tsx
+// store/index.store.ts
+import { atom } from "@hushkey/howl-react/store";
+export const countAtom = atom(0);
+
+// a page — persists across client-nav (session-long store)
+import { useAtom } from "@hushkey/howl-react/store";
+const [count, setCount] = useAtom(countAtom);
+```
+
+Howl installs a jotai `Provider` around the tree: a **fresh per-request store on the server** (so
+atoms never leak across concurrent requests — the key reason jotai over a module-level store) and a
+**single session store on the client** (so atoms persist across client-nav). The `ctx.state` mirror
+is a built-in atom — read it anywhere, no prop-drilling:
+
+```tsx
+import { useHowlState } from "@hushkey/howl-react/state";
+const state = useHowlState<State>(); // re-seeded from ctx.state on every nav
+```
+
+### `howlAtom` — atoms that survive SSR
+
+A plain `atom()` is client-only: its server-rendered value is discarded, so it resets to its default
+on hydration. To carry an atom's value across the SSR→client boundary — the jotai analogue of a
+named Pinia store — declare it with `howlAtom(key, initial)`. Howl serializes every registered
+`howlAtom` into the SSR HTML and rehydrates the session store **before first paint**, so a full
+reload restores the server-rendered value with no hydration flash:
+
+```tsx
+// store/index.store.ts
+import { howlAtom } from "@hushkey/howl-react/store";
+export const countAtom = howlAtom("count", 0); // string key, like defineStore("count", …)
+```
+
+Seed a value from server data during SSR with `useHydrateAtoms` (re-exported from the store entry);
+the serializer then carries that value to the client:
+
+```tsx
+import { useHydrateAtoms } from "@hushkey/howl-react/store";
+import { countAtom } from "../store/index.store.ts";
+
+export default function Page(props: ReactPageProps<{ count: number }>) {
+  useHydrateAtoms([[countAtom, props.data.count]]); // SSR value → serialized → hydrated
+  const [count] = useAtom(countAtom);
+  // …
+}
+```
+
+Like Pinia, `howlAtom` values hydrate **once** on first paint; afterwards they persist across
+client-nav (only the `ctx.state` mirror re-syncs on every navigation). Keys must be unique across
+the app — a collision clobbers on hydrate (a dev-mode warning fires).
+
+## Router — `navigate` / `useNavigate` / `useRoute`
+
+Link clicks inside a `client-nav` boundary already navigate without a full reload. For
+**programmatic** navigation — from event handlers, effects, stores, anywhere — import from
+`@hushkey/howl-react/router`:
+
+```tsx
+import { navigate, useNavigate, useRoute } from "@hushkey/howl-react/router";
+
+// Bare function — works in any client code, not just components
+navigate("/dashboard"); // push + client-render the page
+navigate("/login", { replace: true }); // replace the current history entry
+navigate("/posts", { scroll: false }); // keep scroll position
+navigate(-1); // history.go(-1) — back; navigate(1) = forward
+
+// In a component
+function Nav() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate("/next")}>Next</button>;
+}
+
+// Read the current route reactively (re-renders on navigation)
+function Crumb() {
+  const { path, params, query, route } = useRoute();
+  return <span>{path}</span>;
+}
+```
+
+`navigate` routes through the same AOT/SSR swap path as link clicks (AOT routes client-render with
+no server hop; everything else fetches the destination's SSR fragment) but **bypasses** the
+`client-nav` boundary check — you asked to navigate, so it navigates. Before hydration / during SSR
+it falls back to a full document navigation, so it's always safe to call. `back()` and `forward()`
+are exported as shorthands for `navigate(-1)` / `navigate(1)`.
+
+`useRoute()` returns `{ href, path, query, params, hash, route }` (`route` is the matched pattern,
+e.g. `/users/:id`); it is seeded on SSR and re-seeded on every navigation.
+
+### DevTools — the Howl Routes panel
+
+React DevTools exposes no plugin API for a custom tab, so — following the React-ecosystem convention
+(TanStack Router / React Query devtools) — the engine ships a **dev-only in-app floating panel**. In
+dev it emits a route map (`window.__HOWL_REACT_ROUTES__`) and the boot runtime auto-mounts a small
+`⚡ routes` badge (bottom-right) that expands to list every route with its `ssr`/`aot`/`ssg` mode,
+highlights the active one, and shows the current path. Click a static route to navigate; a param
+route (`/users/:id`) expands an inline editor — one field per param — so you can fill values and
+jump to the resolved path (Enter or **Go →**). It mounts in its **own** React root outside
+`#howl-app` (never touches hydration) and is lazily imported only when the route map is present, so
+it adds nothing to production bundles.
+
+Filename prefixes opt a route into client-side navigation and/or build-time prerender, identical to
+the Preact/Vue engines:
+
+- `__name.tsx` → **AOT**: dynamic SSR + a client chunk that renders the route on nav with **no
+  server round-trip** (props derived on the client; fetch your own data).
+- `___name.tsx` → **SSG**: prerendered to static HTML at build time, plus the AOT chunk for nav.
+
+The engine emits `window.__HOWL_REACT_AOT__` (route pattern → chunk); the client runtime intercepts
+AOT-route navigation and renders the chunk directly.
+
+## Production & `deno compile`
+
+`deno task build` writes the client chunks, prerenders SSG routes, and emits one `.react-ssr`
+wrapper per page that **statically imports** its `_app` + layout chain + page. The snapshot
+static-imports those wrappers, so `deno compile` embeds the whole `.tsx` graph and the engine
+renders from the embedded modules — the binary is self-contained, no source on disk at runtime.
+
+```jsonc
+// deno.json
+"compile": "deno compile -A --include dist/static --output dist/bin/app dist/compiled-entry.js"
+```
+
+## TypeScript / JSX types
+
+Deno resolves React's JSX types via `@types/react`. In your app's `deno.json`:
+
+```jsonc
+"imports": { "@types/react": "npm:@types/react@^18.3.0", /* … react, react-dom … */ },
+"compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "react", "jsxImportSourceTypes": "@types/react" }
+```
+
+Add a `.d.ts` augmenting `react`'s `HTMLAttributes` so `client-nav` / `client-prefetch` type-check
+on `<body>` (see
+[`examples/reacty/client/howl-react.d.ts`](../../examples/reacty/client/howl-react.d.ts)).
+
+## Why no Vite / Next
+
+Deno imports `.tsx` natively and Howl already owns an esbuild pipeline, the router, SSR, islands,
+and client-nav. `reactEngine` reuses all of it — React is only the component renderer. `react` never
+enters a Preact-only app's dependency graph (and vice versa); registering `reactPlugin()` is the
+only wiring. Howl forces `react` → `preact/compat` for the _built-in_ engine, but disables that shim
+for apps that register `reactPlugin()` so they resolve real React.
+
+## Standalone rendering — `ctx.renderToString`
+
+The engine also backs `ctx.renderToString(component, props?)` for templates rendered **outside** the
+page flow (emails, notifications, partial fragments) — a bare React component to an HTML string, no
+`_app`/layout shell:
+
+```tsx
+const html = await ctx.renderToString(WelcomeEmail, { name: user.name });
+```
+
+## API
+
+### `reactEngine(options?)`
+
+The `RenderEngine` for React `.tsx` pages. `options.title?: (props) => string` sets the fallback
+document title (default `state.title` or `"Howl"`).
+
+### `reactPlugin()`
+
+esbuild plugin that declares `.tsx`/`.jsx` → the `react` engine (via `Symbol.for("howl.engine")`)
+and sets esbuild to automatic React JSX. Registering it is what routes `.tsx` through React.
+
+### Lightweight entries
+
+- `@hushkey/howl-react/head` — `useHead`, `useSeoMeta` (from `@unhead/react`).
+- `@hushkey/howl-react/store` — `atom`, `useAtom`, `useAtomValue`, `useSetAtom`, `useHydrateAtoms`
+  (from `jotai`) plus `howlAtom(key, initial)` (SSR-serialized atoms).
+- `@hushkey/howl-react/state` — `useHowlState<S>()`, `howlStateAtom` (the `ctx.state` mirror).
+- `@hushkey/howl-react/boot` — client runtime (imported by the generated hydration chunk).

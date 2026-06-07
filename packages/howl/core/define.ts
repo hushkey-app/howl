@@ -1,4 +1,4 @@
-import type { AnyComponent } from "preact";
+import type { AnyComponent } from "./component.ts";
 import type { HandlerByMethod, HandlerFn, RouteHandler } from "./handlers.ts";
 import type { Middleware } from "./middlewares/mod.ts";
 import type { PageProps } from "./render.ts";

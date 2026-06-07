@@ -20,7 +20,8 @@ export const templates: readonly TemplateMeta[] = [
   {
     id: "fullstack",
     label: "fullstack",
-    description: "Minimal fullstack starter — 1 API, 1 page, 1 island, 1 signal-based component, Tailwind",
+    description:
+      "Minimal fullstack starter — 1 API, 1 page, 1 island, 1 signal-based component, Tailwind",
   },
   {
     id: "docs",
@@ -35,7 +36,8 @@ export const templates: readonly TemplateMeta[] = [
   {
     id: "aot-spa",
     label: "aot-spa",
-    description: "AOT navigation demo — SSR, AOT, and SSG pages side-by-side with a nav bar to compare them",
+    description:
+      "AOT navigation demo — SSR, AOT, and SSG pages side-by-side with a nav bar to compare them",
   },
 ] as const;
 

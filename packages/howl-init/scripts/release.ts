@@ -102,7 +102,12 @@ function assertSemver(value: string): string {
 function bumpSemver(version: string, kind: Bump): string {
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!match) throw new Error(`Cannot parse current version "${version}"`);
-  let [_, major, minor, patch] = match.map(Number) as unknown as [unknown, number, number, number];
+  const [_, major, minor, patch] = match.map(Number) as unknown as [
+    unknown,
+    number,
+    number,
+    number,
+  ];
   if (kind === "major") return `${major + 1}.0.0`;
   if (kind === "minor") return `${major}.${minor + 1}.0`;
   return `${major}.${minor}.${patch + 1}`;

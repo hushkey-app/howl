@@ -7,7 +7,7 @@ export type { ErrorStatus };
  * {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status | HTTP status}.
  *
  * Importable from both server (`@hushkey/howl`) and client
- * (`@hushkey/howl/runtime`) entry points so client code can detect
+ * (`@hushkey/howl/client`) entry points so client code can detect
  * `instanceof HttpError` without pulling server-only imports.
  *
  * @property status The HTTP status code.

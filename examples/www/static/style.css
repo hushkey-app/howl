@@ -1,14 +1,14 @@
-@import 'tailwindcss';
-@plugin '@tailwindcss/typography'; /* Load the plugin here */
-@plugin 'daisyui' {
+@import "tailwindcss";
+@plugin "@tailwindcss/typography"; /* Load the plugin here */
+@plugin "daisyui" {
   themes: light --default, dark --prefersdark;
 }
 
 /* FONTS LOAD */
 /* 1. Define English Font */
 @font-face {
-  font-family: 'Varela Round';
-  src: url('/fonts/VarelaRound-Regular.ttf') format('truetype');
+  font-family: "Varela Round";
+  src: url("/fonts/VarelaRound-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -16,133 +16,279 @@
 
 /* 2. Define Japanese/Fallback Fonts */
 @font-face {
-  font-family: 'M PLUS Rounded 1c';
-  src: url('/fonts/MPLUSRounded1c-Regular.ttf') format('truetype');
+  font-family: "M PLUS Rounded 1c";
+  src: url("/fonts/MPLUSRounded1c-Regular.ttf") format("truetype");
   font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'M PLUS Rounded 1c';
-  src: url('/fonts/MPLUSRounded1c-Medium.ttf') format('truetype');
+  font-family: "M PLUS Rounded 1c";
+  src: url("/fonts/MPLUSRounded1c-Medium.ttf") format("truetype");
   font-weight: 500;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'M PLUS Rounded 1c';
-  src: url('/fonts/MPLUSRounded1c-Bold.ttf') format('truetype');
+  font-family: "M PLUS Rounded 1c";
+  src: url("/fonts/MPLUSRounded1c-Bold.ttf") format("truetype");
   font-weight: 700;
   font-display: swap;
 }
 
-@plugin 'daisyui/theme' {
-  name: 'light';
-  color-scheme: 'light';
+/* Landing-page design system — lilac/purple light theme.
+   Palette is the source of truth in the Howl landing PRD; the daisyUI light
+   theme below is mapped onto those tokens so docs pages stay cohesive. */
+@plugin "daisyui/theme" {
+  name: "light";
+  color-scheme: "light";
   default: true;
   prefersdark: false;
-  --color-base-100: oklch(96% 0.016 293.756);
-  --color-base-200: oklch(94% 0.029 294.588);
-  --color-base-300: oklch(89% 0.057 293.283);
-  --color-base-content: oklch(38% 0.189 293.745);
-  --color-primary: oklch(71% 0.203 305.504);
-  --color-primary-content: oklch(29% 0.149 302.717);
-  --color-secondary: oklch(82% 0.189 84.429);
-  --color-secondary-content: oklch(27% 0.077 45.635);
-  --color-accent: oklch(75% 0.183 55.934);
-  --color-accent-content: oklch(26% 0.079 36.259);
-  --color-neutral: oklch(38% 0.189 293.745);
-  --color-neutral-content: oklch(96% 0.016 293.756);
-  --color-info: oklch(70% 0.165 254.624);
-  --color-info-content: oklch(28% 0.091 267.935);
-  --color-success: oklch(77% 0.152 181.912);
-  --color-success-content: oklch(27% 0.046 192.524);
-  --color-warning: oklch(85% 0.199 91.936);
-  --color-warning-content: oklch(28% 0.066 53.813);
-  --color-error: oklch(70% 0.191 22.216);
-  --color-error-content: oklch(25% 0.092 26.042);
-  --radius-selector: 0.5rem;
-  --radius-field: 0.25rem;
-  --radius-box: 2rem;
+  --color-base-100: #f5f3ff; /* --bg */
+  --color-base-200: #ece7fb;
+  --color-base-300: #e4ddf5; /* --line */
+  --color-base-content: #1a1430; /* --ink */
+  --color-primary: #6d28d9; /* --accent */
+  --color-primary-content: #ffffff;
+  --color-secondary: #da56d1; /* --magenta */
+  --color-secondary-content: #ffffff;
+  --color-accent: #ffd83d; /* --yellow */
+  --color-accent-content: #1a1430;
+  --color-neutral: #1a1430;
+  --color-neutral-content: #f5f3ff;
+  --color-info: #2563eb;
+  --color-info-content: #ffffff;
+  --color-success: #16a34a; /* --ok */
+  --color-success-content: #ffffff;
+  --color-warning: #ffd83d;
+  --color-warning-content: #1a1430;
+  --color-error: #dc2626;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.625rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
   --depth: 1;
-  --noise: 1;
+  --noise: 0;
 }
 
 @theme {
-  --font-sans: 'Varela Round', 'M PLUS Rounded 1c', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Supplementary landing tokens (PRD §6) — generate text-/bg-/border- utilities. */
+  --color-paper: #ffffff;
+  --color-ink: #1a1430;
+  /* Always-dark surface for terminal / CTA chrome (install bar, deno-task badge,
+     closing CTA). Deliberately NOT remapped in dark mode — unlike --color-ink,
+     which flips to base-content (light) so text-ink stays readable, this stays
+     dark so bg-terminal surfaces don't invert to white. */
+  --color-terminal: #1a1430;
+  --color-ink-2: #4b3f6b;
+  --color-ink-3: #8a7eb0;
+  --color-line: #e4ddf5;
+  --color-line-2: #d6cdee;
+  --color-accent-soft: #ede5ff;
+  --color-magenta: #da56d1;
+  --color-magenta-soft: #fbe9fa;
+  --color-yellow: #ffd83d;
+  --color-code-bg: #fbfaff;
+}
+
+/* Dark theme — the supplementary tokens above are static light values, so on
+   daisyUI's dark theme cards stay white, dividers blow out, and ink text goes
+   dark-on-dark. Remap them onto daisyUI's standard base/primary colors so the
+   landing + docs follow the active theme. Brand magenta/yellow stay bright.
+   Dark is OS-driven here (daisyUI `--prefersdark`), so cover both the
+   prefers-color-scheme media query and an explicit [data-theme="dark"]. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-paper: var(--color-base-200);
+    --color-ink: var(--color-base-content);
+    --color-ink-2: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+    --color-ink-3: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+    --color-line: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+    --color-line-2: color-mix(in oklab, var(--color-base-content) 24%, transparent);
+    --color-accent-soft: color-mix(in oklab, var(--color-primary) 20%, transparent);
+    --color-magenta-soft: color-mix(in oklab, var(--color-magenta) 18%, transparent);
+    --color-code-bg: color-mix(in oklab, var(--color-base-content) 5%, var(--color-base-100));
+  }
+}
+[data-theme="dark"] {
+  --color-paper: var(--color-base-200);
+  --color-ink: var(--color-base-content);
+  --color-ink-2: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+  --color-ink-3: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+  --color-line: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+  --color-line-2: color-mix(in oklab, var(--color-base-content) 24%, transparent);
+  --color-accent-soft: color-mix(in oklab, var(--color-primary) 20%, transparent);
+  --color-magenta-soft: color-mix(in oklab, var(--color-magenta) 18%, transparent);
+  --color-code-bg: color-mix(in oklab, var(--color-base-content) 5%, var(--color-base-100));
 }
 
 @keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @keyframes spin-slow-reverse {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(-360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
 }
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes pulse-ring {
-  0%, 100% { opacity: 0.15; transform: scale(1); }
-  50%       { opacity: 0.35; transform: scale(1.06); }
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1.06);
+  }
 }
 @keyframes hue-shift {
-  0%   { filter: hue-rotate(0deg); }
-  100% { filter: hue-rotate(360deg); }
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
 }
 @keyframes pulsar {
-  0%   { transform: scale(1);    opacity: 0.6; }
-  100% { transform: scale(18);   opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(18);
+    opacity: 0;
+  }
 }
 @keyframes packet-up {
-  0%   { transform: translate(-50%, calc(100cqh + 28px)); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translate(-50%, -28px); opacity: 0; }
+  0% {
+    transform: translate(-50%, calc(100cqh + 28px));
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -28px);
+    opacity: 0;
+  }
 }
 @keyframes packet-down {
-  0%   { transform: translate(-50%, -28px); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translate(-50%, calc(100cqh + 28px)); opacity: 0; }
+  0% {
+    transform: translate(-50%, -28px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, calc(100cqh + 28px));
+    opacity: 0;
+  }
 }
 @keyframes lane-pulse {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 1; }
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @layer utilities {
-  .animate-pulsar            { animation: pulsar 2.8s ease-out infinite; }
-  .animate-spin-slow         { animation: spin-slow 80s linear infinite; }
-  .animate-spin-slow-reverse { animation: spin-slow-reverse 60s linear infinite; }
-  .animate-pulse-ring        { animation: pulse-ring 3s ease-in-out infinite; }
-  .animate-hue-shift         { animation: hue-shift 6s linear infinite; }
-  .animate-fade-up-1         { animation: fade-up 0.6s ease both 0.05s; }
-  .animate-fade-up-2         { animation: fade-up 0.6s ease both 0.18s; }
-  .animate-fade-up-3         { animation: fade-up 0.6s ease both 0.30s; }
-  .animate-fade-up-4         { animation: fade-up 0.6s ease both 0.42s; }
-  .animate-fade-up-5         { animation: fade-up 0.6s ease both 0.54s; }
+  .animate-pulsar {
+    animation: pulsar 2.8s ease-out infinite;
+  }
+  .animate-spin-slow {
+    animation: spin-slow 80s linear infinite;
+  }
+  .animate-spin-slow-reverse {
+    animation: spin-slow-reverse 60s linear infinite;
+  }
+  .animate-pulse-ring {
+    animation: pulse-ring 3s ease-in-out infinite;
+  }
+  .animate-hue-shift {
+    animation: hue-shift 6s linear infinite;
+  }
+  .animate-fade-up-1 {
+    animation: fade-up 0.6s ease both 0.05s;
+  }
+  .animate-fade-up-2 {
+    animation: fade-up 0.6s ease both 0.18s;
+  }
+  .animate-fade-up-3 {
+    animation: fade-up 0.6s ease both 0.30s;
+  }
+  .animate-fade-up-4 {
+    animation: fade-up 0.6s ease both 0.42s;
+  }
+  .animate-fade-up-5 {
+    animation: fade-up 0.6s ease both 0.54s;
+  }
   .bg-dot-grid {
-    background-image: radial-gradient(circle, oklch(var(--bc) / 0.10) 1px, transparent 1px);
+    background-image: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-ink) 9%, transparent) 1px,
+      transparent 1px
+    );
+  }
+}
+
+/* PRD §8 — respect reduced-motion for entrance animations. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-fade-up"] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
 /* DaisyUI splits comma font stacks in theme block — override here */
 :root, [data-theme] {
-  --font-sans: 'Varela Round', 'M PLUS Rounded 1c', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
   body {
     font-family: var(--font-sans);
-    /* This ensures a smooth, rounded look across all browsers */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* JetBrains Mono ships no italic face and the PRD bans italics outright —
+     accent words use <em> for semantics but must render upright. */
+  em {
+    font-style: normal;
   }
 }
 
@@ -190,7 +336,7 @@ textarea,
 }
 
 .loading-indicator:before {
-  content: '';
+  content: "";
   background: #00000080;
   position: fixed;
   width: 100%;
@@ -201,7 +347,7 @@ textarea,
 }
 
 .loading-indicator:after {
-  content: ' ';
+  content: " ";
   position: fixed;
   top: 40%;
   left: 45%;
@@ -331,13 +477,21 @@ textarea,
 
 /* View Transitions — animate partial swaps wrapped by f-view-transition */
 @keyframes howl-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes howl-fade-out {
-  from { opacity: 1; }
-  to   { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 ::view-transition-group(root) {
@@ -361,4 +515,99 @@ textarea,
 
 ::view-transition-new(root) {
   animation: howl-fade-in 0.2s ease-out;
+}
+
+/* ─── Landing-page craft layer ──────────────────────────────── */
+
+/* Fine grain texture (data-uri fractal noise) — adds tactility over the flat lilac. */
+@layer utilities {
+  .bg-grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 140px 140px;
+  }
+}
+
+/* Scroll-reveal — elements lift + fade as they enter the viewport. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+[data-reveal].revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes howl-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+.howl-cursor {
+  animation: howl-blink 1.1s step-end infinite;
+}
+
+@keyframes howl-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+.howl-float {
+  animation: howl-float 6.5s ease-in-out infinite;
+}
+
+@keyframes howl-pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-success) 60%, transparent);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-success) 0%, transparent);
+  }
+}
+.howl-pulse-dot {
+  animation: howl-pulse-dot 2s ease-in-out infinite;
+}
+
+/* Inline engine cycler — slides up through React / Vue / your own.
+   Four items (last duplicates the first) so the loop is seamless. */
+@keyframes engine-slide {
+  0%, 28% {
+    transform: translateY(0);
+  }
+  33%, 61% {
+    transform: translateY(-25%);
+  }
+  66%, 94% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(-75%);
+  }
+}
+.engine-slide {
+  animation: engine-slide 6s cubic-bezier(0.76, 0, 0.24, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .howl-cursor,
+  .howl-float,
+  .howl-pulse-dot {
+    animation: none !important;
+  }
 }

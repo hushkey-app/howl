@@ -14,7 +14,7 @@ export default defineApi({
     200: z.object({ doc: z.any() }),
     404: z.object({ error: z.string() }),
   },
-  handler: async (ctx) => {
+  handler: (ctx) => {
     const { slug } = ctx.params;
     const doc = readDoc(slug);
     if (!doc) return { statusCode: 404, error: "Not found" };

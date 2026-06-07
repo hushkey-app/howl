@@ -9,37 +9,26 @@
   },
   "exports": "./server/main.ts",
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.6.0",
-    "@std/path": "jsr:@std/path@^1.0.0",
-    "preact": "npm:preact@^10.25.0",
-    "preact/compat": "npm:preact@^10.25.0/compat",
-    "preact/hooks": "npm:preact@^10.25.0/hooks",
-    "preact/jsx-runtime": "npm:preact@^10.25.0/jsx-runtime",
-    "preact/jsx-dev-runtime": "npm:preact@^10.25.0/jsx-dev-runtime",
-    "tailwindcss": "npm:tailwindcss@4.1.18",
     "zod": "npm:zod@4.3.6",
-    "daisyui": "npm:daisyui@5.5.18",
-    "@tailwindcss/typography": "npm:@tailwindcss/typography@^0.5.19"
+    "@tailwindcss/typography": "npm:@tailwindcss/typography@^0.5.19",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.10.0",
+    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.10.0/dev",
+    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.10.0/api",
+    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.0.1",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@howl/config": "./howl.config.ts",
+    "react": "npm:react@^18.3.1",
+    "react/jsx-runtime": "npm:react@^18.3.1/jsx-runtime",
+    "react-dom": "npm:react-dom@^18.3.1",
+    "react-dom/server": "npm:react-dom@^18.3.1/server",
+    "react-dom/client": "npm:react-dom@^18.3.1/client",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "daisyui": "npm:daisyui@5.5.18"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "preact",
-    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"],
-    "jsxPrecompileSkipElements": [
-      "a",
-      "img",
-      "source",
-      "body",
-      "html",
-      "head",
-      "title",
-      "meta",
-      "script",
-      "link",
-      "style",
-      "base",
-      "noscript",
-      "template"
-    ]
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "npm:@types/react@^18.3.0",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
   }
 }

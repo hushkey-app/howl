@@ -1,4 +1,5 @@
 import * as path from "@std/path";
+import type { RenderEngine } from "./engine.ts";
 
 /**
  * User-supplied configuration accepted by the {@linkcode Howl} constructor.
@@ -9,6 +10,12 @@ export interface HowlConfig {
   basePath?: string;
   /** Run mode — toggles development-only behaviour (HMR, error overlay, etc.). */
   mode?: "development" | "production";
+  /**
+   * Pluggable render engines keyed by name (e.g. `{ vue: vueEngine() }`).
+   * Routes whose file extension maps to a registered engine are rendered by it
+   * instead of Howl's built-in Preact path.
+   */
+  engines?: Record<string, RenderEngine>;
 }
 
 /**
@@ -21,6 +28,8 @@ export interface ResolvedHowlConfig {
   basePath: string;
   /** Resolved run mode. */
   mode: "development" | "production";
+  /** Registered render engines, keyed by name. */
+  engines: Record<string, RenderEngine>;
 }
 
 /**

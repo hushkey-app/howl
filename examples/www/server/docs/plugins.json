@@ -7,74 +7,145 @@
       "id": "overview",
       "heading": "Overview",
       "blocks": [
-        { "type": "p", "text": "@hushkey/howl/plugins ships two official build-time plugins. tailwindPlugin wires Tailwind v4 into the CSS pipeline. httpClientGenPlugin crawls your *.api.ts files and emits a typed fetch client. Both plug into HowlBuilder and run inside the existing esbuild pipeline — no extra processes, no extra config files." },
-        { "type": "code", "lang": "ts", "text": "import {\n  tailwindPlugin,\n  tailwindConfigBase,\n  httpClientGenPlugin,\n  type BuildHttpClientConfig,\n  type TailwindPluginOptions,\n} from \"@hushkey/howl/plugins\";" }
+        {
+          "type": "p",
+          "text": "@hushkey/howl/plugins ships two official build-time plugins. tailwindPlugin wires Tailwind v4 into the CSS pipeline. httpClientGenPlugin crawls your *.api.ts files and emits a typed fetch client. Both plug into HowlBuilder and run inside the existing esbuild pipeline — no extra processes, no extra config files."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import {\n  tailwindPlugin,\n  tailwindConfigBase,\n  httpClientGenPlugin,\n  type BuildHttpClientConfig,\n  type TailwindPluginOptions,\n} from \"@hushkey/howl/plugins\";"
+        }
       ]
     },
     {
       "id": "tailwind-overview",
       "heading": "Tailwind v4",
       "blocks": [
-        { "type": "p", "text": "tailwindPlugin runs every .css file through PostCSS + @tailwindcss/postcss at build time. It registers itself as a static-file transform on the builder, so no CSS has to be authored differently — write Tailwind classes in your .tsx files and the plugin compiles utilities into your stylesheet on each build. Optimization (minify + tree-shake) is enabled automatically when the builder is in production mode." },
-        { "type": "tip", "text": "Tailwind v4 has no JavaScript config requirement — utilities work zero-config. The tailwind.config.ts file is only needed if you want to extend the theme, change content globs, or add plugins like daisyUI." }
+        {
+          "type": "p",
+          "text": "tailwindPlugin runs every .css file through PostCSS + @tailwindcss/postcss at build time. It registers itself as a static-file transform on the builder, so no CSS has to be authored differently — write Tailwind classes in your .tsx files and the plugin compiles utilities into your stylesheet on each build. Optimization (minify + tree-shake) is enabled automatically when the builder is in production mode."
+        },
+        {
+          "type": "tip",
+          "text": "Tailwind v4 has no JavaScript config requirement — utilities work zero-config. The tailwind.config.ts file is only needed if you want to extend the theme, change content globs, or add plugins like daisyUI."
+        }
       ]
     },
     {
       "id": "tailwind-wireup",
       "heading": "Wire Tailwind into dev.ts",
       "blocks": [
-        { "type": "p", "text": "Pass the builder instance to tailwindPlugin after constructing HowlBuilder. The plugin attaches to the default builder's static-file pipeline." },
-        { "type": "code", "lang": "ts", "text": "import { HowlBuilder } from \"@hushkey/howl/dev\";\nimport { tailwindPlugin } from \"@hushkey/howl/plugins\";\nimport { app } from \"./server/main.ts\";\n\nconst builder = new HowlBuilder(app, {\n  root: import.meta.dirname,\n  importApp: () => app,\n  serverEntry: \"./server/main.ts\",\n  clientEntry: \"./client/pages/_app.ts\",\n});\n\ntailwindPlugin(builder.getBuilder(\"default\")!, {\n  // Optional: skip vendor or legacy CSS\n  exclude: [\"/vendor/**\", /\\.legacy\\.css$/],\n});\n\nif (Deno.args.includes(\"build\")) await builder.build();\nelse await builder.listen();" }
+        {
+          "type": "p",
+          "text": "Pass the builder instance to tailwindPlugin after constructing HowlBuilder. The plugin attaches to the default builder's static-file pipeline."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { HowlBuilder } from \"@hushkey/howl/dev\";\nimport { tailwindPlugin } from \"@hushkey/howl/plugins\";\nimport { app } from \"./server/main.ts\";\n\nconst builder = new HowlBuilder(app, {\n  root: import.meta.dirname,\n  importApp: () => app,\n  serverEntry: \"./server/main.ts\",\n  clientEntry: \"./client/pages/_app.ts\",\n});\n\ntailwindPlugin(builder.getBuilder(\"default\")!, {\n  // Optional: skip vendor or legacy CSS\n  exclude: [\"/vendor/**\", /\\.legacy\\.css$/],\n});\n\nif (Deno.args.includes(\"build\")) await builder.build();\nelse await builder.listen();"
+        }
       ]
     },
     {
       "id": "tailwind-config",
       "heading": "Extend the base config",
       "blocks": [
-        { "type": "p", "text": "tailwindConfigBase is a re-exported Config literal with sensible defaults: content globs covering pages/, islands/, components/, layouts/; data-theme dark mode; and a bounce-once animation. Spread it in your project's tailwind.config.ts and override what you need." },
-        { "type": "code", "lang": "ts", "text": "// tailwind.config.ts\nimport { tailwindConfigBase } from \"@hushkey/howl/plugins\";\nimport daisyui from \"daisyui\";\nimport type { Config } from \"tailwindcss\";\n\nexport default {\n  ...tailwindConfigBase,\n  content: [\n    ...tailwindConfigBase.content!,\n    \"./client/components/**/*.{ts,tsx}\",\n  ],\n  theme: {\n    extend: {\n      ...tailwindConfigBase.theme?.extend,\n      colors: { brand: \"#5B6CFF\" },\n    },\n  },\n  plugins: [daisyui],\n} satisfies Config;" },
-        { "type": "tip", "text": "TailwindPluginOptions also accepts base (override the injected base styles, or set null to skip) and optimize (boolean or { minify } — defaults to true in production)." }
+        {
+          "type": "p",
+          "text": "tailwindConfigBase is a re-exported Config literal with sensible defaults: content globs covering pages/, islands/, components/, layouts/; data-theme dark mode; and a bounce-once animation. Spread it in your project's tailwind.config.ts and override what you need."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// tailwind.config.ts\nimport { tailwindConfigBase } from \"@hushkey/howl/plugins\";\nimport daisyui from \"daisyui\";\nimport type { Config } from \"tailwindcss\";\n\nexport default {\n  ...tailwindConfigBase,\n  content: [\n    ...tailwindConfigBase.content!,\n    \"./client/components/**/*.{ts,tsx}\",\n  ],\n  theme: {\n    extend: {\n      ...tailwindConfigBase.theme?.extend,\n      colors: { brand: \"#5B6CFF\" },\n    },\n  },\n  plugins: [daisyui],\n} satisfies Config;"
+        },
+        {
+          "type": "tip",
+          "text": "TailwindPluginOptions also accepts base (override the injected base styles, or set null to skip) and optimize (boolean or { minify } — defaults to true in production)."
+        }
       ]
     },
     {
       "id": "tailwind-css",
       "heading": "Your stylesheet",
       "blocks": [
-        { "type": "p", "text": "In your entry CSS — usually static/style.css or client/style.css — import Tailwind v4 with the new @import syntax. The plugin handles the rest at build time." },
-        { "type": "code", "lang": "css", "text": "@import \"tailwindcss\";\n\n/* Optional: daisyUI v5 themes, custom layers, etc. */\n@plugin \"daisyui\" {\n  themes: light --default, dark --prefersdark;\n}\n\n@layer base {\n  html { font-family: ui-sans-serif, system-ui, sans-serif; }\n}" }
+        {
+          "type": "p",
+          "text": "In your entry CSS — usually static/style.css or client/style.css — import Tailwind v4 with the new @import syntax. The plugin handles the rest at build time."
+        },
+        {
+          "type": "code",
+          "lang": "css",
+          "text": "@import \"tailwindcss\";\n\n/* Optional: daisyUI v5 themes, custom layers, etc. */\n@plugin \"daisyui\" {\n  themes: light --default, dark --prefersdark;\n}\n\n@layer base {\n  html { font-family: ui-sans-serif, system-ui, sans-serif; }\n}"
+        }
       ]
     },
     {
       "id": "http-client-overview",
       "heading": "Typed HTTP client",
       "blocks": [
-        { "type": "p", "text": "httpClientGenPlugin crawls every *.api.ts file under apiDir, extracts the Zod params, requestBody, and 2xx response schemas, and emits a single TypeScript module that exports a tree-shaped http object. Each route becomes a $get/$post/... helper with full IntelliSense — call it from islands, the server, or a separate consumer package without hand-writing fetch wrappers." },
-        { "type": "tip", "text": "The generator runs on every build start. Schemas referenced via imported consts are inlined into the output, so the generated client has no runtime dependency on your server code." }
+        {
+          "type": "p",
+          "text": "httpClientGenPlugin crawls every *.api.ts file under apiDir, extracts the Zod params, requestBody, and 2xx response schemas, and emits a single TypeScript module that exports a tree-shaped http object. Each route becomes a $get/$post/... helper with full IntelliSense — call it from islands, the server, or a separate consumer package without hand-writing fetch wrappers."
+        },
+        {
+          "type": "tip",
+          "text": "The generator runs on every build start. Schemas referenced via imported consts are inlined into the output, so the generated client has no runtime dependency on your server code."
+        }
       ]
     },
     {
       "id": "http-client-wireup",
       "heading": "Wire the client generator",
       "blocks": [
-        { "type": "p", "text": "Pass httpClientGenPlugin via the builder's plugins array. It hooks esbuild's onStart, regenerating the client before each bundle." },
-        { "type": "code", "lang": "ts", "text": "import { HowlBuilder } from \"@hushkey/howl/dev\";\nimport { httpClientGenPlugin, tailwindPlugin } from \"@hushkey/howl/plugins\";\nimport { app } from \"./server/main.ts\";\n\nconst builder = new HowlBuilder(app, {\n  root: import.meta.dirname,\n  importApp: () => app,\n  serverEntry: \"./server/main.ts\",\n  plugins: [\n    httpClientGenPlugin({\n      apiDir: \"./server/apis\",\n      outputFile: \"./packages/http-client/mod.ts\",\n      // Optional cross-package schema resolution:\n      aliases: { \"@packages/\": \"../../packages/\" },\n    }),\n  ],\n});\n\ntailwindPlugin(builder.getBuilder(\"default\")!);" }
+        {
+          "type": "p",
+          "text": "Pass httpClientGenPlugin via the builder's plugins array. It regenerates the client at the start of every build. This holds even for backend-only projects with no islands and no pages — Howl skips the esbuild bundle entirely in that case but still fires the plugin's build-start hook, so the client is generated for pure-API apps too."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { HowlBuilder } from \"@hushkey/howl/dev\";\nimport { httpClientGenPlugin, tailwindPlugin } from \"@hushkey/howl/plugins\";\nimport { app } from \"./server/main.ts\";\n\nconst builder = new HowlBuilder(app, {\n  root: import.meta.dirname,\n  importApp: () => app,\n  serverEntry: \"./server/main.ts\",\n  plugins: [\n    httpClientGenPlugin({\n      apiDir: \"./server/apis\",\n      outputFile: \"./packages/http-client/mod.ts\",\n      // Optional cross-package schema resolution:\n      aliases: { \"@packages/\": \"../../packages/\" },\n    }),\n  ],\n});\n\ntailwindPlugin(builder.getBuilder(\"default\")!);"
+        },
+        {
+          "type": "tip",
+          "text": "The client is rewritten to outputFile on every build. In dev (deno run --watch), exclude that path from the file watcher or the rewrite retriggers the watcher and restarts the process in a loop — e.g. --watch-exclude=generated/."
+        }
       ]
     },
     {
       "id": "http-client-config",
       "heading": "BuildHttpClientConfig",
       "blocks": [
-        { "type": "code", "lang": "ts", "text": "interface BuildHttpClientConfig {\n  /** Directory containing *.api.ts files. Absolute or relative to cwd. */\n  apiDir: string;\n  /** Output path for the generated client. Defaults to packages/http-client/mod.ts. */\n  outputFile?: string;\n  /** Import alias map, resolved relative to cwd, for cross-package schema refs. */\n  aliases?: Record<string, string>;\n}" },
-        { "type": "p", "text": "aliases lets the generator follow imported schema identifiers across package boundaries. Example: { \"@packages/\": \"../../packages/\" } resolves import { UserSchema } from \"@packages/shared/schemas.ts\" while extracting requestBody dependencies." }
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "interface BuildHttpClientConfig {\n  /** Directory containing *.api.ts files. Absolute or relative to cwd. */\n  apiDir: string;\n  /** Output path for the generated client. Defaults to packages/http-client/mod.ts. */\n  outputFile?: string;\n  /** Import alias map, resolved relative to cwd, for cross-package schema refs. */\n  aliases?: Record<string, string>;\n}"
+        },
+        {
+          "type": "p",
+          "text": "aliases lets the generator follow imported schema identifiers across package boundaries. Example: { \"@packages/\": \"../../packages/\" } resolves import { UserSchema } from \"@packages/shared/schemas.ts\" while extracting requestBody dependencies."
+        }
       ]
     },
     {
       "id": "http-client-usage",
       "heading": "Calling the client",
       "blocks": [
-        { "type": "p", "text": "The generated module exports an http object whose shape mirrors your /api tree. Path params, query, and body are all typed against the source defineApi() schemas. Pass origin: 'server' when calling from server-side code so DENO_API_URL is prefixed automatically." },
-        { "type": "code", "lang": "ts", "text": "import { http } from \"./packages/http-client/mod.ts\";\n\n// GET /api/public/ping\nconst pong = await http.api.public.ping.$get();\n\n// POST /api/users/[id]/avatar with typed params + body\nawait http.api.users[\":id\"].avatar.$post({\n  params: { id: \"u_123\" },\n  body: { url: \"https://...\" },\n  origin: \"server\",\n});" },
-        { "type": "tip", "text": "The plugin also emits a validations object containing the raw Zod schemas for each route's requestBody, so consumers can validate locally before sending — useful for form libraries." }
+        {
+          "type": "p",
+          "text": "The generated module exports an http object whose shape mirrors your /api tree. Path params, query, and body are all typed against the source defineApi() schemas. Pass origin: 'server' when calling from server-side code so DENO_API_URL is prefixed automatically."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { http } from \"./packages/http-client/mod.ts\";\n\n// GET /api/public/ping\nconst pong = await http.api.public.ping.$get();\n\n// POST /api/users/[id]/avatar with typed params + body\nawait http.api.users[\":id\"].avatar.$post({\n  params: { id: \"u_123\" },\n  body: { url: \"https://...\" },\n  origin: \"server\",\n});"
+        },
+        {
+          "type": "tip",
+          "text": "The plugin also emits a validations object containing the raw Zod schemas for each route's requestBody, so consumers can validate locally before sending — useful for form libraries."
+        }
       ]
     }
   ]

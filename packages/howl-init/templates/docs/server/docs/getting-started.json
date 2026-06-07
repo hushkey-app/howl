@@ -25,11 +25,15 @@
       "blocks": [
         { "type": "p", "text": "Copy the example env file and edit values to match your setup." },
         { "type": "code", "lang": "sh", "text": "cp .env.example .env" },
-        { "type": "table", "headers": ["Variable", "Default", "Purpose"], "rows": [
-          ["APP_NAME", "Docs", "Title shown in the brand bar and HTML <title>"],
-          ["DENO_PORT", "8000", "Port the dev server binds to"],
-          ["DENO_HOSTNAME", "127.0.0.1", "Hostname the dev server binds to"]
-        ] }
+        {
+          "type": "table",
+          "headers": ["Variable", "Default", "Purpose"],
+          "rows": [
+            ["APP_NAME", "Docs", "Title shown in the brand bar and HTML <title>"],
+            ["DENO_PORT", "8000", "Port the dev server binds to"],
+            ["DENO_HOSTNAME", "127.0.0.1", "Hostname the dev server binds to"]
+          ]
+        }
       ]
     },
     {
@@ -37,37 +41,58 @@
       "heading": "Run the dev server",
       "blocks": [
         { "type": "code", "lang": "sh", "text": "deno task dev" },
-        { "type": "p", "text": "Open http://localhost:8000. Edits to client/ and server/ hot-reload." }
+        {
+          "type": "p",
+          "text": "Open http://localhost:8000. Edits to client/ and server/ hot-reload."
+        }
       ]
     },
     {
       "id": "add-docs",
       "heading": "Add a new doc page",
       "blocks": [
-        { "type": "p", "text": "Each doc is a JSON file under server/docs/. Three steps to add one:" },
-        { "type": "list", "items": [
-          "Drop a new JSON file: server/docs/my-topic.json",
-          "Append a manifest entry to server/docs/manifest.json with a unique slug + order",
-          "Register the import in server/docs/reader.ts (see the commented examples there)"
-        ] },
-        { "type": "tip", "text": "The slug in the JSON file MUST match the manifest slug and the registry key. Slugs are URL-safe a-z0-9-." }
+        {
+          "type": "p",
+          "text": "Each doc is a JSON file under server/docs/. Three steps to add one:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Drop a new JSON file: server/docs/my-topic.json",
+            "Append a manifest entry to server/docs/manifest.json with a unique slug + order",
+            "Register the import in server/docs/reader.ts (see the commented examples there)"
+          ]
+        },
+        {
+          "type": "tip",
+          "text": "The slug in the JSON file MUST match the manifest slug and the registry key. Slugs are URL-safe a-z0-9-."
+        }
       ]
     },
     {
       "id": "block-types",
       "heading": "Block types in JSON",
       "blocks": [
-        { "type": "p", "text": "Each doc has sections, and each section has blocks. Available block types:" },
-        { "type": "list", "items": [
-          "{ type: 'p', text }     — paragraph",
-          "{ type: 'h3', text }    — sub-heading inside a section",
-          "{ type: 'code', lang, text, filename? } — fenced code block, syntax-highlighted for ts/tsx/js/jsx",
-          "{ type: 'tip', text }   — green callout",
-          "{ type: 'warning', text } — yellow callout",
-          "{ type: 'list', items: string[] } — bulleted list",
-          "{ type: 'table', headers: string[], rows: string[][] } — table"
-        ] },
-        { "type": "p", "text": "See client/pages/docs/[slug].tsx for the renderer if you want to add a new block type." }
+        {
+          "type": "p",
+          "text": "Each doc has sections, and each section has blocks. Available block types:"
+        },
+        {
+          "type": "list",
+          "items": [
+            "{ type: 'p', text }     — paragraph",
+            "{ type: 'h3', text }    — sub-heading inside a section",
+            "{ type: 'code', lang, text, filename? } — fenced code block, syntax-highlighted for ts/tsx/js/jsx",
+            "{ type: 'tip', text }   — green callout",
+            "{ type: 'warning', text } — yellow callout",
+            "{ type: 'list', items: string[] } — bulleted list",
+            "{ type: 'table', headers: string[], rows: string[][] } — table"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "See client/pages/docs/[slug].tsx for the renderer if you want to add a new block type."
+        }
       ]
     },
     {

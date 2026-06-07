@@ -114,6 +114,15 @@ const defaultOptionsHandler = (methods: string[]): () => Promise<Response> => {
     );
 };
 
+/**
+ * Paths that browsers/tooling probe unprompted (e.g. Chrome DevTools' automatic
+ * workspace discovery). Their 404s are noise — answered in dev by
+ * `automaticWorkspaceFolders`, but absent in prod — so we skip logging them.
+ */
+const QUIET_404_PATHS = new Set<string>([
+  "/.well-known/appspecific/com.chrome.devtools.json",
+]);
+
 // deno-lint-ignore require-await
 const DEFAULT_ERROR_HANDLER = async <State>(ctx: Context<State>) => {
   const { error } = ctx;
@@ -122,7 +131,10 @@ const DEFAULT_ERROR_HANDLER = async <State>(ctx: Context<State>) => {
     if (error.status >= 500) {
       // deno-lint-ignore no-console
       console.error(`[${error.status}] ${where}`, error);
-    } else if (error.status >= 400) {
+    } else if (
+      error.status >= 400 &&
+      !(error.status === 404 && QUIET_404_PATHS.has(ctx.url.pathname))
+    ) {
       // deno-lint-ignore no-console
       console.warn(`[${error.status}] ${where}`);
     }
@@ -348,6 +360,7 @@ export class Howl<State = any> {
       root: ".",
       basePath: options.basePath ?? "",
       mode: options.mode ?? "production",
+      engines: options.engines ?? {},
     };
 
     if (options.logger) {
