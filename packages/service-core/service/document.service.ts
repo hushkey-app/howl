@@ -5,7 +5,7 @@ import { InMemoryLRUCache } from "../cache/in-memory-cache.adapter.ts";
 import type { TelemetryAdapter, TelemetryOptions } from "../telemetry/telemetry.interface.ts";
 import type { SchemaError, SchemaLike } from "../schema/schema.interface.ts";
 import type { Filter } from "../filter/filter.ts";
-import type { StorageBackend } from "../backend/backend.interface.ts";
+import type { SchemaAdmin, StorageBackend } from "../backend/backend.interface.ts";
 
 /**
  * Minimal structural constraint on stored document shapes: every document has
@@ -147,6 +147,30 @@ export class DocumentService<T extends DocumentShape> {
     this.telemetryAdapter = options.otel?.adapter ?? null;
     this.telemetryEnabled = options.otel?.enabled ??
       (this.telemetryAdapter !== null);
+  }
+
+  /** The collection name this service operates on. */
+  get collection(): string {
+    return this.options.collectionName;
+  }
+
+  /** The storage backend's kind tag (`mongo`, `sql`, `sqlite`, …). */
+  get backendKind(): string {
+    return this.backend.cachePrefix;
+  }
+
+  /**
+   * The backend's {@link SchemaAdmin} capability (promoted-column
+   * introspection + orphan cleanup), or `null` when the backend does not
+   * implement it (e.g. a document store with no column concept). Feature-
+   * detected structurally so the core stays decoupled from any backend.
+   */
+  get schemaAdmin(): SchemaAdmin | null {
+    const candidate = this.backend as unknown as Partial<SchemaAdmin>;
+    return typeof candidate.listColumns === "function" &&
+        typeof candidate.dropColumn === "function"
+      ? (candidate as SchemaAdmin)
+      : null;
   }
 
   // ============================================================

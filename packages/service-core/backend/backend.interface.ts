@@ -92,3 +92,63 @@ export interface StorageBackend<T> {
   /** Hard-delete one document by id. Returns the deleted document, or null. */
   deleteOne(id: string, options?: BackendOpOptions): Promise<T | null>;
 }
+
+/**
+ * One promoted column (or index) physically present in the backend's storage,
+ * as reported by {@link SchemaAdmin.listColumns}.
+ */
+export interface SchemaColumn {
+  /** The physical column (or index) name. */
+  column: string;
+  /** The storage type, when the backend has one (`text`, `bigint`, …). */
+  type: string;
+  /**
+   * Whether this column is still declared in the live backend config. `false`
+   * means it is an **orphan** — physically present from an earlier `promote`
+   * entry that has since been removed, no longer routed to by the filter
+   * compiler, but still maintained (and indexed) on every write. Orphans are
+   * the only columns {@link SchemaAdmin.dropColumn} will remove.
+   */
+  declared: boolean;
+}
+
+/**
+ * Optional backend capability for **schema introspection and orphan cleanup**.
+ *
+ * The promoted-column DDL backends apply is purely additive (`ADD COLUMN IF
+ * NOT EXISTS`): removing a path from `promote` stops routing queries to its
+ * column but never drops the physical column or its index, leaving an orphan
+ * that costs write/index maintenance for no read benefit. This capability lets
+ * an operator surface those orphans and drop them — the one schema operation
+ * that lives below the service contract (no validation, no version bump).
+ *
+ * Backends advertise support by implementing both methods; `DocumentService`
+ * feature-detects via its `schemaAdmin` getter (returns `null` when absent, as
+ * for document stores with no column concept). Authoring new promoted columns
+ * stays in code — the declarative config is the source of truth — so this
+ * surface is intentionally introspect-and-cleanup only.
+ */
+export interface SchemaAdmin {
+  /**
+   * List the promoted columns physically present in storage, each flagged
+   * `declared` (in the live config) or not (an orphan).
+   */
+  listColumns(): Promise<SchemaColumn[]>;
+
+  /**
+   * Drop an **orphan** promoted column and its index. Throws when the column
+   * is still declared in the live config (drop it from `promote` first) or is
+   * absent.
+   *
+   * By default document data is untouched — only the generated column/index go,
+   * the JSON `doc` keeps the key. Pass `purgeData` to also remove the matching
+   * top-level JSON key from every document (used by the studio's rename/migrate
+   * flow, which has already copied the data to its new field). `purgeData`
+   * removes the **top-level** key equal to the column name; nested-derived
+   * columns keep their JSON and need manual cleanup.
+   *
+   * @param column The physical column name to drop.
+   * @param options `purgeData` to also strip the top-level JSON key.
+   */
+  dropColumn(column: string, options?: { purgeData?: boolean }): Promise<void>;
+}

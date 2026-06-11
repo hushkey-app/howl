@@ -10,6 +10,7 @@ export class BlogsService extends PgService<Blog> {
       // Promoted to typed generated columns → real B-tree indexes for the
       // hot predicates; everything else stays JSONB.
       promote: [
+        { path: "is_tech", type: "boolean" },
         { path: "published", type: "boolean" },
         { path: "likes", type: "numeric" },
       ],

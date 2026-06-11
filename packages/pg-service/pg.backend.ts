@@ -1,12 +1,15 @@
 // deno-lint-ignore-file no-explicit-any
-import type {
-  BackendOpOptions,
-  DocumentShape,
-  Filter,
-  FindManyOptions,
-  IndexSpec,
-  StorageBackend,
-  UpdatePathsOptions,
+import {
+  type BackendOpOptions,
+  type DocumentShape,
+  type Filter,
+  type FindManyOptions,
+  type IndexSpec,
+  type SchemaAdmin,
+  type SchemaColumn,
+  type StorageBackend,
+  type UpdatePathsOptions,
+  uuidv7,
 } from "@hushkey/service-core";
 import {
   assertIdent,
@@ -90,7 +93,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
  *
  * @typeParam T The public document shape.
  */
-export class PgBackend<T extends DocumentShape> implements StorageBackend<T> {
+export class PgBackend<T extends DocumentShape> implements StorageBackend<T>, SchemaAdmin {
   /** Cache-key namespace for SQL-backed services. */
   readonly cachePrefix = "sql";
 
@@ -117,9 +120,9 @@ export class PgBackend<T extends DocumentShape> implements StorageBackend<T> {
     this.#ready.catch(() => {});
   }
 
-  /** Generate a new document id (a UUID). */
+  /** Generate a new document id — UUID v7, time-ordered for B-tree locality. */
   generateId(): string {
-    return crypto.randomUUID();
+    return uuidv7();
   }
 
   /**
@@ -383,5 +386,61 @@ export class PgBackend<T extends DocumentShape> implements StorageBackend<T> {
       [id],
     );
     return rows.length > 0 ? this.#toDoc(rows[0]) : null;
+  }
+
+  // ============================================================
+  // SchemaAdmin — introspection + orphan cleanup
+  // ============================================================
+
+  #declaredColumns(): Set<string> {
+    return new Set([...this.#promoted.values()].map((p) => p.column));
+  }
+
+  /**
+   * List the promoted generated columns physically present in the table, each
+   * flagged `declared` (in the live config) or an orphan (left behind by a
+   * removed `promote` entry). Reads `information_schema`; `id`/`doc` are plain
+   * columns and never appear.
+   */
+  async listColumns(): Promise<SchemaColumn[]> {
+    await this.#ready;
+    const declared = this.#declaredColumns();
+    const { rows } = await this.client.query(
+      `SELECT column_name, data_type FROM information_schema.columns
+       WHERE table_name = $1 AND is_generated = 'ALWAYS'
+       ORDER BY ordinal_position`,
+      [this.#table],
+    );
+    return rows.map((r) => ({
+      column: String(r.column_name),
+      type: String(r.data_type),
+      declared: declared.has(String(r.column_name)),
+    }));
+  }
+
+  /**
+   * Drop an orphan promoted column. Postgres cascades the dependent index when
+   * the column is dropped, so a single `DROP COLUMN` suffices. Refuses to drop
+   * a still-declared column. With `purgeData`, also strips the matching
+   * top-level JSON key from every document (`doc - key`).
+   */
+  async dropColumn(column: string, options: { purgeData?: boolean } = {}): Promise<void> {
+    await this.#ready;
+    const name = assertIdent(column);
+    if (this.#declaredColumns().has(name)) {
+      throw new Error(
+        `[pg-service] "${name}" is still declared in the live config — remove it from ` +
+          `promote/uniqueFields before dropping the column`,
+      );
+    }
+    await this.client.query(
+      `ALTER TABLE "${this.#table}" DROP COLUMN IF EXISTS "${name}"`,
+    );
+    if (options.purgeData) {
+      await this.client.query(
+        `UPDATE "${this.#table}" SET doc = doc - $1 WHERE doc ? $1`,
+        [name],
+      );
+    }
   }
 }

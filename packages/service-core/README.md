@@ -12,6 +12,13 @@ The core owns everything that is not storage-specific:
   dot-paths. Mongo passes it through; SQL backends compile it.
 - **`StorageBackend`** (`./backend`) — the contract backends implement:
   `insertOne / findOne / findMany / count / updatePaths / deleteOne` + `generateId` + `cachePrefix`.
+  Plus an **optional `SchemaAdmin` capability** (`listColumns` / `dropColumn`) for promoted-column
+  introspection and orphan cleanup, feature-detected via `service.schemaAdmin` (`null` when the
+  backend has no column concept). Drops are refused for columns still declared in the live config —
+  the additive promote config stays the source of truth; this surface only cleans up the orphans it
+  leaves behind. `dropColumn(col, { purgeData: true })` also strips the matching top-level JSON key
+  (used by the studio's rename/migrate flow once the data has been copied to its new field).
+  Consumed by [`@hushkey/studio`](../studio/README.md)'s schema view.
 - **`SchemaLike`** (`./schema`) — structural validator interface; zod object schemas satisfy it
   without a hard zod pin in public types.
 - **`Meta` + `metaSchema` + `documentSchema`** (`./meta`) — the envelope, aligned with the deployed

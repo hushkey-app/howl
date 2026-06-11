@@ -26,7 +26,13 @@ CREATE TABLE "users" (
 - `promote: ["organisation_id", { path: "score", type: "numeric" }]` → real B-tree-indexed columns
   with real planner statistics. `uniqueFields` → unique generated columns.
 - **No migration framework.** The table shape is fixed; only the `promote` list changes DDL, and
-  `ensureTable()` applies it idempotently at construction (`ADD COLUMN IF NOT EXISTS …`).
+  `ensureTable()` applies it idempotently at construction (`ADD COLUMN IF NOT EXISTS …`). Because
+  this is additive-only, **removing** a path from `promote` leaves the column + index physically
+  present (an _orphan_ — maintained on every write, no longer queried). The backend implements the
+  optional `SchemaAdmin` capability (`listColumns` / `dropColumn`) to introspect and drop those
+  orphans — surfaced in [`@hushkey/studio`](../studio/README.md)'s schema view. A single
+  `DROP COLUMN` suffices (Postgres cascades the index); declared columns are refused, and document
+  data is never touched (it lives in `doc`).
 - The filter compiler routes promoted predicates to columns and everything else to JSONB operators,
   preserving Mongo null semantics (null matches JSON null _and_ absent keys).
 - `updatePaths` is a single atomic `UPDATE` via a recursive `howl_jsonb_deep_set` (plain `jsonb_set`

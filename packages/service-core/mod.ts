@@ -30,6 +30,8 @@ export type { Condition, Filter, FilterOperators } from "./filter/filter.ts";
 export type {
   BackendOpOptions,
   FindManyOptions,
+  SchemaAdmin,
+  SchemaColumn,
   StorageBackend,
   UpdatePathsOptions,
 } from "./backend/backend.interface.ts";
@@ -39,6 +41,7 @@ export type {
   SchemaIssue,
   SchemaLike,
 } from "./schema/schema.interface.ts";
+export { uuidv7 } from "./ids/uuid.ts";
 export type { Meta } from "./meta/meta.schema.ts";
 export { documentSchema, metaSchema } from "./meta/meta.schema.ts";
 export type { CacheAdapter, CacheOptions } from "./cache/cache.interface.ts";

@@ -15,6 +15,7 @@
     "@hushkey/mongo-service": "jsr:@hushkey/mongo-service@^0.1.0",
     "@hushkey/pg-service": "jsr:@hushkey/pg-service@^0.1.0",
     "@hushkey/sqlite-service": "jsr:@hushkey/sqlite-service@^0.1.0",
+    "@hushkey/studio": "jsr:@hushkey/studio@^0.1.0",
     "zod": "npm:zod@4.3.6",
     "mongodb": "npm:mongodb@^6.0.0",
     "pg": "npm:pg@^8.13.0",

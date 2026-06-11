@@ -7,6 +7,7 @@ export const blogsSchema = documentSchema({
   body: z.string().default(""),
   published: z.boolean().default(false),
   likes: z.number().int().default(0),
+  is_tech: z.boolean().default(true),
   // Cross-database reference by string id (users live in SQLite). The service
   // layer never joins — integrity yes, navigation no.
   author_id: z.string(),

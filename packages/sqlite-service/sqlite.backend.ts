@@ -1,12 +1,15 @@
 // deno-lint-ignore-file no-explicit-any
-import type {
-  BackendOpOptions,
-  DocumentShape,
-  Filter,
-  FindManyOptions,
-  IndexSpec,
-  StorageBackend,
-  UpdatePathsOptions,
+import {
+  type BackendOpOptions,
+  type DocumentShape,
+  type Filter,
+  type FindManyOptions,
+  type IndexSpec,
+  type SchemaAdmin,
+  type SchemaColumn,
+  type StorageBackend,
+  type UpdatePathsOptions,
+  uuidv7,
 } from "@hushkey/service-core";
 import {
   assertIdent,
@@ -88,7 +91,7 @@ const AFFINITY: Record<PromotedType, string> = {
  *
  * @typeParam T The public document shape.
  */
-export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T> {
+export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T>, SchemaAdmin {
   /** Cache-key namespace for SQLite-backed services. */
   readonly cachePrefix = "sqlite";
 
@@ -111,9 +114,9 @@ export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T>
     this.#ensureTable();
   }
 
-  /** Generate a new document id (a UUID). */
+  /** Generate a new document id — UUID v7, time-ordered for B-tree locality. */
   generateId(): string {
-    return crypto.randomUUID();
+    return uuidv7();
   }
 
   /**
@@ -410,5 +413,64 @@ export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T>
       `DELETE FROM "${this.#table}" WHERE id = ? RETURNING id, doc`,
     ).all(id) as Record<string, unknown>[];
     return Promise.resolve(rows.length > 0 ? this.#toDoc(rows[0]) : null);
+  }
+
+  // ============================================================
+  // SchemaAdmin — introspection + orphan cleanup
+  // ============================================================
+
+  #declaredColumns(): Set<string> {
+    return new Set([...this.#promoted.values()].map((p) => p.column));
+  }
+
+  /**
+   * List the promoted virtual generated columns physically present in the
+   * table, each flagged `declared` (in the live config) or an orphan (left
+   * behind by a removed `promote` entry). `PRAGMA table_xinfo` reports
+   * generated columns via its `hidden` flag (2 = VIRTUAL, 3 = STORED);
+   * `id`/`doc` are plain columns and never appear.
+   */
+  listColumns(): Promise<SchemaColumn[]> {
+    const declared = this.#declaredColumns();
+    const rows = this.db.prepare(`PRAGMA table_xinfo("${this.#table}")`).all() as Record<
+      string,
+      unknown
+    >[];
+    const columns = rows
+      .filter((r) => r.hidden === 2 || r.hidden === 3)
+      .map((r) => ({
+        column: String(r.name),
+        type: String(r.type),
+        declared: declared.has(String(r.name)),
+      }));
+    return Promise.resolve(columns);
+  }
+
+  /**
+   * Drop an orphan promoted column. SQLite refuses to drop an indexed column,
+   * so the convention-named indexes (`{table}_{col}_idx` / `_key`) are dropped
+   * first, then the column. Refuses to drop a still-declared column. With
+   * `purgeData`, also strips the matching top-level JSON key from every
+   * document (`json_remove`).
+   */
+  // deno-lint-ignore require-await
+  async dropColumn(column: string, options: { purgeData?: boolean } = {}): Promise<void> {
+    const name = assertIdent(column);
+    if (this.#declaredColumns().has(name)) {
+      throw new Error(
+        `[sqlite-service] "${name}" is still declared in the live config — remove it from ` +
+          `promote/uniqueFields before dropping the column`,
+      );
+    }
+    const t = this.#table;
+    this.db.exec(`DROP INDEX IF EXISTS "${t}_${name}_idx"`);
+    this.db.exec(`DROP INDEX IF EXISTS "${t}_${name}_key"`);
+    this.db.exec(`ALTER TABLE "${t}" DROP COLUMN "${name}"`);
+    if (options.purgeData) {
+      this.db.exec(
+        `UPDATE "${t}" SET doc = json_remove(doc, '$.${name}') ` +
+          `WHERE json_type(doc, '$.${name}') IS NOT NULL`,
+      );
+    }
   }
 }

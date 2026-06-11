@@ -1,5 +1,5 @@
 <template>
-  <main class="min-h-screen px-4 py-6 lg:px-8 max-w-[1600px] mx-auto">
+  <main class="min-h-screen px-4 py-6 lg:px-8 max-w-400 mx-auto">
     <!-- ── header strip ─────────────────────────────────────────────── -->
     <header class="flex flex-wrap items-center gap-4 border border-base-300 bg-base-200/80 px-5 py-4 rounded-box mb-6">
       <div>
@@ -68,9 +68,9 @@
         <ul class="p-2">
           <li
             v-for="u in users"
-            :key="u.id"
+            :key="u.id"s
             class="px-2 py-1.5 rounded cursor-pointer flex items-center gap-2 text-xs hover:bg-base-300/60"
-            :class="selectedAuthor?.id === u.id ? 'bg-base-300 outline outline-1' : ''"
+            :class="selectedAuthor?.id === u.id ? 'bg-base-300 outline' : ''"
             :style="selectedAuthor?.id === u.id ? { outlineColor: 'var(--db-sqlite)' } : {}"
             @click="selectAuthor(u)"
           >

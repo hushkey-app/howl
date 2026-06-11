@@ -27,7 +27,12 @@ CREATE TABLE "users" (
   indexable, which is all the promote mechanism needs.
 - `deleted_at` gets a partial index (`WHERE deleted_at IS NULL`); `uniqueFields` get unique indexes.
   No migration framework — only the `promote` list changes DDL, ensured idempotently at construction
-  (duplicate-column errors are the idempotency signal).
+  (duplicate-column errors are the idempotency signal). Removing a path is additive-only, so it
+  leaves an _orphan_ column behind; the backend implements the optional `SchemaAdmin` capability
+  (`listColumns` / `dropColumn`) to introspect and clean those up — surfaced in
+  [`@hushkey/studio`](../studio/README.md)'s schema view. SQLite refuses to drop an indexed column,
+  so the convention-named indexes are dropped first; declared columns are refused, and document data
+  (in `doc`) is never touched.
 - The filter compiler is simpler than Postgres's in two ways: `->>` returns **natively-typed**
   values (numeric comparisons without casts), and SQLite maps both JSON null and absent keys to SQL
   NULL — which is exactly Mongo's null-equality semantics. Key presence (`$exists`) is asked via
