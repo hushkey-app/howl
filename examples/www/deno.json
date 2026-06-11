@@ -21,8 +21,7 @@
     "react-dom/client": "npm:react-dom@^18.3.1/client",
     "tailwindcss": "npm:tailwindcss@4.1.18",
     "zod": "npm:zod@4.3.6",
-    "daisyui": "npm:daisyui@5.5.18",
-    "@tailwindcss/typography": "npm:@tailwindcss/typography@^0.5.19"
+    "daisyui": "npm:daisyui@5.5.18"
   },
   "compilerOptions": {
     "jsx": "react-jsx",

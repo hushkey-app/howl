@@ -161,6 +161,95 @@ onMounted(async () => {
   <h2>{{ user?.name ?? "…" }}</h2>
 </template>`;
 
+/** The app's typed config — State, roles, and the `defineApi` factory. */
+const CONFIG_CODE = `import { defineConfig } from "@hushkey/howl/api";
+
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  roles: Role[];
+};
+
+export interface UserContext {
+  impersonatedUser?: User;
+  user?: User;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
+
+export interface State {
+  userContext?: UserContext;
+  client: {
+    title: string;
+    version: string;
+  };
+}
+
+export const roles = [
+  "USER",
+] as const;
+export type Role = typeof roles[number];
+
+export const { defineApi, config: apiConfig } = defineConfig<State, Role>({
+  roles,
+});`;
+
+/** The Tailwind v4 + daisyUI config used by this site. */
+const TAILWIND_CODE = `import type { Config } from "tailwindcss";
+import daisyui from "daisyui";
+// import typography from '@tailwindcss/typography';
+
+export default {
+  content: [
+    "client/{pages,islands,components,layouts}/**/*.{ts,tsx}",
+    "./**/*.{js,jsx,ts,tsx}",
+  ],
+  plugins: [daisyui],
+  darkMode: ["class", '[data-theme="dark"]'],
+  theme: {
+    extend: {
+      keyframes: {
+        bounceOnce: {
+          "0%, 100%": { transform: "scale(1)" },
+          "30%": { transform: "scale(1.1)" },
+          "60%": { transform: "scale(0.95)" },
+        },
+      },
+      animation: {
+        "bounce-once": "bounceOnce 0.4s cubic-bezier(.68,-0.55,.27,1.55)",
+      },
+    },
+  },
+} satisfies Config;`;
+
+/** The dev/build entry — one builder runs dev and the production build, no Vite. */
+const DEV_TS_CODE = `import { HowlBuilder } from "@hushkey/howl/dev";
+import { tailwindPlugin } from "@hushkey/howl/plugins";
+import { reactPlugin } from "@hushkey/howl-react/plugin";
+import { app } from "./server/main.ts";
+import type { State } from "./howl.config.ts";
+
+const DENO_PORT = Number(Deno.env.get("DENO_PORT") ?? "8000");
+const DENO_HOSTNAME = Deno.env.get("DENO_HOSTNAME") ?? "127.0.0.1";
+
+const builder = new HowlBuilder<State>(app, {
+  root: import.meta.dirname ?? "",
+  importApp: () => app,
+  outDir: "dist",
+  serverEntry: "./server/main.ts",
+  clientEntry: "./client/pages/_app.tsx",
+  plugins: [reactPlugin()],
+});
+
+tailwindPlugin(builder.getBuilder("default")!);
+
+if (Deno.args.includes("build")) {
+  await builder.build();
+} else {
+  await builder.listen({ port: DENO_PORT, hostname: DENO_HOSTNAME });
+}`;
+
 const RENDER_MODES: { file: string; mode: string; paint: string; nav: string }[] = [
   {
     file: "index.tsx",
@@ -413,7 +502,7 @@ function InstallBar() {
       .catch(() => {});
   };
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-terminal shadow-[0_18px_40px_-20px_color-mix(in_oklab,var(--color-accent)_60%,transparent)]">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-terminal shadow-[0_18px_40px_-20px_color-mix(in_oklab,var(--color-primary)_60%,transparent)]">
       <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
         <span className="h-2.5 w-2.5 rounded-full bg-magenta/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-yellow/70" />
@@ -475,29 +564,12 @@ function CodeEditor(
   );
 }
 
-/**
- * The tallest sample the IDE panel can show — used as the editor's `minLines` so
- * opening a different file never resizes the panel.
- */
-const PANEL_MAX_LINES: number = Math.max(
-  ...[
-    mainCode("react"),
-    mainCode("vue"),
-    mainCode("text"),
-    PAGE_CODE,
-    PAGE_CODE_VUE,
-    CLIENT_CODE,
-    CLIENT_CODE_VUE,
-    API_CODE,
-  ].map((s) => s.split("\n").length),
-);
-
 /** A standalone, titled code card — used in the routing section. */
 function CodeCard({ name, code }: { name: string; code: string }) {
   return (
     <div
       data-reveal
-      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_60px_-44px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_60px_-44px_color-mix(in_oklab,var(--color-primary)_55%,transparent)]"
     >
       <div className="flex items-center gap-1.5 border-b border-line bg-base-100/60 px-4 py-2.5 font-mono text-[12px] text-ink-3">
         <FileGlyph />
@@ -554,7 +626,7 @@ function RouteMap() {
   return (
     <div
       data-reveal
-      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_60px_-44px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_60px_-44px_color-mix(in_oklab,var(--color-primary)_55%,transparent)]"
     >
       <div className="border-b border-line bg-base-100/60 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest text-ink-3">
         file → route
@@ -610,7 +682,7 @@ function FileIcon({ lang }: { lang: Lang }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex h-4 shrink-0 items-center justify-center rounded-[4px] px-1 font-mono text-[8px] font-black uppercase leading-none ring-1 ${b.cls}`}
+      className={`inline-flex h-4 shrink-0 items-center justify-center rounded-sm px-1 font-mono text-[8px] font-black uppercase leading-none ring-1 ${b.cls}`}
     >
       {b.label}
     </span>
@@ -666,8 +738,8 @@ type TreeCtx = {
   openPath: string;
   /** Opens a file by its full path. */
   onOpen: (path: string) => void;
-  /** Whether a path maps to a featured (openable) file. */
-  isFeatured: (path: string) => boolean;
+  /** Whether a path maps to an openable (clickable) file. */
+  canOpen: (path: string) => boolean;
 };
 
 /** Renders one tree node — a folder, a featured (clickable) file, or context. */
@@ -676,7 +748,7 @@ function TreeItem(
 ) {
   if (node.t === "dir") return <TreeDir node={node} prefix={prefix} ctx={ctx} />;
   const path = prefix + node.name;
-  if (!ctx.isFeatured(path)) {
+  if (!ctx.canOpen(path)) {
     return (
       <li>
         <div className="flex items-center gap-1.5 rounded-md py-1 pr-2 pl-1.5 font-mono text-[12.5px] text-ink-3/45">
@@ -732,7 +804,7 @@ function TreeDir(
         <span className="truncate">{node.name}</span>
       </button>
       {open && (
-        <ul className="mt-0.5 ml-[13px] space-y-0.5 border-l border-line/60 pl-2.5">
+        <ul className="mt-0.5 ml-3.25 space-y-0.5 border-l border-line/60 pl-2.5">
           {node.children.map((child, i) => (
             <TreeItem key={i} node={child} prefix={childPrefix} ctx={ctx} />
           ))}
@@ -877,6 +949,13 @@ function features(engine: Engine): Feature[] {
   ];
 }
 
+/** Config / entry files that open in the editor but aren't top tabs. */
+const EXTRA_FILES: { path: string; lang: Lang; code: string }[] = [
+  { path: "howl.config.ts", lang: "ts", code: CONFIG_CODE },
+  { path: "tailwind.config.ts", lang: "ts", code: TAILWIND_CODE },
+  { path: "dev.ts", lang: "ts", code: DEV_TS_CODE },
+];
+
 /** The §hero IDE panel — top tabs swap a folder tree + code sample together, and
  * an engine toggle rewrites the bootstrap to prove the core renders nothing. */
 function ViewLayerPanel({ reveal = true }: { reveal?: boolean } = {}) {
@@ -884,13 +963,17 @@ function ViewLayerPanel({ reveal = true }: { reveal?: boolean } = {}) {
   const [openPath, setOpenPath] = useState("server/main.ts");
 
   const feats = features(engine);
-  const featByPath = new Map(feats.map((f) => [f.path, f]));
-  const openFeat = featByPath.get(openPath) ?? feats[0];
+  const openFiles: { path: string; lang: Lang; code: string }[] = [
+    ...feats,
+    ...EXTRA_FILES,
+  ];
+  const openMap = new Map(openFiles.map((f) => [f.path, f]));
+  const openFeat = openMap.get(openPath) ?? feats[0];
 
   const treeCtx: TreeCtx = {
     openPath: openFeat.path,
     onOpen: setOpenPath,
-    isFeatured: (p) => featByPath.has(p),
+    canOpen: (p) => openMap.has(p),
   };
 
   // Switching engine rewrites the bootstrap — open it so the change is visible.
@@ -902,13 +985,13 @@ function ViewLayerPanel({ reveal = true }: { reveal?: boolean } = {}) {
   return (
     <div
       data-reveal={reveal ? "" : undefined}
-      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_40px_90px_-50px_color-mix(in_oklab,var(--color-accent)_60%,transparent)]"
+      className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_40px_90px_-50px_color-mix(in_oklab,var(--color-primary)_60%,transparent)] min-[940px]:flex min-[940px]:h-[calc(100svh-12rem)] min-[940px]:max-h-192 min-[940px]:min-h-112 min-[940px]:flex-col"
     >
       {/* Featured-file tabs */}
       <div
         role="tablist"
         aria-label="Howl scenarios"
-        className="scrollbar-hide flex items-center gap-1 overflow-x-auto border-b border-line bg-base-100/60 px-2 py-2"
+        className="scrollbar-hide flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-base-100/60 px-2 py-2"
       >
         {feats.map((f) => {
           const active = f.path === openFeat.path;
@@ -932,9 +1015,9 @@ function ViewLayerPanel({ reveal = true }: { reveal?: boolean } = {}) {
         })}
       </div>
 
-      {/* Body: file tree + editor */}
-      <div className="grid min-[560px]:grid-cols-[minmax(190px,236px)_1fr]">
-        <aside className="hidden border-r border-line bg-base-100/30 p-2.5 min-[560px]:block">
+      {/* Body: file tree + editor — capped height, scrolls inside */}
+      <div className="grid h-112 grid-rows-1 min-[560px]:grid-cols-[minmax(190px,236px)_1fr] min-[940px]:h-auto min-[940px]:min-h-0 min-[940px]:flex-1">
+        <aside className="hidden min-h-0 overflow-y-auto border-r border-line bg-base-100/30 p-2.5 min-[560px]:block">
           <ul className="space-y-0.5">
             {projectTree(engine).map((node, i) => (
               <TreeItem
@@ -947,17 +1030,19 @@ function ViewLayerPanel({ reveal = true }: { reveal?: boolean } = {}) {
           </ul>
         </aside>
 
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 border-b border-line bg-base-100/40 px-4 py-2.5">
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <div className="flex shrink-0 items-center gap-2 border-b border-line bg-base-100/40 px-4 py-2.5">
             <FileIcon lang={openFeat.lang} />
             <span className="truncate font-mono text-[12.5px] text-ink-2">{openFeat.path}</span>
           </div>
-          <CodeEditor code={openFeat.code} caret={false} minLines={PANEL_MAX_LINES} />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <CodeEditor code={openFeat.code} caret={false} />
+          </div>
         </div>
       </div>
 
       {/* Engine swap + status */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-base-100/60 px-3 py-2.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-base-100/60 px-3 py-2.5">
         <div
           role="tablist"
           aria-label="Render engine"
@@ -1038,7 +1123,7 @@ export default function Index(_props: ReactPageProps<unknown, State>) {
             </p> */
             }
             <h1 className="font-mono text-[2.6rem] font-extrabold leading-[1.02] tracking-tight text-ink sm:text-[4rem]">
-              Typed endpoints.<br />
+              Full-Stack.<br />
               <em className="text-primary">Zero plumbing.</em>
             </h1>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-2 sm:text-base">
@@ -1062,10 +1147,9 @@ export default function Index(_props: ReactPageProps<unknown, State>) {
             <div className="mt-6 flex flex-col gap-2.5 min-[720px]:flex-row">
               <a
                 href={DOCS_URL}
-                className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-6 py-3 font-mono text-[14px] font-bold text-primary-content shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30"
+                className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-6 py-3 font-mono text-[14px] font-bold text-primary-content shadow-lg shadow-primary/25 transition-all  hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30"
               >
-                Read the docs{" "}
-                <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                Get Started{" "}
               </a>
               <a
                 href={GITHUB_URL}
@@ -1089,8 +1173,8 @@ export default function Index(_props: ReactPageProps<unknown, State>) {
           <div className="order-1 animate-fade-up-3 min-[940px]:order-2 min-[940px]:col-start-7 min-[940px]:col-span-6 min-[940px]:-ml-7 min-[940px]:-mr-[max(36px,50vw-684px)] pr-5">
             <ViewLayerPanel reveal={false} />
             <p className="mt-3 text-center font-mono text-[11px] text-ink-3">
-              Switch a tab — the generated client, routing, a typed{" "}
-              <code className="text-primary">defineApi</code> endpoint, or the render seam.
+              Switch a tab or open a file — bootstrap, routing, the generated client, a typed{" "}
+              <code className="text-primary">defineApi</code>, or the config.
             </p>
           </div>
         </section>
@@ -1197,7 +1281,7 @@ export default function Index(_props: ReactPageProps<unknown, State>) {
                 key={file}
                 data-reveal
                 style={{ transitionDelay: `${i * 80}ms` }}
-                className="group rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.75 hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+                className="group rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.75 hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-primary)_55%,transparent)]"
               >
                 <div className="flex items-center justify-between">
                   <ModeFile file={file} />
@@ -1251,7 +1335,7 @@ export default function Index(_props: ReactPageProps<unknown, State>) {
                 key={title}
                 data-reveal
                 style={{ transitionDelay: `${(i % 3) * 80}ms` }}
-                className="rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.75 hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-accent)_55%,transparent)]"
+                className="rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.75 hover:border-primary hover:shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--color-primary)_55%,transparent)]"
               >
                 <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-primary ring-1 ring-primary/10">
                   <Icon path={icon} />

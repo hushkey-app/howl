@@ -1,0 +1,33 @@
+{
+  "name": "@hushkey/service-core",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hushkey-app/howl"
+  },
+  "author": {
+    "name": "Leo Termine",
+    "email": "leotermine@hushkey.app"
+  },
+  "exports": {
+    ".": "./mod.ts",
+    "./service": "./service/document.service.ts",
+    "./filter": "./filter/filter.ts",
+    "./backend": "./backend/backend.interface.ts",
+    "./schema": "./schema/schema.interface.ts",
+    "./meta": "./meta/meta.schema.ts",
+    "./cache": "./cache/mod.ts",
+    "./telemetry": "./telemetry/mod.ts",
+    "./conformance": "./conformance/mod.ts",
+    "./adapters/redis": "./adapters/redis/mod.ts",
+    "./adapters/otel": "./adapters/otel/mod.ts"
+  },
+  "publish": {
+    "exclude": ["tests/"]
+  },
+  "imports": {
+    "zod": "npm:zod@^4.3.6",
+    "@std/expect": "jsr:@std/expect@^1.0.18"
+  }
+}
