@@ -25,11 +25,20 @@ export const pgClient: PgClientLike = await (async () => {
   return await PGlite.create(`${dataDir}/pglite`) as unknown as PgClientLike;
 })();
 
+// Defaults to the standard local MongoDB port; MONGO_URL overrides.
+// Probed with a short timeout so the example still boots (reviews offline)
+// when nothing is listening.
+export const MONGO_URL: string = Deno.env.get("MONGO_URL") ?? "mongodb://localhost:27017";
+
 export const mongoDb: Db | null = await (async () => {
-  const url = Deno.env.get("MONGO_URL");
-  if (!url) return null;
-  const { MongoClient } = await import("mongodb");
-  const client = new MongoClient(url);
-  await client.connect();
-  return client.db("howl_db_example");
+  try {
+    const { MongoClient } = await import("mongodb");
+    const client = new MongoClient(MONGO_URL, { serverSelectionTimeoutMS: 1500 });
+    await client.connect();
+    await client.db("admin").command({ ping: 1 });
+    return client.db("howl_db_example");
+  } catch {
+    console.warn(`[connections] MongoDB unreachable at ${MONGO_URL} — reviews offline`);
+    return null;
+  }
 })();

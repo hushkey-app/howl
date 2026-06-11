@@ -17,7 +17,11 @@ export default defineApi({
   },
   handler: async (ctx) => {
     if (!reviewsService) {
-      return { status: 503, message: "MongoDB not configured — set MONGO_URL and restart" };
+      return {
+        status: 503,
+        message:
+          "MongoDB offline — start one on localhost:27017 (MONGO_URL overrides), then restart",
+      };
     }
     const { blog_id, min_rating } = ctx.query();
     if (blog_id) {

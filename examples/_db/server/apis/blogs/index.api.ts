@@ -11,18 +11,23 @@ export default defineApi({
     published: z.stringbool().optional(),
     min_likes: z.coerce.number().optional(),
     slug: z.string().optional(),
+    view_deleted: z.stringbool().optional(),
   }),
   responses: {
     200: z.object({ data: z.any() }),
   },
   handler: async (ctx) => {
-    const { published, min_likes, slug } = ctx.query();
+    const { published, min_likes, slug, view_deleted } = ctx.query();
     if (slug) return { status: 200, data: await blogsService.bySlug(slug) };
 
     const query: Record<string, unknown> = {};
     if (published !== undefined) query.published = published; // promoted boolean column
     if (min_likes !== undefined) query.likes = { $gte: min_likes }; // promoted numeric column
-    const data = await blogsService.find({ query, sort: { likes: -1 } });
+    const data = await blogsService.find({
+      query,
+      sort: { likes: -1 },
+      viewDeleted: view_deleted,
+    });
     return { status: 200, data };
   },
 });

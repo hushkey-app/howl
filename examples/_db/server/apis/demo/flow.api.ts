@@ -83,7 +83,10 @@ export default defineApi({
         `3 created; topForBlog($gte 4) → ratings [${top.map((r) => r.rating).join(", ")}]`,
       );
     } else {
-      log("reviews (mongo)", "skipped — set MONGO_URL to include MongoDB in the flow");
+      log(
+        "reviews (mongo)",
+        "skipped — no MongoDB at mongodb://localhost:27017 (docker run -d -p 27017:27017 mongo:7)",
+      );
     }
 
     // soft delete / restore on the Postgres side
@@ -100,7 +103,7 @@ export default defineApi({
       databases: {
         users: "sqlite (node:sqlite, data/app.db)",
         blogs: Deno.env.get("PG_URL") ? "postgres (server)" : "postgres (embedded PGlite)",
-        reviews: reviewsService ? "mongodb" : "not configured (MONGO_URL unset)",
+        reviews: reviewsService ? "mongodb" : "offline (nothing on localhost:27017)",
       },
       steps,
     };

@@ -2,13 +2,15 @@
   "name": "@howl/_db",
   "version": "0.0.1",
   "tasks": {
-    "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/,generated/,data/ dev.ts",
+    "dev": "deno run -A --watch=dev.ts,howl.config.ts,server/,client/,static/ dev.ts",
     "build": "deno run -A dev.ts build",
-    "start": "deno run -A dist/compiled-entry.js"
+    "start": "deno run -A dist/compiled-entry.js",
+    "compile": "deno compile -A --include dist/static --output dist/bin/db dist/compiled-entry.js"
   },
   "exports": "./server/main.ts",
   "imports": {
     "@hushkey/howl": "jsr:@hushkey/howl@^0.12.0",
+    "@hushkey/howl-vue": "jsr:@hushkey/howl-vue@^0.12.0",
     "@hushkey/service-core": "jsr:@hushkey/service-core@^0.1.0",
     "@hushkey/mongo-service": "jsr:@hushkey/mongo-service@^0.1.0",
     "@hushkey/pg-service": "jsr:@hushkey/pg-service@^0.1.0",
@@ -17,9 +19,17 @@
     "mongodb": "npm:mongodb@^6.0.0",
     "pg": "npm:pg@^8.13.0",
     "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.2.0",
-    "@std/path": "jsr:@std/path@^1.0.0"
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@unhead/vue": "npm:@unhead/vue@^2.0.0",
+    "vue": "npm:vue@^3.5.13",
+    "vue/server-renderer": "npm:vue@^3.5.13/server-renderer",
+    "@vue/runtime-dom": "npm:@vue/runtime-dom@^3.5.13",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "daisyui": "npm:daisyui@5.5.18"
   },
   "compilerOptions": {
-    "lib": ["dom", "deno.ns", "deno.unstable"]
+    "jsx": "react-jsx",
+    "jsxImportSource": "vue",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
   }
 }

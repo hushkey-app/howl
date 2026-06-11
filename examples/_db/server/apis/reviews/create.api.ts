@@ -22,7 +22,11 @@ export default defineApi({
   },
   handler: async (ctx) => {
     if (!reviewsService) {
-      return { status: 503, message: "MongoDB not configured — set MONGO_URL and restart" };
+      return {
+        status: 503,
+        message:
+          "MongoDB offline — start one on localhost:27017 (MONGO_URL overrides), then restart",
+      };
     }
     // Integrity across all three databases: blog in Postgres, author in SQLite.
     const [blog, author] = await Promise.all([
