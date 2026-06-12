@@ -97,9 +97,14 @@ export async function crawlRouteDir<State>(
         routePattern = pathToPattern(id.slice(1));
 
         const code = await fs.readTextFile(entry.path);
-        // Strip comments before searching so a passing mention of "routeOverride"
-        // in a doc comment doesn't accidentally force eager loading.
-        const stripped = code.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+        // Strip string literals and comments before searching so a passing
+        // mention of "routeOverride" in a doc comment or string doesn't
+        // accidentally force eager loading. (The real usage is a config key,
+        // never quoted text.)
+        const stripped = code.replace(
+          /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+          "",
+        );
         lazy = !/\brouteOverride\b/.test(stripped);
 
         // TODO: We could do an AST parse here to detect the

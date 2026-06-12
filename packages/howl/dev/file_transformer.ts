@@ -67,6 +67,8 @@ export type TransformFn = (
 export interface Transformer {
   /** Match options selected for this transformer. */
   options: OnTransformOptions;
+  /** Exclude patterns pre-compiled at registration (globs → RegExp). */
+  exclude: Array<string | RegExp>;
   /** Callback invoked for each matching file. */
   fn: TransformFn;
 }
@@ -108,7 +110,11 @@ export class FileTransformer {
 
   /** Register a transformer callback for files matching `options`. */
   onTransform(options: OnTransformOptions, callback: TransformFn): void {
-    this.#transformers.push({ options, fn: callback });
+    // Compile glob excludes once here instead of per processed file.
+    const exclude = (options.exclude ?? []).map((e) =>
+      typeof e === "string" && isGlob(e) ? globToRegExp(e) : e
+    );
+    this.#transformers.push({ options, exclude, fn: callback });
   }
 
   /**
@@ -164,28 +170,21 @@ export class FileTransformer {
       outer: for (let i = 0; i < this.#transformers.length; i++) {
         const transformer = this.#transformers[i];
 
-        const { options, fn } = transformer;
+        const { options, exclude, fn } = transformer;
         options.filter.lastIndex = 0;
         if (!options.filter.test(req.filePath)) {
           continue;
         }
 
         // Check if file is excluded
-        if (options.exclude !== undefined) {
-          for (let j = 0; j < options.exclude.length; j++) {
-            const exclude = options.exclude[j];
-            if (exclude instanceof RegExp) {
-              if (exclude.test(filePath)) {
-                continue outer;
-              }
-            } else if (isGlob(exclude)) {
-              const regex = globToRegExp(exclude);
-              if (regex.test(filePath)) {
-                continue outer;
-              }
-            } else if (filePath.includes(exclude)) {
+        for (let j = 0; j < exclude.length; j++) {
+          const pattern = exclude[j];
+          if (pattern instanceof RegExp) {
+            if (pattern.test(filePath)) {
               continue outer;
             }
+          } else if (filePath.includes(pattern)) {
+            continue outer;
           }
         }
 

@@ -135,17 +135,33 @@ export async function bundleJs(
       if (entryPath !== "howl-runtime.js" && entry.entryPoint !== undefined) {
         const basename = path.basename(entryPath, path.extname(entryPath));
         const filePath = options.entryPoints[basename];
-        const name = entryToName.get(filePath)!;
+        const name = entryToName.get(filePath);
+        if (name === undefined) {
+          throw new Error(
+            `esbuild emitted entry chunk "${entryPath}" that maps to no registered ` +
+              `entry point (looked up "${basename}").`,
+          );
+        }
         entryToChunk.set(name, entryPath);
       }
     }
   }
 
-  if (!options.dev) {
-    esbuild = null;
-  }
-
   return { files, entryToChunk, dependencies };
+}
+
+/**
+ * Shut down the esbuild service process. Without this a one-shot production
+ * build leaves the esbuild child process running until the Deno process exits.
+ * Safe to call when nothing was started; a later bundle call restarts the
+ * service. Called by `HowlBuilder.build()` after all clients are built.
+ */
+export async function stopEsbuild(): Promise<void> {
+  if (esbuild !== null) {
+    await esbuild.stop();
+    esbuild = null;
+    initialized = false;
+  }
 }
 
 /**

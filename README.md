@@ -438,6 +438,10 @@ import { IS_BROWSER, IS_SERVER } from "@hushkey/howl";
 const stored = IS_BROWSER ? localStorage.getItem("prefs") : null;
 ```
 
+Environment variables stay server-only unless explicitly opted in: variables prefixed
+**`howl_PUBLIC_`** are inlined into the client bundle at build time, everything else never leaves
+the server. Treat any `howl_PUBLIC_*` value as public — never put a secret behind that prefix.
+
 ---
 
 ## File-system conventions

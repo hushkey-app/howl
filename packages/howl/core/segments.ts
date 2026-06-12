@@ -3,8 +3,8 @@ import type { MaybeLazyMiddleware, Middleware } from "./middlewares/mod.ts";
 import { type Method, patternToSegments } from "./router.ts";
 import type { LayoutConfig, Route } from "./types.ts";
 import { type Context, getBuildCache, getInternals } from "./context.ts";
-import { recordSpanError, tracer } from "./otel.ts";
-import { type HandlerFn, isHandlerByMethod } from "./handlers.ts";
+import { isTracingActive, recordSpanError, tracer } from "./otel.ts";
+import { type HandlerFn, isHandlerByMethod, type PageResponse } from "./handlers.ts";
 import type { AsyncAnyComponent, PageProps } from "./render.ts";
 import { isHttpError } from "./error.ts";
 
@@ -141,6 +141,25 @@ export async function renderRoute<State>(
   route: Route<State>,
   status = 200,
 ): Promise<Response> {
+  // Snapshot the UI tree and restore it on the way out: when this route throws
+  // after mutating it (skipAppWrapper / skipInheritedLayouts), an outer
+  // segment's error page must still render with the segment-stacked layouts.
+  const internals = getInternals(ctx);
+  const prevApp = internals.app;
+  const prevLayouts = internals.layouts;
+  try {
+    return await renderRouteInner(ctx, route, status);
+  } finally {
+    internals.app = prevApp;
+    internals.layouts = prevLayouts;
+  }
+}
+
+async function renderRouteInner<State>(
+  ctx: Context<State>,
+  route: Route<State>,
+  status: number,
+): Promise<Response> {
   const internals = getInternals(ctx);
   if (route.config?.skipAppWrapper) {
     internals.app = null;
@@ -159,31 +178,37 @@ export async function renderRoute<State>(
   const headers = new Headers();
   headers.set("Content-Type", "text/html;charset=utf-8");
 
-  const res = await tracer.startActiveSpan("handler", {
-    attributes: { "howl.span_type": "fs_routes/handler" },
-  }, async (span) => {
-    try {
-      let fn: HandlerFn<unknown, State> | null = null;
-      if (isHandlerByMethod(handlers)) {
-        if (handlers[method] !== undefined) {
-          fn = handlers[method];
-        } else if (method === "HEAD" && handlers.GET !== undefined) {
-          fn = handlers.GET;
-        }
-      } else {
-        fn = handlers;
+  const runHandler = async (): Promise<Response | PageResponse<unknown>> => {
+    let fn: HandlerFn<unknown, State> | null = null;
+    if (isHandlerByMethod(handlers)) {
+      if (handlers[method] !== undefined) {
+        fn = handlers[method];
+      } else if (method === "HEAD" && handlers.GET !== undefined) {
+        fn = handlers.GET;
       }
-
-      if (fn === null) return await ctx.next();
-
-      return await fn(ctx);
-    } catch (err) {
-      recordSpanError(span, err);
-      throw err;
-    } finally {
-      span.end();
+    } else {
+      fn = handlers;
     }
-  });
+
+    if (fn === null) return await ctx.next();
+
+    return await fn(ctx);
+  };
+
+  const res = isTracingActive()
+    ? await tracer.startActiveSpan("handler", {
+      attributes: { "howl.span_type": "fs_routes/handler" },
+    }, async (span) => {
+      try {
+        return await runHandler();
+      } catch (err) {
+        recordSpanError(span, err);
+        throw err;
+      } finally {
+        span.end();
+      }
+    })
+    : await runHandler();
 
   if (res instanceof Response) {
     return res;
@@ -236,7 +261,7 @@ export async function renderRoute<State>(
       status,
       chunkUrl,
       module,
-      aot: buildCache.engineAot.size > 0 ? Object.fromEntries(buildCache.engineAot) : undefined,
+      aot: aotManifest(buildCache.engineAot, buildCache.features.errorOverlay),
       routes: buildCache.features.errorOverlay ? buildCache.getEngineRoutes?.() : undefined,
       dev: buildCache.features.errorOverlay,
     });
@@ -245,4 +270,25 @@ export async function renderRoute<State>(
   // The handler returned data but the route has no render engine — return the
   // data as JSON (a page route would carry an engine tag).
   return ctx.json(res.data ?? null, { headers, status });
+}
+
+const AOT_MANIFEST_CACHE = new WeakMap<Map<string, string>, Record<string, string>>();
+
+/**
+ * The AOT route manifest as a plain object for the engine. The map is frozen
+ * after a production build, so the conversion is memoized per map instance;
+ * dev rebuilds mutate the map in place, so dev converts fresh each render.
+ */
+function aotManifest(
+  engineAot: Map<string, string>,
+  dev: boolean,
+): Record<string, string> | undefined {
+  if (engineAot.size === 0) return undefined;
+  if (dev) return Object.fromEntries(engineAot);
+  let cached = AOT_MANIFEST_CACHE.get(engineAot);
+  if (cached === undefined) {
+    cached = Object.fromEntries(engineAot);
+    AOT_MANIFEST_CACHE.set(engineAot, cached);
+  }
+  return cached;
 }

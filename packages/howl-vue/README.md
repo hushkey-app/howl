@@ -164,7 +164,11 @@ browser render functions.
 ### `compileSfc(source, filename, options?)`
 
 Lower-level: compile one SFC string to `{ code, styles, scopeId }`. Bare `vue` /
-`vue/server-renderer` imports are left for the bundler to resolve.
+`vue/server-renderer` imports are left for the bundler to resolve. Exposed at
+`@hushkey/howl-vue/sfc` (not the package root) so a production server importing
+`vueEngine` never loads `@vue/compiler-sfc` at startup — the engine and the
+esbuild plugin lazy-import it only when a `.vue` file actually compiles
+(dev / build time).
 
 ### `hydrateVuePage(comps)` / `aotMountVuePage(comps, styles, props)`
 

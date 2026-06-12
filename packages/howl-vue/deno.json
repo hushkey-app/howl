@@ -5,6 +5,7 @@
   "exports": {
     ".": "./mod.ts",
     "./plugin": "./plugin.ts",
+    "./sfc": "./sfc.ts",
     "./boot": "./runtime/boot.ts",
     "./head": "./runtime/head.ts",
     "./pinia": "./runtime/pinia.ts",

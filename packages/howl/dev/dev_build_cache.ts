@@ -72,6 +72,13 @@ export function stripTrailingSlash(pattern: string): string {
 }
 
 /**
+ * Matches dot-prefixed path segments (except `.well-known`). Production builds
+ * skip these when copying `static/`; the dev on-demand server applies the same
+ * rule so both modes serve the same set of files.
+ */
+const HIDDEN_FILE_RE = /\/\.(?!well-known)[^/]+(\/|$)/;
+
+/**
  * Build the engine route-map manifest from crawled FS route files: every page
  * route owned by a render engine, tagged with its `ssr`/`aot`/`ssg` mode.
  */
@@ -203,13 +210,18 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   }
 
   async #processPathname(pathname: string): Promise<StaticFile | null> {
+    // Mirror the production build's dotfile exclusion (DiskBuildCache.flush
+    // skips them when copying static/) so dev never serves a file — e.g.
+    // `static/.env` — that a prod deploy wouldn't.
+    if (HIDDEN_FILE_RE.test(pathname)) return null;
+
     let entry = pathname.startsWith("/") ? pathname.slice(1) : pathname;
     entry = path.join(this.#config.staticDir, entry);
     const relative = path.relative(this.#config.staticDir, entry);
     if (relative.startsWith("..")) {
-      throw new Error(
-        `Processed file resolved outside of static dir ${entry}`,
-      );
+      // Traversal attempt (e.g. encoded `..%2f`) — a plain 404, not a 500
+      // that would echo the resolved path through the dev error overlay.
+      return null;
     }
 
     const transformed = await this.#transformer.process(
@@ -443,7 +455,7 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
         includeDirs: false,
         includeFiles: true,
         followSymlinks: false,
-        skip: [/\/\.(?!well-known)[^/]+(\/|$)/],
+        skip: [HIDDEN_FILE_RE],
       });
 
       for await (const entry of entries) {
@@ -758,9 +770,15 @@ ${serializedApiRoutes}
 export async function prepareStaticFile(
   item: PendingStaticFile,
   outDir: string,
-): Promise<{ name: string; hash: string; filePath: string; contentType: string }> {
-  const file = await Deno.open(item.filePath);
-  const hash = item.hash ? item.hash : await hashContent(file.readable);
+): Promise<
+  { name: string; hash: string; filePath: string; contentType: string; size: number }
+> {
+  const stat = await Deno.stat(item.filePath);
+  let hash = item.hash;
+  if (!hash) {
+    const file = await Deno.open(item.filePath);
+    hash = await hashContent(file.readable);
+  }
   const url = new URL(item.pathname, "http://localhost");
 
   return {
@@ -768,6 +786,7 @@ export async function prepareStaticFile(
     hash,
     filePath: path.isAbsolute(item.filePath) ? path.relative(outDir, item.filePath) : item.filePath,
     contentType: getContentType(item.filePath),
+    size: stat.size,
   };
 }
 

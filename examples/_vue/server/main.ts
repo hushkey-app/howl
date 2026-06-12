@@ -16,7 +16,7 @@ app.use((ctx) => {
   ctx.state.user = { first_name: "leo", last_name: "termine" };
   ctx.headers.append("X-HOWL-TEST", "true");
   ctx.cookies.delete("lang");
-
+  // console.log(ctx);
   return ctx.next();
 });
 

@@ -2,12 +2,13 @@
  * `@hushkey/howl-vue` — Vue Single-File Component support for Howl, built on
  * the existing esbuild toolchain (no Vite).
  *
- * The `.vue` compiler ({@linkcode compileSfc}), esbuild plugin
- * ({@linkcode vuePlugin}), and the full-page render engine
- * ({@linkcode vueEngine}) live here.
+ * The esbuild plugin ({@linkcode vuePlugin}) and the full-page render engine
+ * ({@linkcode vueEngine}) live here; the `.vue` compiler (`compileSfc`) is at
+ * `@hushkey/howl-vue/sfc`.
  */
-export { compileSfc } from "./sfc.ts";
-export type { CompiledSfc, CompileSfcOptions } from "./sfc.ts";
+// The `.vue` compiler (`compileSfc`) is exposed via `@hushkey/howl-vue/sfc` —
+// NOT re-exported here — so a production server importing `vueEngine` never
+// evaluates `@vue/compiler-sfc` at startup (it loads lazily on dev compiles).
 export { vuePlugin } from "./plugin.ts";
 export type { VuePluginOptions } from "./plugin.ts";
 export { aotMountVuePage, hydrateVuePage } from "./runtime/boot.ts";

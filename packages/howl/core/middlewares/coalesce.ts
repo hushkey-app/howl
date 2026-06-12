@@ -53,9 +53,10 @@ export function coalesceRequests(options: CoalesceOptions = {}): Middleware<any>
 
     const key = ctx.url.pathname + ctx.url.search;
 
-    if (inflight.has(key)) {
+    const leader = inflight.get(key);
+    if (leader !== undefined) {
       try {
-        return (await inflight.get(key)!).clone();
+        return (await leader).clone();
       } catch {
         // The leader's response was non-coalescable (streamed or oversize),
         // or the leader threw. Fall through and run our own handler chain.

@@ -318,18 +318,19 @@ export class Builder<State = any> {
     await Deno.mkdir(outDir, { recursive: true });
 
     if (hasClientArtifacts) {
-      const { denoJson, jsxImportSource } = await checkDenoCompilerOptions(root);
+      // jsxImportSource is only mandatory when the client bundle will actually
+      // transpile JSX — i.e. the project has .tsx/.jsx routes. Vue-only apps
+      // skip the requirement (server-side .tsx like notification templates is
+      // transpiled by Deno itself from deno.json, not by this bundle).
+      const needsJsx = this.#fsRoutes.files.some((f) => /\.[jt]sx$/i.test(f.filePath));
+      const { denoJson, jsxImportSource } = await checkDenoCompilerOptions(root, needsJsx);
 
       if (!this.#addedInternalTransforms) {
         this.#addedInternalTransforms = true;
         cssAssetHash(this.#transformer);
       }
 
-      try {
-        await Deno.remove(staticOutDir, { recursive: true });
-      } catch {
-        // Ignore
-      }
+      await removeDirIfExists(staticOutDir);
 
       // No base client runtime: engines (Vue/React) ship their own boot chunks.
       const entryPoints: Record<string, string> = {};
@@ -349,7 +350,7 @@ export class Builder<State = any> {
       const vueAotEntryToPattern = new Map<string, string>();
       if (vuePageFiles.length > 0) {
         const wrapperDir = path.join(outDir, ".vue-pages");
-        await Deno.remove(wrapperDir, { recursive: true }).catch(() => {});
+        await removeDirIfExists(wrapperDir);
         await Deno.mkdir(wrapperDir, { recursive: true });
         for (const f of vuePageFiles) {
           const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
@@ -421,7 +422,7 @@ export class Builder<State = any> {
       );
       if (reactPageFiles.length > 0) {
         const wrapperDir = path.join(outDir, ".react-pages");
-        await Deno.remove(wrapperDir, { recursive: true }).catch(() => {});
+        await removeDirIfExists(wrapperDir);
         await Deno.mkdir(wrapperDir, { recursive: true });
         for (const f of reactPageFiles) {
           const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
@@ -515,7 +516,7 @@ export class Builder<State = any> {
       // request-time compile (fast reload, no precompile step).
       if (!(dev ?? false) && vuePageFiles.length > 0) {
         const ssrDir = path.join(outDir, ".vue-ssr");
-        await Deno.remove(ssrDir, { recursive: true }).catch(() => {});
+        await removeDirIfExists(ssrDir);
         await Deno.mkdir(ssrDir, { recursive: true });
         const ssrEntries: Record<string, string> = {};
         const ssrEntryToPath = new Map<string, string>();
@@ -572,7 +573,7 @@ export class Builder<State = any> {
       // the on-disk source instead, which the binary can't transpile.
       if (!(dev ?? false) && reactPageFiles.length > 0) {
         const ssrDir = path.join(outDir, ".react-ssr");
-        await Deno.remove(ssrDir, { recursive: true }).catch(() => {});
+        await removeDirIfExists(ssrDir);
         await Deno.mkdir(ssrDir, { recursive: true });
         for (const [name, filePath] of reactPageEntryToPath) {
           const { app, layouts } = await discoverEngineChain(filePath, ".tsx");
@@ -621,6 +622,16 @@ export class Builder<State = any> {
     }
 
     this.#ready.resolve();
+  }
+}
+
+/** Remove a directory tree, ignoring only "not found" — a permission or I/O
+ * failure surfaces instead of silently leaving stale build output behind. */
+async function removeDirIfExists(dir: string): Promise<void> {
+  try {
+    await Deno.remove(dir, { recursive: true });
+  } catch (err) {
+    if (!(err instanceof Deno.errors.NotFound)) throw err;
   }
 }
 

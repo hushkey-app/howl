@@ -1,5 +1,6 @@
 import { getBuildCache, Howl, type ListenOptions } from "../core/app.ts";
 import { Builder, type BuildOptions } from "./builder.ts";
+import { stopEsbuild } from "./esbuild.ts";
 import { cssModulesPlugin } from "./plugins/css_modules.ts";
 import * as path from "@std/path";
 import type { AnyApiDefinition, HowlApiConfig } from "../api/types.ts";
@@ -78,7 +79,13 @@ export class HowlBuilder<State = any> {
 
   // --- API crawling ---
 
-  async #crawlApis(): Promise<void> {
+  /**
+   * Crawl `apis/` and import every `*.api.ts`. With `failFast` (production
+   * builds) a module that throws on import or yields an unregisterable route
+   * path aborts the build with the file named — a deploy silently missing an
+   * endpoint is worse than a build error. Dev keeps going and logs instead.
+   */
+  async #crawlApis(failFast: boolean): Promise<void> {
     if (!this.#howl.isApiRoutesEnabled()) return;
 
     const root = this.#options.root ?? Deno.cwd();
@@ -100,7 +107,7 @@ export class HowlBuilder<State = any> {
       return;
     }
 
-    await this.#walkApis(apisDir);
+    await this.#walkApis(apisDir, apisDir, failFast);
 
     if (this.#apis.length > 0) {
       // deno-lint-ignore no-console
@@ -108,7 +115,7 @@ export class HowlBuilder<State = any> {
     }
   }
 
-  async #walkApis(dir: string, root = dir): Promise<void> {
+  async #walkApis(dir: string, root: string, failFast: boolean): Promise<void> {
     const entries: Deno.DirEntry[] = [];
     for await (const entry of Deno.readDir(dir)) {
       entries.push(entry);
@@ -125,7 +132,7 @@ export class HowlBuilder<State = any> {
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory) {
-        await this.#walkApis(fullPath, root);
+        await this.#walkApis(fullPath, root, failFast);
       } else if (entry.name.endsWith(".api.ts")) {
         try {
           const mod = await import(path.toFileUrl(fullPath).href);
@@ -133,6 +140,11 @@ export class HowlBuilder<State = any> {
             const api = mod.default as AnyApiDefinition;
             const fsPath = this.#inferFsPath(fullPath, root);
             const needsOverride = !!(fsPath && !api.path);
+            this.#assertRegistrablePaths(
+              needsOverride ? fsPath : api.path,
+              fullPath,
+              needsOverride,
+            );
             this.#apis.push(needsOverride ? { ...api, path: fsPath } : api);
             this.#apiEntries.push({
               filePath: fullPath,
@@ -140,9 +152,57 @@ export class HowlBuilder<State = any> {
             });
           }
         } catch (err) {
+          if (failFast) {
+            throw new Error(
+              `Failed to load API definition: ${fullPath}\n  ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+              { cause: err },
+            );
+          }
           // deno-lint-ignore no-console
           console.error(`_ Failed to load API: ${fullPath}`, err);
         }
+      }
+    }
+  }
+
+  /**
+   * Verify an API's route path(s) can actually be registered. Two failure
+   * modes, both of which otherwise surface deep inside `app.handler()` with no
+   * hint of which `.api.ts` file produced the path:
+   * - `URLPattern` rejects the path outright (unbalanced `(`, `{`, …);
+   * - pattern-special characters in a **filesystem-inferred** path (e.g. a
+   *   file named `report (1).api.ts`) construct fine but register a regex
+   *   group instead of the literal path, so the route silently never matches.
+   */
+  #assertRegistrablePaths(
+    pathOrPaths: string | readonly string[] | null | undefined,
+    filePath: string,
+    inferred: boolean,
+  ): void {
+    if (pathOrPaths == null) return;
+    const paths = Array.isArray(pathOrPaths) ? pathOrPaths : [pathOrPaths];
+    for (const p of paths) {
+      // FS-inferred paths are meant literally (plus `:param` segments) — any
+      // other URLPattern-special character is a mis-named file, not a pattern.
+      if (inferred && /[(){}*+?]/.test(p)) {
+        throw new Error(
+          `API route path ${JSON.stringify(p)} inferred from ${filePath} ` +
+            `contains URLPattern-special characters ("(", ")", "{", "}", "*", ` +
+            `"+", "?") — the route would never match its literal URL. Rename ` +
+            `the file/directory or set an explicit "path" in defineApi().`,
+        );
+      }
+      try {
+        new URLPattern({ pathname: p });
+      } catch (err) {
+        throw new Error(
+          `API route path ${JSON.stringify(p)} from ${filePath} is not a valid ` +
+            `route pattern (URLPattern rejected it). Rename the file/directory ` +
+            `or fix the explicit "path" in defineApi().`,
+          { cause: err },
+        );
       }
     }
   }
@@ -202,8 +262,8 @@ export class HowlBuilder<State = any> {
       );
     }
 
-    // Crawl apis/ before starting
-    await this.#crawlApis();
+    // Crawl apis/ before starting — dev logs failures and keeps serving.
+    await this.#crawlApis(false);
 
     if (this.#builders.size === 1) {
       await this.#builders.values().next().value!.listen(async () => {
@@ -240,8 +300,9 @@ export class HowlBuilder<State = any> {
    * resulting snapshot to the underlying {@linkcode Howl} app.
    */
   async build(): Promise<void> {
-    // Crawl apis/ before build
-    await this.#crawlApis();
+    // Crawl apis/ before build — a broken .api.ts fails the build loudly
+    // instead of shipping a snapshot with the endpoint silently missing.
+    await this.#crawlApis(true);
 
     const app = this.#howl;
     const ssgBuilders: Builder<State>[] = [];
@@ -268,6 +329,10 @@ export class HowlBuilder<State = any> {
     if (ssgBuilders.length > 0) {
       await this.#prerenderSsg(app, ssgBuilders);
     }
+
+    // All clients bundled (and SSG prerendered) — release the esbuild service
+    // process instead of leaving it running until the Deno process exits.
+    await stopEsbuild();
   }
 
   async #prerenderSsg(app: Howl<State>, ssgBuilders: Builder<State>[]): Promise<void> {

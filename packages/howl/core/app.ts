@@ -761,7 +761,10 @@ export class Howl<State = any> {
       conn: Deno.ServeHandlerInfo = DEFAULT_CONN_INFO,
     ) => {
       const url = new URL(req.url);
-      url.pathname = url.pathname.replace(/\/+/g, "/");
+      // Collapse duplicate slashes; assigning `url.pathname` re-serializes the
+      // URL, so skip the write in the common no-double-slash case.
+      const collapsed = url.pathname.replace(/\/+/g, "/");
+      if (collapsed !== url.pathname) url.pathname = collapsed;
 
       // Cached dev clients (with `/_howl/alive` baked into their bundle)
       // hit production servers in a reconnect loop, throwing 404s every
@@ -811,8 +814,8 @@ export class Howl<State = any> {
       if (
         (method === "GET" || method === "HEAD") &&
         pattern !== null &&
-        !url.searchParams.has(PARTIAL_SEARCH_PARAM) &&
-        buildCache!.ssgPages.size > 0
+        buildCache!.ssgPages.size > 0 &&
+        !url.searchParams.has(PARTIAL_SEARCH_PARAM)
       ) {
         const html = buildCache!.ssgPages.get(pattern);
         if (html !== undefined) {

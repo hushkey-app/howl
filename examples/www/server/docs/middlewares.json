@@ -55,7 +55,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Compresses responses with gzip or deflate based on the client's Accept-Encoding header. Skips binary content types and already-encoded responses."
+          "text": "Compresses responses with gzip or deflate based on the client's Accept-Encoding header. Skips binary content types, already-encoded responses, and responses with a declared Content-Length under 1 KB (too small for compression to help)."
         },
         {
           "type": "code",

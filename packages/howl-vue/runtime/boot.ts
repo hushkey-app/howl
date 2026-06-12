@@ -204,6 +204,14 @@ function prefetchPage(href: string): void {
   }
   const existing = prefetchCache.get(href);
   if (existing !== undefined && Date.now() - existing.ts < PREFETCH_TTL_MS) return;
+  // Sweep expired entries before adding — hovered-but-never-clicked pages
+  // would otherwise accumulate for the whole session.
+  if (prefetchCache.size >= 32) {
+    const now = Date.now();
+    for (const [key, entry] of prefetchCache) {
+      if (now - entry.ts >= PREFETCH_TTL_MS) prefetchCache.delete(key);
+    }
+  }
   const job = fetch(partialFetchUrl(href), {
     headers: { Accept: "text/html" },
     // deno-lint-ignore no-explicit-any

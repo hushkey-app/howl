@@ -17,6 +17,8 @@ export interface FileSnapshot {
   hash: string | null;
   /** Resolved MIME type. */
   contentType: string;
+  /** Size in bytes, captured at build time (absent in pre-size snapshots). */
+  size?: number;
 }
 
 /**
@@ -189,15 +191,15 @@ export class ProdBuildCache<State> implements BuildCache<State> {
       ? info.filePath
       : path.join(this.root, info.filePath);
 
-    const [stat, file] = await Promise.all([
-      Deno.stat(filePath),
-      Deno.open(filePath),
-    ]);
+    // Size comes from the snapshot (captured at build time); the stat fallback
+    // only runs for snapshots produced before the field existed.
+    const file = await Deno.open(filePath);
+    const size = info.size ?? (await file.stat()).size;
 
     return {
       hash: info.hash,
       contentType: info.contentType,
-      size: stat.size,
+      size,
       readable: file.readable,
       close: () => file.close(),
     };

@@ -306,7 +306,7 @@ import {
 
 ```typescript
 app.use(coalesceRequests()); // thundering-herd protection — must be first
-app.use(compression()); // gzip/deflate for text, JSON, JS, SVG
+app.use(compression()); // gzip/deflate for text, JSON, JS, SVG (skips bodies < 1 KB)
 app.use(staticFiles());
 app.use(cors({ origin: "https://myapp.example.com", credentials: true }));
 app.use(csrf());
@@ -589,6 +589,10 @@ import { IS_BROWSER, IS_SERVER } from "@hushkey/howl";
 
 const stored = IS_BROWSER ? localStorage.getItem("prefs") : null;
 ```
+
+Environment variables stay server-only unless explicitly opted in: variables prefixed
+**`howl_PUBLIC_`** are inlined into the client bundle at build time, everything else never leaves
+the server. Treat any `howl_PUBLIC_*` value as public — never put a secret behind that prefix.
 
 ---
 
