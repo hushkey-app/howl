@@ -20,7 +20,6 @@ import type { Config } from "tailwindcss";
 export const baseConfig: Config = {
   content: [
     "./pages/**/*.{ts,tsx}",
-    "./islands/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./layouts/**/*.{ts,tsx}",
   ],

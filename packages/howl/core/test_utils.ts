@@ -1,4 +1,4 @@
-import { Context, type ServerIslandRegistry } from "./context.ts";
+import { Context } from "./context.ts";
 import type { FsAdapter } from "./fs.ts";
 import type { BuildCache, StaticFile } from "./build_cache.ts";
 import type { ResolvedHowlConfig } from "./config.ts";
@@ -165,12 +165,8 @@ export class MockBuildCache<State> implements BuildCache<State> {
   clientEntry = "";
   apiRegistry: Map<string, unknown> = new Map();
 
-  islandRegistry: ServerIslandRegistry = new Map();
   features = { errorOverlay: false };
-  aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
-  vueIslands: Map<string, string> = new Map();
-  vueBoot = "";
   engineAot: Map<string, string> = new Map();
   enginePages: Map<string, string> = new Map();
   engineSsrModules: Map<string, unknown> = new Map();

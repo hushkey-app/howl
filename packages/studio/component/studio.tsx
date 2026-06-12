@@ -25,6 +25,8 @@ export interface StudioStyle {
   primaryColor?: string;
   /** Class(es) for secondary actions (migrate confirm…). Default `btn-secondary`. */
   secondaryColor?: string;
+  /** Extra stylesheet URL(s) — standalone mode only (loaded in the page head). */
+  cssUrl?: string | string[];
 }
 
 /** Props for {@link Studio}. */
@@ -323,9 +325,7 @@ function QueryBar(
         ref={inputRef}
         value={value}
         placeholder="{ field: 'value' } — focus for fields, $ for operators"
-        className={`input input-bordered input-sm w-full font-mono text-xs ${
-          stateClass[lint.level]
-        }`}
+        className={`input input-bordered w-full font-mono text-sm ${stateClass[lint.level]}`}
         onFocus={(e) => {
           const el = e.target as HTMLInputElement;
           refresh(el.value, el.selectionStart ?? el.value.length);
@@ -460,7 +460,7 @@ function DocCard(
 
   return (
     <div
-      className={`group relative mb-2.5 rounded-box border border-base-300 bg-base-100 py-2.5 pl-8 pr-3.5 font-mono text-xs hover:border-base-content/30 ${
+      className={`group relative mb-3 rounded-2xl bg-base-200 py-3 pl-9 pr-4 font-mono text-sm transition-colors hover:bg-base-300/50 ${
         deleted ? "opacity-55" : ""
       }`}
     >
@@ -468,59 +468,59 @@ function DocCard(
         type="button"
         title={anyExpanded ? "collapse all fields" : "expand all fields"}
         onClick={toggleAll}
-        className={`btn btn-ghost btn-xs btn-square absolute left-1.5 top-1.5 transition-opacity ${
+        className={`btn btn-ghost btn-sm btn-circle absolute left-1.5 top-1.5 transition-opacity ${
           anyExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         }`}
       >
-        <Icon.ChevronDown className={`size-3.5 ${anyExpanded ? "" : "-rotate-90"}`} />
+        <Icon.ChevronDown className={`size-4 ${anyExpanded ? "" : "-rotate-90"}`} />
       </button>
       <div className="absolute right-2.5 top-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         {deleted && <span className="badge badge-error badge-xs">DELETED</span>}
         <button
           type="button"
-          className="btn btn-ghost btn-xs btn-square"
+          className="btn btn-ghost btn-sm btn-circle"
           title="edit (patch)"
           onClick={onEdit}
         >
-          <Icon.Pencil className="size-3.5" />
+          <Icon.Pencil className="size-4" />
         </button>
         <button
           type="button"
-          className="btn btn-ghost btn-xs btn-square"
+          className="btn btn-ghost btn-sm btn-circle"
           title="duplicate (insert a copy — adjust unique fields first)"
           onClick={onDuplicate}
         >
-          <Icon.Duplicate className="size-3.5" />
+          <Icon.Duplicate className="size-4" />
         </button>
         {deleted
           ? (
             <>
               <button
                 type="button"
-                className="btn btn-ghost btn-xs btn-square"
+                className="btn btn-ghost btn-sm btn-circle"
                 title="restore"
                 onClick={onRestore}
               >
-                <Icon.Restore className="size-3.5" />
+                <Icon.Restore className="size-4" />
               </button>
               <button
                 type="button"
-                className="btn btn-ghost btn-xs btn-square text-error"
+                className="btn btn-ghost btn-sm btn-circle text-error"
                 title="hard delete"
                 onClick={onHardDelete}
               >
-                <Icon.Trash className="size-3.5" />
+                <Icon.Trash className="size-4" />
               </button>
             </>
           )
           : (
             <button
               type="button"
-              className="btn btn-ghost btn-xs btn-square text-error"
+              className="btn btn-ghost btn-sm btn-circle text-error"
               title="soft delete"
               onClick={onDelete}
             >
-              <Icon.XMark className="size-3.5" />
+              <Icon.XMark className="size-4" />
             </button>
           )}
       </div>
@@ -557,7 +557,7 @@ function DocCard(
                   : <span className={valueClass(v)}>{fmtValue(v)}</span>}
               </span>
               {isObj && expanded[k] && (
-                <pre className="my-1 ml-4 overflow-x-auto rounded-box border border-base-300 bg-base-200 px-2.5 py-1.5 text-[11px]">{JSON.stringify(v, null, 2)}</pre>
+                <pre className="my-1 ml-4 overflow-x-auto rounded-xl bg-base-300/50 px-2.5 py-1.5 text-xs">{JSON.stringify(v, null, 2)}</pre>
               )}
             </div>
           );
@@ -619,22 +619,22 @@ function SchemaPanel(
 
   if (supported === false) {
     return (
-      <div className="p-6 font-mono text-xs text-base-content/60">
+      <div className="p-8 text-sm text-base-content/60">
         this backend has no promoted columns to manage (no column concept)
       </div>
     );
   }
   if (supported === null) {
     return (
-      <div className="flex items-center gap-2 p-6 font-mono text-xs text-base-content/60">
+      <div className="flex items-center gap-2 p-8 text-sm text-base-content/60">
         <span className="loading loading-spinner loading-xs" /> loading schema…
       </div>
     );
   }
 
   return (
-    <div className="font-mono text-xs">
-      <div className="mb-2.5 text-[11px] text-base-content/60">
+    <div className="text-sm">
+      <div className="mb-3 text-xs text-base-content/60">
         promoted columns generated from the document JSON. {orphans > 0
           ? (
             <span className="text-warning">
@@ -645,8 +645,8 @@ function SchemaPanel(
           )
           : "all columns match the live config — nothing to clean up."}
       </div>
-      <div className="overflow-x-auto rounded-box border border-base-300">
-        <table className="table table-sm">
+      <div className="overflow-x-auto rounded-2xl bg-base-200">
+        <table className="table">
           <thead>
             <tr>
               <th>column</th>
@@ -658,8 +658,8 @@ function SchemaPanel(
           <tbody>
             {columns.map((c) => (
               <tr key={c.column} className={c.declared ? "" : "bg-warning/10"}>
-                <td className="font-bold text-base-content">{c.column}</td>
-                <td className="text-base-content/60">{c.type}</td>
+                <td className="font-mono font-bold text-base-content">{c.column}</td>
+                <td className="font-mono text-base-content/60">{c.type}</td>
                 <td>
                   {c.declared
                     ? <span className="badge badge-success badge-sm">in config</span>
@@ -670,7 +670,7 @@ function SchemaPanel(
                     <>
                       <button
                         type="button"
-                        className="btn btn-xs btn-outline btn-success mr-1.5"
+                        className="btn btn-sm btn-circle btn-outline btn-success mr-1.5"
                         title={`migrate "${c.column}" into another field, then drop it`}
                         disabled={targets.length === 0}
                         onClick={() => {
@@ -678,16 +678,16 @@ function SchemaPanel(
                           setMigrateFrom(c.column);
                         }}
                       >
-                        <Icon.ArrowRight className="size-3.5" />
+                        <Icon.ArrowRight className="size-4" />
                       </button>
                       <button
                         type="button"
-                        className="btn btn-xs btn-outline btn-warning"
+                        className="btn btn-sm btn-circle btn-outline btn-warning"
                         title={`drop orphan column "${c.column}"`}
                         onClick={() =>
                           setTarget(c.column)}
                       >
-                        <Icon.XMark className="size-3.5" />
+                        <Icon.XMark className="size-4" />
                       </button>
                     </>
                   )}
@@ -707,7 +707,7 @@ function SchemaPanel(
       {target !== null && (
         <div className="modal modal-open">
           <div className="modal-box max-w-md border border-warning font-mono text-xs">
-            <h3 className="mb-2 font-bold text-warning">Drop orphan column?</h3>
+            <h3 className="mb-2 text-base font-bold text-warning">Drop orphan column?</h3>
             <p className="mb-4 leading-relaxed text-base-content/70">
               Drops the generated column <b className="text-base-content">{target}</b>{" "}
               and its index. The document data stays in the JSON — only the unused index is
@@ -716,14 +716,14 @@ function SchemaPanel(
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                className="btn btn-sm btn-ghost"
+                className="btn btn-ghost rounded-full"
                 onClick={() => setTarget(null)}
               >
                 NO
               </button>
               <button
                 type="button"
-                className="btn btn-sm btn-warning"
+                className="btn btn-warning rounded-full"
                 onClick={() => {
                   const col = target;
                   setTarget(null);
@@ -742,7 +742,7 @@ function SchemaPanel(
       {migrateFrom !== null && (
         <div className="modal modal-open">
           <div className="modal-box max-w-lg border border-primary font-mono text-xs">
-            <h3 className="mb-2 font-bold text-primary">Migrate orphan into a field</h3>
+            <h3 className="mb-2 text-base font-bold text-primary">Migrate orphan into a field</h3>
             <p className="mb-4 leading-relaxed text-base-content/70">
               Copies <b className="text-base-content">{migrateFrom}</b>{" "}
               into the field below for every document — through the contract, so each write
@@ -753,7 +753,7 @@ function SchemaPanel(
             <label className="mb-4 flex items-center gap-2 text-base-content/60">
               <span>{migrateFrom} →</span>
               <select
-                className="select select-bordered select-sm flex-1 font-mono text-xs"
+                className="select select-bordered flex-1 font-mono text-sm"
                 value={migrateTo}
                 onChange={(e) => setMigrateTo((e.target as HTMLSelectElement).value)}
               >
@@ -765,14 +765,14 @@ function SchemaPanel(
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                className="btn btn-sm btn-ghost"
+                className="btn btn-ghost rounded-full"
                 onClick={() => setMigrateFrom(null)}
               >
                 CANCEL
               </button>
               <button
                 type="button"
-                className={`btn btn-sm ${ui.secondary}`}
+                className={`btn rounded-full ${ui.secondary}`}
                 disabled={!migrateTo}
                 onClick={() => {
                   const from = migrateFrom;
@@ -1049,7 +1049,7 @@ function CollectionTab(
     if (m === "schema" && schemaSupported === null) loadSchema();
   }
 
-  const primaryBtn = `btn btn-sm ${ui.primary}`;
+  const primaryBtn = `btn rounded-full ${ui.primary}`;
   const patchPreview = useMemo(() => {
     if (panel !== "update") return null;
     try {
@@ -1060,19 +1060,19 @@ function CollectionTab(
   }, [panel, patchDraft]);
 
   const views: { mode: ViewMode; icon: ReactElement; title: string }[] = [
-    { mode: "cards", icon: <Icon.Squares className="size-4" />, title: "cards view" },
-    { mode: "raw", icon: <Icon.Code className="size-4" />, title: "raw JSON view" },
-    { mode: "table", icon: <Icon.Table className="size-4" />, title: "table view" },
-    { mode: "schema", icon: <Icon.Cog className="size-4" />, title: "schema / promoted columns" },
+    { mode: "cards", icon: <Icon.Squares className="size-5" />, title: "cards view" },
+    { mode: "raw", icon: <Icon.Code className="size-5" />, title: "raw JSON view" },
+    { mode: "table", icon: <Icon.Table className="size-5" />, title: "table view" },
+    { mode: "schema", icon: <Icon.Cog className="size-5" />, title: "schema / promoted columns" },
   ];
 
   return (
-    <div className={`p-4 ${visible ? "" : "hidden"}`}>
+    <div className={`p-5 ${visible ? "" : "hidden"}`}>
       {/* row 1 — actions + views */}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="dropdown">
           <button type="button" tabIndex={0} className={primaryBtn}>
-            <Icon.Plus className="size-4" /> ADD DATA
+            <Icon.Plus className="size-5" /> ADD DATA
           </button>
           <ul
             tabIndex={0}
@@ -1099,52 +1099,52 @@ function CollectionTab(
         </div>
         <button
           type="button"
-          className="btn btn-sm btn-ghost"
+          className="btn btn-ghost rounded-full"
           title="patch every document matching the current query"
           onClick={() => {
             setEditing(null);
             setPanel(panel === "update" ? null : "update");
           }}
         >
-          <Icon.Pencil className="size-4" /> UPDATE
+          <Icon.Pencil className="size-5" /> UPDATE
         </button>
         <button
           type="button"
-          className="btn btn-sm btn-ghost"
+          className="btn btn-ghost rounded-full"
           title="delete every document matching the current query"
           onClick={() => {
             setEditing(null);
             setPanel(panel === "delete" ? null : "delete");
           }}
         >
-          <Icon.XMark className="size-4" /> DELETE
+          <Icon.XMark className="size-5" /> DELETE
         </button>
         <button
           type="button"
-          className="btn btn-sm btn-ghost"
+          className="btn btn-ghost rounded-full"
           title="download current query as JSON"
           onClick={exportJson}
         >
-          <Icon.Download className="size-4" /> EXPORT
+          <Icon.Download className="size-5" /> EXPORT
         </button>
         <span className="flex-1" />
         {view === "cards" && (
           <div className="join">
             <button
               type="button"
-              className="btn btn-sm btn-square join-item"
+              className="btn btn-square join-item"
               title="expand all"
               onClick={() => setExpandSignal({ mode: "expand", tick: Date.now() })}
             >
-              <Icon.ExpandAll className="size-4" />
+              <Icon.ExpandAll className="size-5" />
             </button>
             <button
               type="button"
-              className="btn btn-sm btn-square join-item"
+              className="btn btn-square join-item"
               title="collapse all"
               onClick={() => setExpandSignal({ mode: "collapse", tick: Date.now() })}
             >
-              <Icon.CollapseAll className="size-4" />
+              <Icon.CollapseAll className="size-5" />
             </button>
           </div>
         )}
@@ -1154,7 +1154,7 @@ function CollectionTab(
               key={v.mode}
               type="button"
               title={v.title}
-              className={`btn btn-sm btn-square join-item ${
+              className={`btn btn-square join-item ${
                 view === v.mode ? "btn-active text-primary" : ""
               }`}
               onClick={() => switchView(v.mode)}
@@ -1175,13 +1175,15 @@ function CollectionTab(
             disabled={lint.level === "error"}
             onClick={find}
           >
-            <Icon.Search className="size-4" /> FIND
+            <Icon.Search className="size-5" /> FIND
           </button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={reset}>RESET</button>
-          <label className="flex cursor-pointer items-center gap-1.5 font-mono text-xs text-base-content/60">
+          <button type="button" className="btn btn-ghost rounded-full" onClick={reset}>
+            RESET
+          </button>
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-base-content/70">
             <input
               type="checkbox"
-              className="checkbox checkbox-xs"
+              className="checkbox checkbox-sm"
               checked={showDeleted}
               onChange={(e) => {
                 const next = (e.target as HTMLInputElement).checked;
@@ -1205,13 +1207,13 @@ function CollectionTab(
           >
             {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
-          <span className="font-mono text-xs text-base-content/60">
+          <span className="text-sm text-base-content/60">
             {total === 0 ? "0" : `${skip + 1}–${skip + docs.length}`} of {total}
           </span>
           <div className="join">
             <button
               type="button"
-              className="btn btn-sm btn-square join-item"
+              className="btn btn-square join-item"
               disabled={skip === 0}
               onClick={() => {
                 const next = Math.max(0, skip - limit);
@@ -1219,11 +1221,11 @@ function CollectionTab(
                 load(applied, next);
               }}
             >
-              <Icon.ChevronLeft className="size-4" />
+              <Icon.ChevronLeft className="size-5" />
             </button>
             <button
               type="button"
-              className="btn btn-sm btn-square join-item"
+              className="btn btn-square join-item"
               disabled={skip + limit >= total}
               onClick={() => {
                 const next = skip + limit;
@@ -1231,32 +1233,34 @@ function CollectionTab(
                 load(applied, next);
               }}
             >
-              <Icon.ChevronRight className="size-4" />
+              <Icon.ChevronRight className="size-5" />
             </button>
           </div>
           <button
             type="button"
-            className="btn btn-sm btn-square"
+            className="btn btn-circle"
             title="refresh"
             onClick={() => load()}
           >
-            <Icon.Refresh className="size-4" />
+            <Icon.Refresh className="size-5" />
           </button>
         </div>
       )}
 
       {error && (
-        <div className="alert alert-error alert-soft mb-2.5 py-2 font-mono text-xs">✗ {error}</div>
+        <div className="alert alert-error alert-soft mb-3 font-mono text-sm font-medium">
+          ✗ {error}
+        </div>
       )}
       {notice && !error && (
-        <div className="alert alert-success alert-soft mb-2.5 py-2 font-mono text-xs">
+        <div className="alert alert-success alert-soft mb-3 font-mono text-sm font-medium">
           ✓ {notice}
         </div>
       )}
 
       {/* bulk update panel — Compass-style: patch + preview of what changes */}
       {panel === "update" && (
-        <div className="card mb-3 border border-primary bg-base-100 p-3 font-mono text-xs">
+        <div className="mb-3 rounded-2xl border-l-4 border-primary bg-base-200 p-4 text-sm">
           <div className="mb-1.5 text-base-content/60">
             UPDATE applies this patch to <b className="text-base-content">all {total} documents</b>
             {" "}
@@ -1265,7 +1269,7 @@ function CollectionTab(
             — merge semantics, every version bumps.
           </div>
           <textarea
-            className="textarea textarea-bordered min-h-24 w-full font-mono text-xs"
+            className="textarea textarea-bordered min-h-28 w-full font-mono text-sm"
             value={patchDraft}
             onChange={(e) => setPatchDraft((e.target as HTMLTextAreaElement).value)}
             onKeyDown={(e) => {
@@ -1286,9 +1290,9 @@ function CollectionTab(
               </div>
               {docs.slice(0, 2).map((d) => (
                 <div key={d.id} className="mb-1.5 flex items-center gap-2">
-                  <pre className="flex-1 overflow-x-auto rounded-box border border-base-300 bg-base-200 p-2 text-[10px] text-base-content/60">{JSON.stringify(d, null, 1)}</pre>
-                  <Icon.ArrowRight className="size-4 shrink-0 text-primary" />
-                  <pre className="flex-1 overflow-x-auto rounded-box border border-primary bg-base-200 p-2 text-[10px]">{JSON.stringify(mergePreview(d, patchPreview), null, 1)}</pre>
+                  <pre className="flex-1 overflow-x-auto rounded-xl bg-base-300/40 p-2 text-[11px] text-base-content/60">{JSON.stringify(d, null, 1)}</pre>
+                  <Icon.ArrowRight className="size-5 shrink-0 text-primary" />
+                  <pre className="flex-1 overflow-x-auto rounded-xl bg-primary/10 p-2 text-[11px]">{JSON.stringify(mergePreview(d, patchPreview), null, 1)}</pre>
                 </div>
               ))}
             </div>
@@ -1297,7 +1301,11 @@ function CollectionTab(
             <button type="button" className={primaryBtn} onClick={bulkUpdate}>
               APPLY TO {total} DOCS
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPanel(null)}>
+            <button
+              type="button"
+              className="btn btn-ghost rounded-full"
+              onClick={() => setPanel(null)}
+            >
               CANCEL
             </button>
           </div>
@@ -1306,7 +1314,7 @@ function CollectionTab(
 
       {/* bulk delete panel */}
       {panel === "delete" && (
-        <div className="card mb-3 border border-error bg-base-100 p-3 font-mono text-xs">
+        <div className="mb-3 rounded-2xl border-l-4 border-error bg-base-200 p-4 text-sm">
           <div className="mb-2 text-base-content">
             DELETE <b className="text-error">all {total} documents</b> matching{" "}
             {applied.trim() ? <code>{applied}</code> : "(everything)"} —{" "}
@@ -1315,17 +1323,21 @@ function CollectionTab(
           <label className="flex items-center gap-1.5 text-[11px] text-base-content/60">
             <input
               type="checkbox"
-              className="checkbox checkbox-xs"
+              className="checkbox checkbox-sm"
               checked={hardBulk}
               onChange={(e) => setHardBulk((e.target as HTMLInputElement).checked)}
             />
             hard delete (cannot be undone)
           </label>
           <div className="mt-2.5 flex gap-2">
-            <button type="button" className="btn btn-sm btn-error" onClick={bulkDelete}>
+            <button type="button" className="btn btn-error rounded-full" onClick={bulkDelete}>
               DELETE {total} DOCS
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPanel(null)}>
+            <button
+              type="button"
+              className="btn btn-ghost rounded-full"
+              onClick={() => setPanel(null)}
+            >
               CANCEL
             </button>
           </div>
@@ -1334,14 +1346,14 @@ function CollectionTab(
 
       {/* insert/edit editor */}
       {editing !== null && (
-        <div className="card mb-3 border border-primary bg-base-100 p-3 font-mono text-xs">
+        <div className="mb-3 rounded-2xl border-l-4 border-primary bg-base-200 p-4 text-sm">
           <div className="mb-1.5 text-base-content/60">
             {editing === "new"
               ? `insert into ${svc.collection} — one document or an array of documents`
               : `patch ${editing.id} — merge semantics, version ${editing.version} will bump`}
           </div>
           <textarea
-            className="textarea textarea-bordered min-h-32 w-full font-mono text-xs"
+            className="textarea textarea-bordered min-h-36 w-full font-mono text-sm"
             value={draft}
             onChange={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
             onKeyDown={(e) => {
@@ -1359,7 +1371,11 @@ function CollectionTab(
             <button type="button" className={primaryBtn} onClick={save}>
               {editing === "new" ? "INSERT" : "UPDATE"}
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(null)}>
+            <button
+              type="button"
+              className="btn btn-ghost rounded-full"
+              onClick={() => setEditing(null)}
+            >
               CANCEL
             </button>
           </div>
@@ -1389,15 +1405,15 @@ function CollectionTab(
         docs.map((d) => (
           <pre
             key={d.id}
-            className={`mb-2.5 overflow-x-auto rounded-box border border-base-300 bg-base-100 px-3.5 py-2.5 font-mono text-[11px] ${
+            className={`mb-3 overflow-x-auto rounded-2xl bg-base-200 px-4 py-3 font-mono text-xs ${
               d.meta?.deleted_at != null ? "opacity-55" : ""
             }`}
           >{JSON.stringify(d, null, 2)}</pre>
         ))}
 
       {view === "table" && (
-        <div className="overflow-x-auto rounded-box border border-base-300">
-          <table className="table table-sm font-mono">
+        <div className="overflow-x-auto rounded-2xl bg-base-200">
+          <table className="table font-mono text-[13px]">
             <thead>
               <tr>
                 <th>id</th>
@@ -1431,41 +1447,41 @@ function CollectionTab(
                     <td className="whitespace-nowrap">
                       <button
                         type="button"
-                        className="btn btn-ghost btn-xs btn-square"
+                        className="btn btn-ghost btn-sm btn-circle"
                         title="edit"
                         onClick={() => openEditor(d)}
                       >
-                        <Icon.Pencil className="size-3.5" />
+                        <Icon.Pencil className="size-4" />
                       </button>
                       <button
                         type="button"
-                        className="btn btn-ghost btn-xs btn-square"
+                        className="btn btn-ghost btn-sm btn-circle"
                         title="duplicate"
                         onClick={() => duplicateDoc(d)}
                       >
-                        <Icon.Duplicate className="size-3.5" />
+                        <Icon.Duplicate className="size-4" />
                       </button>
                       {deleted
                         ? (
                           <button
                             type="button"
-                            className="btn btn-ghost btn-xs btn-square"
+                            className="btn btn-ghost btn-sm btn-circle"
                             title="restore"
                             onClick={() =>
                               act(`/services/${svc.key}/${d.id}/restore`, { method: "POST" })}
                           >
-                            <Icon.Restore className="size-3.5" />
+                            <Icon.Restore className="size-4" />
                           </button>
                         )
                         : (
                           <button
                             type="button"
-                            className="btn btn-ghost btn-xs btn-square text-error"
+                            className="btn btn-ghost btn-sm btn-circle text-error"
                             title="soft delete"
                             onClick={() =>
                               act(`/services/${svc.key}/${d.id}`, { method: "DELETE" })}
                           >
-                            <Icon.XMark className="size-3.5" />
+                            <Icon.XMark className="size-4" />
                           </button>
                         )}
                     </td>
@@ -1488,7 +1504,7 @@ function CollectionTab(
       )}
 
       {view !== "schema" && docs.length === 0 && (
-        <div className="p-6 font-mono text-xs text-base-content/60">no documents</div>
+        <div className="p-8 font-mono text-sm text-base-content/60">no documents</div>
       )}
     </div>
   );
@@ -1578,59 +1594,69 @@ export function Studio(
   return (
     <div
       data-theme={theme}
-      className={`flex overflow-hidden bg-base-100 font-mono text-base-content ${
-        fullscreen ? "min-h-screen" : "min-h-140 rounded-box border border-base-300"
+      // Bump daisyUI's radius tokens app-wide → rounder buttons / inputs / cards.
+      style={{
+        "--radius-box": "1.25rem",
+        "--radius-field": "0.85rem",
+        "--radius-selector": "0.85rem",
+      } as Record<string, string>}
+      className={`flex overflow-hidden bg-base-100 font-sans text-base-content ${
+        fullscreen ? "h-screen" : "h-140 rounded-box"
       }`}
     >
-      {/* sidebar */}
-      <aside className="w-56 shrink-0 border-r border-base-300 bg-base-200 py-3.5">
-        <div className="flex items-center justify-between px-3.5 pb-3.5">
-          <span className="text-[13px] font-bold tracking-widest">
+      {/* sidebar — fixed; only its connections list scrolls when it overflows */}
+      <aside className="flex w-80 shrink-0 flex-col bg-base-200">
+        <div className="flex shrink-0 items-center justify-between px-5 pb-4 pt-5">
+          <span className="text-lg font-bold tracking-tight">
             HOWL <span className="text-warning">{WORDMARK_SEP}</span> STUDIO
           </span>
           <button
             type="button"
-            className="btn btn-ghost btn-xs btn-square"
+            className="btn btn-ghost btn-sm btn-circle"
             title="toggle theme"
             onClick={toggleTheme}
           >
-            {theme === "dark" ? <Icon.Sun className="size-4" /> : <Icon.Moon className="size-4" />}
+            {theme === "dark" ? <Icon.Sun className="size-5" /> : <Icon.Moon className="size-5" />}
           </button>
         </div>
-        <div className="px-3.5 pb-1.5 text-[10px] tracking-wider text-base-content/60">
-          CONNECTIONS ({groups.length})
+        <div className="shrink-0 px-5 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/50">
+          Connections ({groups.length})
         </div>
-        {groups.map(([backend, list]) => {
-          const accent: Accent = backendAccent(backend);
-          return (
-            <div key={backend} className="mb-2">
-              <div className={`flex items-center gap-1.5 px-3.5 py-1 text-[11px] ${accent.text}`}>
-                <span className={`size-1.5 rounded-full ${accent.bg}`} />
-                {backend}
-              </div>
-              {list.map((s) => (
-                <button
-                  type="button"
-                  key={s.key}
-                  onClick={() => openTab(s.key)}
-                  className={`flex w-full items-center gap-2 border-l-2 py-1 pl-6 pr-3.5 text-left text-xs ${
-                    active === s.key
-                      ? `${accent.border} bg-base-300`
-                      : "border-transparent hover:bg-base-300/50"
-                  }`}
+        <div className="flex-1 space-y-3 overflow-y-auto px-2 pb-3">
+          {groups.map(([backend, list]) => {
+            const accent: Accent = backendAccent(backend);
+            return (
+              <div key={backend}>
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${accent.text}`}
                 >
-                  <Icon.Collection className="size-3.5 opacity-70" />
-                  {s.key}
-                </button>
-              ))}
-            </div>
-          );
-        })}
+                  <span className={`size-2 rounded-full ${accent.bg}`} />
+                  {backend}
+                </div>
+                {list.map((s) => (
+                  <button
+                    type="button"
+                    key={s.key}
+                    onClick={() => openTab(s.key)}
+                    className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[15px] font-medium transition-colors ${
+                      active === s.key
+                        ? `${accent.bg}/15 ${accent.text}`
+                        : "text-base-content/70 hover:bg-base-300/60 hover:text-base-content"
+                    }`}
+                  >
+                    <Icon.Collection className="size-5 opacity-80" />
+                    {s.key}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </aside>
 
-      {/* main */}
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-stretch overflow-x-auto border-b border-base-300 bg-base-200">
+      {/* main — fixed header (tabs); only the content area below scrolls */}
+      <main className="flex min-w-0 flex-1 flex-col bg-base-100">
+        <div className="flex shrink-0 items-stretch gap-1 overflow-x-auto px-3 pt-2">
           {tabs.map((key) => {
             const svc = services.find((s) => s.key === key);
             if (!svc) return null;
@@ -1640,32 +1666,30 @@ export function Studio(
               <div
                 key={key}
                 onClick={() => setActive(key)}
-                className={`flex cursor-pointer items-center gap-2 whitespace-nowrap border-r border-t-2 border-r-base-300 px-3.5 py-2.5 text-xs ${
+                className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-3 text-sm font-semibold transition-colors ${
                   isActive
-                    ? `${
-                      accent.border.replace("border-", "border-t-")
-                    } bg-base-100 text-base-content`
-                    : "border-t-transparent text-base-content/60"
+                    ? "bg-base-200 text-base-content"
+                    : "text-base-content/55 hover:bg-base-200/50 hover:text-base-content"
                 }`}
               >
-                <span className={`size-1.5 rounded-full ${accent.bg}`} />
+                <span className={`size-2 rounded-full ${accent.bg}`} />
                 {svc.collection}
                 <span
                   title="close tab"
-                  className="rounded text-base-content/60 hover:text-base-content"
+                  className="rounded-full p-0.5 text-base-content/50 hover:bg-base-300 hover:text-base-content"
                   onClick={(e) => {
                     e.stopPropagation();
                     closeTab(key);
                   }}
                 >
-                  <Icon.XMark className="size-3" />
+                  <Icon.XMark className="size-4" />
                 </span>
               </div>
             );
           })}
         </div>
 
-        {error && <div className="p-4 text-xs text-error">✗ {error}</div>}
+        {error && <div className="shrink-0 p-4 text-sm text-error">✗ {error}</div>}
 
         <div className="flex-1 overflow-y-auto">
           {tabs.map((key) => {
@@ -1682,7 +1706,7 @@ export function Studio(
             );
           })}
           {tabs.length === 0 && (
-            <div className="p-8 text-xs text-base-content/60">
+            <div className="p-8 text-sm text-base-content/60">
               open a collection from the sidebar
             </div>
           )}

@@ -16,7 +16,7 @@ app.use(staticFiles());
 
 // One admin over all three databases, speaking the service contract —
 // dashboard at /studio (use mode: "component" to mount only the JSON API
-// and embed <Studio /> from @hushkey/studio/component in your own island).
+// and embed <Studio /> from @hushkey/studio/component in your own page).
 app.use(studio({
   services: {
     users: usersService,

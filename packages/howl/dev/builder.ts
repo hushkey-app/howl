@@ -31,8 +31,6 @@ import { devErrorOverlay } from "./middlewares/error_overlay/middleware.ts";
 import { automaticWorkspaceFolders } from "./middlewares/automatic_workspace_folders.ts";
 import { checkDenoCompilerOptions } from "./check.ts";
 import { crawlFsItem } from "./fs_crawl.ts";
-import { type AotEntry, aotPlugin } from "./plugins/aot.ts";
-import { findPartialBoundary } from "./partial_boundary.ts";
 import { CommandType } from "../core/commands.ts";
 
 /**
@@ -61,11 +59,6 @@ export interface BuildOptions {
    */
   staticDir?: string;
   /**
-   * Islands directory.
-   * @default "islands"
-   */
-  islandDir?: string;
-  /**
    * Routes directory.
    * @default "routes"
    */
@@ -77,10 +70,10 @@ export interface BuildOptions {
   serverEntry?: string;
   /**
    * Client entry point (e.g. `./client/pages/_app.ts`).
-   * When set, `routeDir` and `islandDir` are resolved relative to its
-   * grandparent directory (the "client root") instead of `root`.
-   * For example, `./client/pages/_app.ts` → client root = `./client/`,
-   * so pages crawl from `./client/pages` and islands from `./client/islands`.
+   * When set, `routeDir` is resolved relative to its grandparent directory
+   * (the "client root") instead of `root`. For example,
+   * `./client/pages/_app.ts` → client root = `./client/`, so pages crawl
+   * from `./client/pages`.
    */
   clientEntry?: string;
   /**
@@ -92,16 +85,7 @@ export interface BuildOptions {
    * See https://esbuild.github.io/api/#source-maps
    */
   sourceMap?: HowlBundleOptions["sourceMap"];
-  /**
-   * Alias map passed directly to esbuild.
-   * Primary use case: React → Preact/compat shim.
-   * @example
-   * {
-   *   "react": "npm:preact/compat",
-   *   "react-dom": "npm:preact/compat",
-   *   "react/jsx-runtime": "npm:preact/jsx-runtime",
-   * }
-   */
+  /** Alias map passed directly to esbuild. */
   alias?: Record<string, string>;
   /**
    * Additional esbuild plugins injected before the Deno resolver.
@@ -140,8 +124,6 @@ export class Builder<State = any> {
   #addedInternalTransforms = false;
   /** Resolved build configuration. */
   config: ResolvedBuildConfig;
-  #islandSpecifiers = new Set<string>();
-  #vueIslandSpecifiers = new Set<string>();
   #fsRoutes: FsRoute<State>;
   #ready = Promise.withResolvers<void>();
 
@@ -151,12 +133,11 @@ export class Builder<State = any> {
     const serverEntry = parseDirPath(options?.serverEntry ?? "main.ts", root);
     const clientEntry = options?.clientEntry ? parseDirPath(options.clientEntry, root) : undefined;
     // When clientEntry is provided (e.g. ./client/pages/_app.ts) derive the
-    // client root as its grandparent (./client/), so pages/islands resolve
-    // there instead of project root.
+    // client root as its grandparent (./client/), so pages resolve there
+    // instead of project root.
     const clientBase = clientEntry ? path.dirname(path.dirname(clientEntry)) : root;
     const outDir = parseDirPath(options?.outDir ?? "_howl", root);
     const staticDir = parseDirPath(options?.staticDir ?? "static", root);
-    const islandDir = parseDirPath(options?.islandDir ?? "islands", clientBase);
     const routeDir = parseDirPath(options?.routeDir ?? "routes", clientBase);
 
     this.#fsRoutes = { dir: routeDir, files: [], id: "default" };
@@ -169,7 +150,6 @@ export class Builder<State = any> {
       root,
       outDir,
       staticDir,
-      islandDir,
       routeDir,
       ignore: options?.ignore ?? [TEST_FILE_PATTERN],
       mode: "production",
@@ -178,11 +158,6 @@ export class Builder<State = any> {
       alias: options?.alias ?? {},
       plugins: options?.plugins ?? [],
     };
-  }
-
-  /** Register an island module for inclusion in the client bundle. */
-  registerIsland(specifier: string): void {
-    this.#islandSpecifiers.add(specifier);
   }
 
   /** Register a static-file transform callback (CSS modules, image hashing, …). */
@@ -282,7 +257,7 @@ export class Builder<State = any> {
    * Enforce explicit engine selection: when a client entry with page routes is
    * configured but the app registers no render engine, throw. Engines are
    * explicit — Howl has no implicit default — so a renderable app must select
-   * one (`preactEngine()` / `vueEngine()` / `reactEngine()`). Backend-only apps
+   * one (`vueEngine()` / `reactEngine()`). Backend-only apps
    * (no client entry, or no page routes) are unaffected. Call after the FS crawl
    * with the resolved app.
    */
@@ -296,7 +271,7 @@ export class Builder<State = any> {
     throw new Error(
       `Howl: client entry "${this.config.clientEntry}" has page routes but no render ` +
         `engine is registered. Engines are explicit — select one on the Howl app:\n` +
-        `  new Howl({ engines: { preact: preactEngine() } })  // or vueEngine() / reactEngine()`,
+        `  new Howl({ engines: { vue: vueEngine() } })  // or reactEngine()`,
     );
   }
 
@@ -310,75 +285,10 @@ export class Builder<State = any> {
       .map((f) => f.routePattern);
   }
 
-  async #collectAotEntries(namer: UniqueNamer): Promise<Map<string, AotEntry>> {
-    const entries = new Map<string, AotEntry>();
-
-    const aotFiles = this.#fsRoutes.files.filter((f) => f.type === CommandType.Route && f.aot);
-    if (aotFiles.length === 0) return entries;
-
-    const appFile = this.#fsRoutes.files.find((f) => f.type === CommandType.App);
-    const layoutsByDir = new Map<string, string>();
-    for (const f of this.#fsRoutes.files) {
-      if (f.type === CommandType.Layout) {
-        layoutsByDir.set(path.dirname(f.filePath), f.filePath);
-      }
-    }
-
-    const routeDir = this.config.routeDir;
-    for (const page of aotFiles) {
-      const layouts: string[] = [];
-      let dir = path.dirname(page.filePath);
-      while (true) {
-        const layoutPath = layoutsByDir.get(dir);
-        if (layoutPath) layouts.unshift(layoutPath);
-        if (dir === routeDir) break;
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-      }
-
-      // Find the topmost file in the render chain that places `<Partial>`.
-      // Files at or above it sit outside the partial in DOM (kept across AOT
-      // navs) and must NOT be bundled into the chunk; files below it sit
-      // inside the partial and must be bundled so AOT swaps reproduce what an
-      // SSR partial response would carry.
-      //
-      // No partial → no client-side mount target. Skip chunk emission for
-      // this route. The page still renders normally (SSR for `__`, prebuilt
-      // HTML for `___`); client navigation to it falls through to a full
-      // document load, same as a regular SSR route. We only warn at build
-      // time so apps that intentionally drop `client-nav` (and therefore
-      // don't need chunks) stay quiet — those won't have a Partial either.
-      const chain: string[] = [];
-      if (appFile) chain.push(appFile.filePath);
-      chain.push(...layouts);
-      const boundary = await findPartialBoundary(fsAdapter, chain);
-      if (boundary === null) continue;
-
-      const appOffset = appFile ? 1 : 0;
-      const trimmedLayouts = boundary.index < appOffset
-        ? layouts
-        : layouts.slice(boundary.index - appOffset + 1);
-
-      const slug = page.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
-      const name = namer.getUniqueName(`aot_${slug}`);
-
-      entries.set(name, {
-        name,
-        routePattern: page.routePattern,
-        pagePath: page.filePath,
-        layouts: trimmedLayouts,
-        appPath: appFile?.filePath ?? null,
-      });
-    }
-
-    return entries;
-  }
-
   async #crawlFsItems() {
     // Engine→extension map is declared by the registered engine plugins (e.g.
     // `vuePlugin` owns `.vue`, `reactPlugin` owns `.tsx`) — keeping engines out
-    // of core. Unmapped extensions fall through to the built-in Preact renderer.
+    // of core.
     const engineByExt: Record<string, string> = {};
     // Engine plugins declare their mapping under the shared `howl.engine` symbol
     // (a symbol so esbuild's plugin-option validation ignores it).
@@ -390,20 +300,11 @@ export class Builder<State = any> {
         | undefined;
       if (he !== undefined) { for (const ext of he.extensions) engineByExt[ext] = he.engine; }
     }
-    const { islands, vueIslands, routes } = await crawlFsItem({
-      islandDir: this.config.islandDir,
+    const { routes } = await crawlFsItem({
       routeDir: this.config.routeDir,
       ignore: this.config.ignore,
       engineByExt,
     });
-
-    for (let i = 0; i < islands.length; i++) {
-      this.registerIsland(islands[i]);
-    }
-
-    for (let i = 0; i < vueIslands.length; i++) {
-      this.#vueIslandSpecifiers.add(vueIslands[i]);
-    }
 
     this.#fsRoutes.files = routes;
   }
@@ -412,9 +313,7 @@ export class Builder<State = any> {
     const { target, outDir, root } = this.config;
     const staticOutDir = path.join(outDir, "static");
 
-    const hasClientArtifacts = this.#islandSpecifiers.size > 0 ||
-      this.#vueIslandSpecifiers.size > 0 ||
-      this.#fsRoutes.files.length > 0;
+    const hasClientArtifacts = this.#fsRoutes.files.length > 0;
 
     await Deno.mkdir(outDir, { recursive: true });
 
@@ -436,40 +335,6 @@ export class Builder<State = any> {
       const entryPoints: Record<string, string> = {};
 
       const namer = new UniqueNamer();
-      for (const spec of this.#islandSpecifiers) {
-        const specName = specToName(spec);
-        const name = namer.getUniqueName(specName);
-
-        entryPoints[name] = spec;
-
-        buildCache.islandModNameToChunk.set(name, {
-          name,
-          server: spec,
-          browser: null,
-          css: [],
-        });
-      }
-
-      const aotEntries = await this.#collectAotEntries(namer);
-      for (const entry of aotEntries.values()) {
-        entryPoints[entry.name] = `aot:${entry.name}`;
-      }
-
-      // Vue islands: each `.island.vue` is bundled to a client chunk (compiled
-      // by the user-supplied vuePlugin), plus the `@hushkey/howl-vue` boot
-      // runtime once. `splitting` dedupes the shared `vue` runtime across them.
-      const vueEntryToName = new Map<string, string>();
-      let vueBootEntry = "";
-      if (this.#vueIslandSpecifiers.size > 0) {
-        for (const spec of this.#vueIslandSpecifiers) {
-          const islandName = vueIslandName(spec);
-          const name = namer.getUniqueName(`vue_${islandName}`);
-          entryPoints[name] = spec;
-          vueEntryToName.set(name, islandName);
-        }
-        vueBootEntry = namer.getUniqueName("howl_vue_boot");
-        entryPoints[vueBootEntry] = VUE_BOOT_SPECIFIER;
-      }
 
       // Vue pages: each `.vue` page route gets a client hydration chunk that
       // re-renders the page tree over the server-rendered markup.
@@ -601,44 +466,10 @@ export class Builder<State = any> {
         denoJsonPath: denoJson,
         sourceMap: this.config.sourceMap,
         alias: this.config.alias,
-        plugins: [
-          aotPlugin(aotEntries, root),
-          ...(this.config.plugins ?? []),
-        ],
+        plugins: this.config.plugins ?? [],
       });
 
       const prefix = `/_howl/js/${BUILD_ID}/`;
-
-      for (const name of buildCache.islandModNameToChunk.keys()) {
-        const chunkName = output.entryToChunk.get(name);
-        if (chunkName === undefined) {
-          throw new Error(`Could not find chunk for island: ${name}`);
-        }
-        buildCache.islandModNameToChunk.get(name)!.browser = `${prefix}${chunkName}`;
-      }
-
-      for (const entry of aotEntries.values()) {
-        const chunkName = output.entryToChunk.get(entry.name);
-        if (chunkName === undefined) {
-          throw new Error(`Could not find chunk for AOT route: ${entry.routePattern}`);
-        }
-        buildCache.aotRoutes.set(entry.routePattern, `${prefix}${chunkName}`);
-      }
-
-      for (const [entryName, islandName] of vueEntryToName) {
-        const chunkName = output.entryToChunk.get(entryName);
-        if (chunkName === undefined) {
-          throw new Error(`Could not find chunk for Vue island: ${islandName}`);
-        }
-        buildCache.vueIslands.set(islandName, `${prefix}${chunkName}`);
-      }
-      if (vueBootEntry !== "") {
-        const bootChunk = output.entryToChunk.get(vueBootEntry);
-        if (bootChunk === undefined) {
-          throw new Error(`Could not find chunk for Vue island boot runtime`);
-        }
-        buildCache.vueBoot = `${prefix}${bootChunk}`;
-      }
 
       for (const [name, filePath] of vuePageEntryToPath) {
         const chunkName = output.entryToChunk.get(name);
@@ -779,7 +610,7 @@ export class Builder<State = any> {
       // No client artifacts → esbuild's `bundleJs()` is skipped, so plugins
       // registered for the bundle never receive an `onStart`. Fire their start
       // hooks directly so build-start side effects (e.g. `httpClientGenPlugin`)
-      // still run for backend-only projects with no islands or FS routes.
+      // still run for backend-only projects with no FS routes.
       await runPluginStartHooks(this.config.plugins ?? []);
     }
 
@@ -824,17 +655,11 @@ async function runPluginStartHooks(plugins: EsbuildPlugin[]): Promise<void> {
 }
 
 /**
- * Specifier of the Vue island boot runtime, bundled when a project contains
- * `.island.vue` files. Provided by the optional `@hushkey/howl-vue` package;
- * Howl core stays Vue-agnostic apart from this string and the manifest globals.
+ * Specifiers of the engine boot runtimes, imported by the generated page
+ * hydration wrappers. Howl core stays engine-agnostic apart from these strings.
  */
 const VUE_BOOT_SPECIFIER = "@hushkey/howl-vue/boot";
 const REACT_BOOT_SPECIFIER = "@hushkey/howl-react/boot";
-
-/** Derive a Vue island's public name from its `*.island.vue` file path. */
-function vueIslandName(spec: string): string {
-  return path.basename(spec).replace(/\.island\.vue$/, "");
-}
 
 /**
  * Discover a `.vue` page's wrappers by walking up from the page directory:
@@ -887,39 +712,3 @@ async function discoverEngineChain(
   return { app, layouts };
 }
 
-export function specToName(spec: string): string {
-  if (/^(https?:|file:)/.test(spec)) {
-    const url = new URL(spec);
-    if (url.pathname === "/") {
-      return pathToExportName(url.hostname);
-    }
-    return pathToExportName(spec.slice(spec.lastIndexOf("/") + 1));
-  }
-
-  if (spec.startsWith("jsr:")) {
-    const match = spec.match(
-      /jsr:@([^/]+)\/([^@/]+)(@[\^~]?\d+\.\d+\.\d+([^/]+)?)?(\/.*)?$/,
-    )!;
-    return match[5] !== undefined
-      ? pathToExportName(match[5])
-      : pathToExportName(`${match[1]}_${match[2]}`);
-  }
-
-  if (spec.startsWith("npm:")) {
-    const match = spec.match(
-      /npm:(@([^/]+)\/([^@/]+)|[^@/]+)(@[\^~]?\d+\.\d+\.\d+([^/]+)?)?(\/.*)?$/,
-    )!;
-    if (match[6] !== undefined) return pathToExportName(match[6]);
-    if (match[2] !== undefined) return pathToExportName(`${match[2]}_${match[3]}`);
-    return pathToExportName(match[1]);
-  }
-
-  const match = spec.match(/^(@([^/]+)\/([^@/]+)|[^@/]+)(\/.*)?$/);
-  if (match !== null) {
-    if (match[4] !== undefined) return pathToExportName(match[4]);
-    if (match[2] !== undefined) return pathToExportName(`${match[2]}_${match[3]}`);
-    return pathToExportName(match[1]);
-  }
-
-  return pathToExportName(spec);
-}

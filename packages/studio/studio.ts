@@ -30,6 +30,12 @@ export interface StudioStyle {
   primaryColor?: string;
   /** Class(es) for secondary actions (migrate confirm…). Default `btn-secondary`. */
   secondaryColor?: string;
+  /**
+   * Extra stylesheet URL(s) to load in the standalone page `<head>`, after
+   * daisyUI — point this at your own CSS (custom daisyUI theme, font, brand
+   * overrides). Standalone mode only; component mode is styled by the host.
+   */
+  cssUrl?: string | string[];
 }
 
 /** Configuration for {@link studio}. */
@@ -99,6 +105,11 @@ async function buildBundle(): Promise<string> {
 function standaloneHtml(path: string, style?: StudioStyle): string {
   const theme = style?.theme ?? "dark";
   const config = JSON.stringify({ endpoint: `${path}/api`, style });
+  // User stylesheets load after daisyUI so they can override it (theme, fonts).
+  const userCss = ([] as string[])
+    .concat(style?.cssUrl ?? [])
+    .map((href) => `<link href="${href}" rel="stylesheet" type="text/css" />`)
+    .join("\n");
   return `<!doctype html>
 <html lang="en" data-theme="${theme}">
 <head>
@@ -109,12 +120,19 @@ function standaloneHtml(path: string, style?: StudioStyle): string {
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+${userCss}
 <script type="importmap">{"imports":{
   "react":"https://esm.sh/react@18.3.1",
   "react/jsx-runtime":"https://esm.sh/react@18.3.1/jsx-runtime",
   "react-dom/client":"https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1"
 }}</script>
-<style>html,body{margin:0}</style>
+<style>
+:root{--font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;--font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+html,body{margin:0;font-family:var(--font-sans)}
+</style>
 </head>
 <body class="bg-base-100">
 <div id="studio-root"></div>

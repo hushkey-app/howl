@@ -109,11 +109,11 @@
           "type": "code",
           "lang": "ts",
           "filename": "main.ts",
-          "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { preactEngine } from \"@hushkey/howl-preact\";\nimport { coalesceRequests, compression } from \"@hushkey/howl/middleware\";\nimport { apiConfig } from \"./howl.config.ts\";\n\n// Page rendering is a registered engine (no implicit default).\nexport const app = new Howl({ logger: true, engines: { preact: preactEngine() } });\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();\n\nexport default { app };"
+          "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { reactEngine } from \"@hushkey/howl-react\";\nimport { coalesceRequests, compression } from \"@hushkey/howl/middleware\";\nimport { apiConfig } from \"./howl.config.ts\";\n\n// Page rendering is a registered engine (no implicit default) —\n// reactEngine() from @hushkey/howl-react or vueEngine() from @hushkey/howl-vue.\nexport const app = new Howl({ logger: true, engines: { react: reactEngine() } });\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();\n\nexport default { app };"
         },
         {
           "type": "warning",
-          "text": "When grafting Howl into an existing app, make sure compilerOptions.jsx is \"react-jsx\" and jsxImportSource is \"preact\" in your deno.json. The scaffolder sets this for you automatically."
+          "text": "When grafting Howl into an existing app, make sure compilerOptions.jsx is \"react-jsx\" and jsxImportSource is \"react\" in your deno.json. The scaffolder sets this for you automatically."
         }
       ]
     },

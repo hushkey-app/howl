@@ -28,7 +28,7 @@ Howl solves all of these natively.
 
 | Import                  | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
-| `@hushkey/howl`         | Core runtime — routing, context, islands, SSR           |
+| `@hushkey/howl`         | Core runtime — routing, context, engine seam            |
 | `@hushkey/howl/dev`     | Build pipeline — esbuild, HMR                           |
 | `@hushkey/howl/plugins` | Official plugins — Tailwind v4, typed http client gen   |
 | `@hushkey/howl/api`     | Endpoint contracts — defineApi, Zod validation, OpenAPI |
@@ -44,8 +44,8 @@ my-app/
 │   │   ├── _app.tsx        ← root shell (html/head/body)
 │   │   ├── _layout.tsx     ← shared UI layout (nav, sidebar, etc.)
 │   │   └── index.tsx
-│   └── islands/
-│       └── counter.island.tsx
+│   └── components/
+│       └── Counter.tsx
 ├── server/
 │   ├── main.ts             ← app entrypoint
 │   ├── middleware/
@@ -104,13 +104,13 @@ export const { defineApi, config: apiConfig } = defineConfig<State, Role>({
 
 ```typescript
 import { Howl, staticFiles } from "@hushkey/howl";
-import { preactEngine } from "@hushkey/howl-preact";
+import { reactEngine } from "@hushkey/howl-react";
 import type { State } from "../howl.config.ts";
 import { apiConfig } from "../howl.config.ts";
 import { middleware } from "./middleware/_index.middleware.ts";
 
-// Page rendering is a registered engine (no implicit default) — Preact here.
-export const app = new Howl<State>({ logger: true, engines: { preact: preactEngine() } });
+// Page rendering is a registered engine (no implicit default) — React here.
+export const app = new Howl<State>({ logger: true, engines: { react: reactEngine() } });
 
 app.use(staticFiles());
 app.configure(middleware);
@@ -197,12 +197,7 @@ export default function ({ Component }: { Component: FunctionComponent }): JSX.E
 }
 ```
 
-> **Note:** `@hushkey/howl/runtime` must point to `shared.ts`, not `client/mod.ts`. `client/mod.ts`
-> imports `partials.ts` which calls `document.addEventListener` at module level — it crashes
-> server-side. `shared.ts` exports `Partial`, `IS_BROWSER`, `asset`, and `Head` safely for both
-> server and client.
-
-> **Partial-nav and non-HTML responses:** when a `f-client-nav` link points to a non-HTML resource
+> **Client-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource
 > (a file download, an image, a `Content-Disposition: attachment` response, etc.), the client SPA
 > detects the non-HTML `Content-Type` and falls back to a full browser navigation instead of trying
 > to apply the response as a partial. API routes are not the intended target for `<a href>` — use
@@ -210,9 +205,9 @@ export default function ({ Component }: { Component: FunctionComponent }): JSX.E
 
 ### Link prefetching
 
-Links inside an `f-client-nav` boundary are **prefetched on intent** — when the pointer hovers
+Links inside an `client-nav` boundary are **prefetched on intent** — when the pointer hovers
 (after a brief ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals
-intent. AOT routes pre-`import()` their JS chunk; SSR routes pre-fetch their partial response. The
+intent. AOT routes pre-`import()` their JS chunk; SSR routes pre-fetch their SSR HTML. The
 eventual click reuses the warmed result, so navigation feels instant — the same idea as Hotwired
 Turbo / instant.page.
 
@@ -429,88 +424,32 @@ const all = ctx.query();
 
 ---
 
-## React ecosystem
+## Thick client — no islands
 
-React libs work transparently — no configuration needed:
+Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as
+a SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside
+your pages, and client navigation never reloads the document.
 
-```tsx
-// client/islands/ToastIsland.island.tsx
-import { toast, Toaster } from "sonner";
-import { useState } from "preact/hooks";
-import { ClientOnly } from "@hushkey/howl";
-
-export default function ToastIsland() {
-  const [count, setCount] = useState(0);
-  return (
-    <div>
-      <ClientOnly>{() => <Toaster />}</ClientOnly>
-      <button
-        onClick={() => {
-          setCount((c) => c + 1);
-          toast.success(`${count + 1}`);
-        }}
-      >
-        Click
-      </button>
-    </div>
-  );
-}
-```
-
-Three escape hatches for browser-only code, ordered from coarse to fine:
-
-| Tool                                                    | Scope              | Use when                                                                           |
-| ------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------- |
-| `export const howl = { ssr: false }`                    | Whole island       | The component itself can't SSR (Mapbox, WebGL, libs that touch `window` on import) |
-| `<ClientOnly>{() => <X />}</ClientOnly>`                | One nested element | Most of the island SSRs fine but one child crashes (sonner `<Toaster />`)          |
-| `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` | One branch in code | Need a different value or skip a side-effect on the server                         |
+For code that must branch per environment, use the inline guards:
 
 ```tsx
-// One nested widget
-<ClientOnly>{() => <ThirdPartyWidget />}</ClientOnly>;
+import { IS_BROWSER, IS_SERVER } from "@hushkey/howl";
 
-// Inline guard
 const stored = IS_BROWSER ? localStorage.getItem("prefs") : null;
 ```
 
-For islands that opt out of SSR you can render a layout-matching placeholder so the page doesn't
-shift while the JS loads:
-
-```tsx
-export const howl = {
-  ssr: false,
-  skeleton: () => <div class="h-64 bg-base-200 animate-pulse rounded" />,
-};
-```
-
-The skeleton receives the same props as the island and is replaced by the real component on
-hydration.
-
-> Default islands (`ssr: true`, no directive) hydrate against their SSR output — no flash, no wipe.
-> The hydrate switch is automatic; nothing to configure.
-
 ---
 
-## File-system conventions (build-time enforcement)
+## File-system conventions
 
-Island files **must** be named `*.island.tsx` — both inside `islands/` directories and inside
-`(_islands)` route groups. The crawler now throws on mismatch instead of warning; this surfaced
-silent hydration bugs in prior releases.
-
-> **Vue islands (experimental).** Top-level `*.island.vue` files are recognised by the crawler and
-> handled by the optional [`@hushkey/howl-vue`](packages/howl-vue) package — author an island as a
-> Vue SFC and drop it in with `<VueIsland name="…" />`. It uses Howl's existing esbuild toolchain
-> (no Vite). Requires `vuePlugin()` in your builder; see the package README.
-
-> **Pluggable render engines — Preact, Vue & React.** Page rendering is a registered engine — there
-> is **no implicit default**. The framework is split into four packages:
-> [`@hushkey/howl`](packages/howl) (core + the Preact runtime) ·
-> [`@hushkey/howl-preact`](packages/howl-preact) · [`@hushkey/howl-vue`](packages/howl-vue) ·
-> [`@hushkey/howl-react`](packages/howl-react). Select an engine on the app —
-> `new Howl({ engines: { preact: preactEngine() } })` (or `vue: vueEngine()` /
-> `react: reactEngine()`) — plus the matching builder plugin (`preactPlugin()` / `vuePlugin()` /
-> `reactPlugin()`). The shared backend — routing, APIs, middleware, client-nav + prefetch, AOT/SSG,
-> `deno compile` — is reused unchanged; only the component renderer differs, and all three engines
+> **Pluggable render engines — Vue & React.** Page rendering is a registered engine — there is
+> **no implicit default**. The framework is split into three packages:
+> [`@hushkey/howl`](packages/howl) (engine-agnostic core) ·
+> [`@hushkey/howl-vue`](packages/howl-vue) · [`@hushkey/howl-react`](packages/howl-react). Select an
+> engine on the app — `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) —
+> plus the matching builder plugin (`vuePlugin()` / `reactPlugin()`). The shared backend — routing,
+> APIs, middleware, client-nav + prefetch, AOT/SSG, `deno compile` — is reused unchanged; only the
+> component renderer differs, and both engines
 > use the same `client-nav` / `client-prefetch` attributes. Each engine also backs
 > `ctx.renderToString(component, props?)` — render a standalone template to an HTML string (emails,
 > notifications) in whatever engine you picked, no page shell.
@@ -545,26 +484,17 @@ navigation works.
 | `__page.tsx`  | AOT  | Renderer runs per request                         | Dynamic-imports a client chunk, no server hit |
 | `___page.tsx` | SSG  | Prerendered HTML served from snapshot (no JS run) | Dynamic-imports a client chunk, no server hit |
 
-`__` builds an ESM chunk per page that contains everything that would appear **inside** the active
-`<Partial>` markers on an SSR response — inner layouts (if any) plus the page. Files above the
-partial in the chain (the `_app.tsx` shell and any outer `_layout.tsx`) are not bundled: they're
-already in the DOM on first paint and stay there across AOT navs, so layout-level islands (navbars,
-sidebars) keep their state across page changes. On click, the chunk is `import()`-ed and rendered
-into the active `<Partial>` outlet. `___` additionally runs the handler at build time, captures the
-HTML, and bakes it into the production snapshot so request-time renders are skipped entirely.
+`__` builds an ESM chunk per page containing the `[layouts, page]` tree (the `_app` shell stays
+static in the DOM, so persistent chrome like navbars keeps its state across navigations). The
+engine emits the AOT manifest (route pattern → chunk URL) into the page; on a client-nav click to
+an AOT route the boot runtime `import()`s the chunk and renders it in place — no server
+round-trip. `___` additionally runs the handler at build time, captures the HTML, and bakes it
+into the production snapshot so request-time renders are skipped entirely. Routes navigated to
+that aren't AOT fall back to the SSR fetch-and-swap path.
 
-AOT chunks need a `<Partial>` in `_app.tsx` or the layout chain to mount into. The boundary is
-detected by a static scan of each file's source for the literal `Partial` identifier in JSX
-(`<Partial …>`) or `h`/`jsx`-call form (`h(Partial, …)`). Aliased imports (`{ Partial as P }`) are
-not detected — use the literal `Partial` name. When no `<Partial>` is found in an AOT page's chain,
-chunk emission is silently skipped: the route still SSRs (or serves prerendered HTML for
-`___`-prefixed SSG pages), and in-app navigation to it falls through to a full document load. This
-makes it safe to keep `__`/`___` prefixes when you intentionally don't use `f-client-nav` /
-`<Partial>`.
-
-AOT navigation honours `f-client-nav` the same way SSR partial nav does. Drop the attribute from
+AOT navigation honours `client-nav` the same way SSR partial nav does. Drop the attribute from
 `<body>` (or set it to `"false"`) and clicks on AOT links fall through to full document navigation —
-same behaviour as SSR routes. Use `f-client-nav="false"` on a nested element to opt out a single
+same behaviour as SSR routes. Use `client-nav="false"` on a nested element to opt out a single
 subtree (e.g. external dashboards) while leaving the rest of the app on SPA-style routing.
 
 ```tsx
@@ -611,14 +541,12 @@ SSG limits and gotchas:
 | Root HTML shell       | `client/pages/_app.tsx`                  |
 | Shared UI layout      | `client/pages/_layout.tsx`               |
 | Pages                 | `client/pages/`                          |
-| Islands               | `client/islands/`                        |
 | Endpoint contracts    | `server/apis/**/*.api.ts`                |
 | Middleware            | `server/middleware/`                     |
 | Static files          | `static/`                                |
 | Config                | `howl.config.ts`                         |
 | Build output          | `dist/`                                  |
 | OpenAPI spec          | `getApiSpecs()` from `@hushkey/howl/api` |
-| Client runtime import | `@hushkey/howl/runtime` → `shared.ts`    |
 
 ---
 

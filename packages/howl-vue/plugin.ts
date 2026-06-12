@@ -36,8 +36,7 @@ export interface VuePluginOptions {
 /**
  * esbuild plugin that compiles Vue Single-File Components (`.vue`) using
  * `@vue/compiler-sfc` — no Vite required. Each `<style>` block is emitted as a
- * virtual CSS module so it flows into esbuild's normal CSS output (and, in
- * turn, Howl's island-CSS asset pipeline).
+ * virtual CSS module so it flows into esbuild's normal CSS output.
  *
  * Bare `vue` / `vue/server-renderer` imports in the generated code are left
  * for esbuild (and Howl's Deno resolver) to resolve.

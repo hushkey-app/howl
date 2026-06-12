@@ -20,7 +20,7 @@ const builder = new HowlBuilder<State>(app, {
       },
     }),
   ],
-  // The only wiring needed for Vue islands: register the SFC esbuild plugin.
+  // The only wiring needed for Vue pages: register the SFC esbuild plugin.
 });
 
 if (Deno.args.includes("build")) {

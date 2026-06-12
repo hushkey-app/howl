@@ -1,4 +1,4 @@
-import { type BuildCache, IslandPreparer, type StaticFile } from "../core/build_cache.ts";
+import type { BuildCache, StaticFile } from "../core/build_cache.ts";
 import * as path from "@std/path";
 import { encodeHex } from "@std/encoding/hex";
 import { fsAdapter } from "../core/fs.ts";
@@ -8,20 +8,12 @@ import type { ResolvedBuildConfig } from "./builder.ts";
 import { fsItemsToCommands, type FsRouteFile } from "../core/fs_routes.ts";
 import { type Command, CommandType } from "../core/commands.ts";
 import type { EngineRouteInfo } from "../core/engine.ts";
-import type { ServerIslandRegistry } from "../core/context.ts";
 import { contentType as getStdContentType } from "@std/media-types/content-type";
 
 export interface MemoryFile {
   hash: string | null;
   contentType: string;
   content: Uint8Array;
-}
-
-export interface IslandModChunk {
-  name: string;
-  server: string;
-  browser: string | null;
-  css: string[];
 }
 
 export type FsRouteFileNoMod<State> = Omit<FsRouteFile<State>, "mod"> & {
@@ -57,7 +49,6 @@ export interface ApiEntry {
 }
 
 export interface DevBuildCache<State> extends BuildCache<State> {
-  islandModNameToChunk: Map<string, IslandModChunk>;
   /** Build artifact: `.vue` page file path → SSR module path (relative to dist). */
   engineSsrPages: Map<string, string>;
   /** Registry of API definitions keyed by METHOD:path */
@@ -106,18 +97,13 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
   #config: ResolvedBuildConfig;
   #transformer: FileTransformer;
   #apis: unknown[] = [];
-  islandModNameToChunk = new Map<string, IslandModChunk>();
   apiRegistry: Map<string, unknown> = new Map();
   #fsRoutes: FsRoute<State>;
   #commands: Command<State>[] = [];
   root: string;
-  islandRegistry: ServerIslandRegistry = new Map();
   clientEntry: string;
   features = { errorOverlay: false };
-  aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
-  vueIslands: Map<string, string> = new Map();
-  vueBoot = "";
   engineAot: Map<string, string> = new Map();
   enginePages: Map<string, string> = new Map();
   engineSsrModules: Map<string, unknown> = new Map();
@@ -286,23 +272,9 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
     });
   }
 
+  // deno-lint-ignore require-await
   async flush(): Promise<void> {
-    const preparer = new IslandPreparer();
-
-    await Promise.all(
-      Array.from(this.islandModNameToChunk.entries()).map(
-        async ([name, chunk]) => {
-          const fileUrl = maybeToFileUrl(chunk.server);
-          const mod = await import(fileUrl);
-
-          if (chunk.browser === null) {
-            throw new Error(`Unexpected missing browser chunk`);
-          }
-
-          preparer.prepare(this.islandRegistry, mod, chunk.browser, name, []);
-        },
-      ),
-    );
+    // Nothing to flush in memory mode — files are served from the in-memory maps.
   }
 
   async prepare(): Promise<void> {
@@ -329,17 +301,12 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
   #config: ResolvedBuildConfig;
   #apis: unknown[] = [];
   #apiEntries: ApiEntry[] = [];
-  islandModNameToChunk = new Map<string, IslandModChunk>();
   apiRegistry: Map<string, unknown> = new Map();
   #fsRoutes: FsRoute<State>;
   root: string;
-  islandRegistry: ServerIslandRegistry = new Map();
   clientEntry: string = "";
   features = { errorOverlay: false };
-  aotRoutes: Map<string, string> = new Map();
   ssgPages: Map<string, string> = new Map();
-  vueIslands: Map<string, string> = new Map();
-  vueBoot = "";
   engineAot: Map<string, string> = new Map();
   enginePages: Map<string, string> = new Map();
   engineSsrModules: Map<string, unknown> = new Map();
@@ -516,23 +483,17 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
       staticFiles.push({ filePath, pathname: name, hash: maybeHash });
     }
 
-    const islands = Array.from(this.islandModNameToChunk.values());
-
     await Deno.writeTextFile(
       path.join(outDir, "snapshot.js"),
       await generateSnapshotServer({
         buildId: this.#config.buildId,
         clientEntry: getClientEntry(this.#config.buildId),
         staticFiles,
-        islands,
         writeSpecifier: (filePath) => pathToSpec(outDir, filePath),
         fsRoutesFiles: this.#fsRoutes.files,
         apiRoutes: this.#apis,
         apiEntries: this.#apiEntries,
-        aotRoutes: this.aotRoutes,
         ssgPages: this.ssgPages,
-        vueIslands: this.vueIslands,
-        vueBoot: this.vueBoot,
         engineAot: this.engineAot,
         enginePages: this.enginePages,
         engineSsrPages: this.engineSsrPages,
@@ -612,24 +573,20 @@ export async function generateSnapshotServer(
     outDir: string;
     buildId: string;
     clientEntry: string;
-    islands: IslandModChunk[];
     // deno-lint-ignore no-explicit-any
     fsRoutesFiles: FsRouteFileNoMod<any>[];
     apiRoutes: unknown[];
     apiEntries: ApiEntry[];
     staticFiles: PendingStaticFile[];
     entryAssets: string[];
-    aotRoutes: Map<string, string>;
     ssgPages: Map<string, string>;
-    vueIslands: Map<string, string>;
-    vueBoot: string;
     engineAot: Map<string, string>;
     enginePages: Map<string, string>;
     engineSsrPages: Map<string, string>;
     writeSpecifier: (filePath: string) => string;
   },
 ): Promise<string> {
-  const { islands, writeSpecifier, fsRoutesFiles, outDir } = options;
+  const { writeSpecifier, fsRoutesFiles, outDir } = options;
 
   // Emit an expression that, at runtime, resolves a snapshot-relative specifier
   // (e.g. `"../client/pages/index.vue"`) to an absolute filesystem path. Engine
@@ -645,13 +602,6 @@ export async function generateSnapshotServer(
         `  [${fileUrlExpr(JSON.stringify(writeSpecifier(filePath)))}, ${JSON.stringify(url)}],`
       )
       .join("\n");
-
-  const islandImports = islands
-    .map((item) => {
-      const spec = writeSpecifier(item.server);
-      return `import * as ${item.name} from "${spec}";`;
-    })
-    .join("\n");
 
   // Always emit static imports for every fs route in the prod snapshot.
   // Dynamic `() => import("../client/pages/foo.tsx")` factories break under
@@ -672,13 +622,6 @@ export async function generateSnapshotServer(
     })
     .filter((line): line is string => line !== null)
     .join("\n");
-
-  const islandMarkers = islands.map((item) => {
-    const browser = JSON.stringify(item.browser);
-    const name = JSON.stringify(item.name);
-    const css = JSON.stringify(item.css);
-    return `islandPreparer.prepare(islands, ${item.name}, ${browser}, ${name}, ${css});`;
-  }).join("\n");
 
   const serializedFsRoutes = fsRoutesFiles
     .map((item, i) => {
@@ -745,16 +688,8 @@ export async function generateSnapshotServer(
       return JSON.stringify(meta);
     }).join(",\n");
 
-  const serializedAotRoutes = Array.from(options.aotRoutes.entries())
-    .map(([pattern, chunkUrl]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(chunkUrl)}],`)
-    .join("\n");
-
   const serializedSsgPages = Array.from(options.ssgPages.entries())
     .map(([pattern, html]) => `  [${JSON.stringify(pattern)}, ${JSON.stringify(html)}],`)
-    .join("\n");
-
-  const serializedVueIslands = Array.from(options.vueIslands.entries())
-    .map(([name, chunkUrl]) => `  [${JSON.stringify(name)}, ${JSON.stringify(chunkUrl)}],`)
     .join("\n");
 
   const serializedEngineAot = Array.from(options.engineAot.entries())
@@ -781,8 +716,6 @@ export async function generateSnapshotServer(
     .join("\n");
 
   return `${EDIT_WARNING}
-import { IslandPreparer } from "@hushkey/howl";
-${islandImports}
 ${apiImports}
 ${fsRouteImports}
 ${vueSsrImports}
@@ -790,29 +723,15 @@ ${vueSsrImports}
 export const clientEntry = ${JSON.stringify(options.clientEntry)}
 export const version = ${JSON.stringify(options.buildId)}
 
-export const islands = new Map();
-const islandPreparer = new IslandPreparer();
-${islandMarkers}
-
 export const staticFiles = new Map([
 ${staticFiles.map((def) => `  [${JSON.stringify(def.name)}, ${JSON.stringify(def)}]`).join(",\n")}
 ]);
 
 export const entryAssets = [${entryAssets}];
 
-export const aotRoutes = new Map([
-${serializedAotRoutes}
-]);
-
 export const ssgPages = new Map([
 ${serializedSsgPages}
 ]);
-
-export const vueIslands = new Map([
-${serializedVueIslands}
-]);
-
-export const vueBoot = ${JSON.stringify(options.vueBoot)};
 
 export const engineAot = new Map([
 ${serializedEngineAot}

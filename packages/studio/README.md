@@ -20,7 +20,8 @@ app.use(studio({ services: { users, blogs, reviews } }));
 The dashboard page bundles the component on first request (esbuild, react via an import map) and
 loads **daisyUI + Tailwind from a CDN** in its `<head>` — no build pipeline, no static assets, and
 no daisyUI install needed in the host app. The UI is styled entirely with daisyUI classes and
-[heroicons](https://heroicons.com).
+[heroicons](https://heroicons.com), in a flat, rounded look — Inter for chrome and JetBrains Mono
+for data (both from Google Fonts).
 
 ## Component mode
 
@@ -57,9 +58,14 @@ app.use(studio({
     theme: "dracula", // any daisyUI theme the page loads
     primaryColor: "btn-accent", // class for FIND / INSERT / APPLY
     secondaryColor: "btn-info", // class for the migrate confirm
+    cssUrl: "/studio-brand.css", // extra stylesheet(s) loaded after daisyUI (standalone only)
   },
 }));
 ```
+
+`cssUrl` (string or array) is loaded in the standalone page `<head>` **after** daisyUI, so your CSS
+can override the theme, swap fonts, or add brand tweaks. Component mode is styled by the host, so
+`cssUrl` applies to standalone only.
 
 ```tsx
 <Studio endpoint="/admin/studio/api" style={{ primaryColor: "btn-accent" }} />;
@@ -119,13 +125,13 @@ POST /studio/api/services/:key/schema {from,to}  → migrates orphan `from` → 
 
 ## Options
 
-| Option          | Default      |                                                                 |
-| --------------- | ------------ | --------------------------------------------------------------- |
-| `services`      | —            | `Record<string, DocumentService>` to administer                 |
-| `path`          | `/studio`    | Mount path                                                      |
-| `mode`          | `standalone` | `standalone` (dashboard) or `component` (API only)              |
-| `executionerId` | `"studio"`   | String or `(ctx) => string` — audit identity for writes         |
-| `style`         | —            | daisyUI overrides: `{ theme?, primaryColor?, secondaryColor? }` |
+| Option          | Default      |                                                                          |
+| --------------- | ------------ | ------------------------------------------------------------------------ |
+| `services`      | —            | `Record<string, DocumentService>` to administer                          |
+| `path`          | `/studio`    | Mount path                                                               |
+| `mode`          | `standalone` | `standalone` (dashboard) or `component` (API only)                       |
+| `executionerId` | `"studio"`   | String or `(ctx) => string` — audit identity for writes                  |
+| `style`         | —            | daisyUI overrides: `{ theme?, primaryColor?, secondaryColor?, cssUrl? }` |
 
 **Auth is yours**: mount your own guard middleware before `studio()` (it's a plain middleware;
 anything with `{ url, req, next() }` can host it).

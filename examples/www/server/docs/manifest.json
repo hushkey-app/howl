@@ -36,12 +36,6 @@
     "order": 6
   },
   {
-    "slug": "islands",
-    "title": "Islands",
-    "description": "Interactive client components with selective hydration",
-    "order": 7
-  },
-  {
     "slug": "sse",
     "title": "Server-Sent Events",
     "description": "Real-time streaming with ctx.sse()",

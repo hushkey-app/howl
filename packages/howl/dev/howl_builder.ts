@@ -11,7 +11,7 @@ import type { ApiEntry } from "./dev_build_cache.ts";
  * minus the per-client directory fields (resolved per registered client).
  */
 export interface HowlDevOptions<State = any>
-  extends Omit<BuildOptions, "routeDir" | "islandDir" | "staticDir"> {
+  extends Omit<BuildOptions, "routeDir" | "staticDir"> {
   /**
    * Lazy app loader — invoked when the dev server starts. Accepts either the
    * {@linkcode Howl} instance directly or a `{ app }` module shape so users can
@@ -23,7 +23,6 @@ export interface HowlDevOptions<State = any>
 /**
  * Wraps Builder with Howl-aware features:
  * - CSS Modules baked in
- * - React → Preact/compat alias baked in
  * - apis/ directory crawled automatically when app.fsApiRoutes() is called
  * - OpenAPI spec auto-exposed at /api/docs
  */
@@ -41,22 +40,9 @@ export class HowlBuilder<State = any> {
     this.#setupBuilders();
   }
 
-  #defaultAlias(): Record<string, string> {
-    return {
-      "react": "npm:preact/compat",
-      "react-dom": "npm:preact/compat",
-      "react/jsx-runtime": "npm:preact/jsx-runtime",
-      "react/jsx-dev-runtime": "npm:preact/jsx-dev-runtime",
-    };
-  }
-
   #makeBuilderOptions(overrides: Partial<BuildOptions> = {}): BuildOptions {
     return {
       ...this.#options,
-      alias: {
-        ...this.#defaultAlias(),
-        ...this.#options.alias,
-      },
       plugins: [
         cssModulesPlugin(),
         ...(this.#options.plugins ?? []),
@@ -83,7 +69,6 @@ export class HowlBuilder<State = any> {
         client.name,
         new Builder<State>(this.#makeBuilderOptions({
           routeDir: `${client.dir}/pages`,
-          islandDir: `${client.dir}/islands`,
           staticDir: `${client.dir}/static`,
           outDir: `${this.#options.outDir ?? "_howl"}/${client.name}`,
         })),
@@ -204,13 +189,6 @@ export class HowlBuilder<State = any> {
   }
 
   // --- Public API ---
-
-  /** Register an island specifier on every underlying builder. */
-  registerIsland(specifier: string): void {
-    for (const builder of this.#builders.values()) {
-      builder.registerIsland(specifier);
-    }
-  }
 
   /**
    * Start the dev server. Crawls `apis/` first, then delegates to each
