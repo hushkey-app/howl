@@ -474,12 +474,45 @@ app.get("/api/docs", requireRole("admin"), (ctx) => ctx.json(getApiSpecs()));
 once routes are registered — query params, request body, path params, roles, and responses all
 included.
 
+**Before / after hooks**
+
+Per-endpoint middleware arrays for side effects around the handler — enqueue jobs, audit, decorate
+responses. `before` hooks run after auth, rate limiting, and validation (the typed body/query are
+already on `ctx`) and before the cache lookup; returning a `Response` short-circuits the handler.
+`after` hooks run on every successful response — handler result, cache hit, or `before`
+short-circuit — receive the outgoing `Response`, and may replace it by returning a new one. Hooks
+chain in array order; a throw from either aborts the request through the standard error envelope.
+`after` hooks are skipped when the request errors.
+
+```typescript
+export default defineApi({
+  name: "Create Order",
+  directory: "orders",
+  method: "POST",
+  roles: ["user"],
+  requestBody: orderSchema,
+  responses: { 201: z.object({ id: z.string() }) },
+  before: [
+    async (ctx, app) => {
+      await hound.enqueue("orders.audit", { user: ctx.state.userContext?.id });
+    },
+  ],
+  after: [
+    async (ctx, response, app) => {
+      await hound.enqueue("orders.metrics", { status: response.status });
+    },
+  ],
+  handler: async (ctx) => ({ statusCode: 201, id: await createOrder(ctx.req.body) }),
+});
+```
+
 ---
 
 ## Caching
 
 Response caching is configured once in `howl.config.ts` and applied per-endpoint via
-`caching: { ttl }`.
+`caching: { ttl }`. Only successful responses are cached (2xx, excluding 204) and a cached entry
+replays its original status code — a handler returning an error never poisons the cache.
 
 Three adapters ship out of the box:
 
@@ -529,8 +562,9 @@ through the limit.
 Counters and per-user response cache keys are keyed on whatever `getRateLimitIdentifier(ctx)`
 returns — Howl makes no assumptions about your `State` shape. Define it on `HowlApiConfig` to read
 whichever field you store (user id, session id, API key, tenant). When the hook is unset or returns
-`undefined`, the limiter falls back to the client IP and per-user cache keys fall back to
-`"anonymous"`.
+`undefined`, the limiter falls back to the client IP and **response caching is skipped on
+role-protected routes** — without a user identifier a shared cache entry would serve one user's
+response to another.
 
 ```ts
 defineConfig({
@@ -548,6 +582,11 @@ descriptor is logged server-side only — it is no longer leaked on the wire.
 ```json
 { "error": "Forbidden", "correlationId": "5b6e1d2c-..." }
 ```
+
+Only deliberate errors expose their message: `HttpError` / `errors.*` throws (any status) and
+errors carrying an explicit sub-500 `status` hint. An unexpected throw (driver error, TypeError)
+returns the generic `"Something went wrong, try again."` — its real message and stack are logged
+server-side under the `correlationId`, so nothing internal reaches the client.
 
 ### Response redaction is your job
 

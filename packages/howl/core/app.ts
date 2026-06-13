@@ -185,9 +185,13 @@ function createOnListen(
     const protocol = "key" in options && options.key && options.cert ? "https:" : "http:";
 
     let hostname = params.hostname;
+    // The "Local" line is for clicking/copying: loopback and wildcard binds
+    // all answer on localhost (navigating to 0.0.0.0/:: doesn't work in every
+    // browser, and 127.0.0.1 is just noisier than localhost). The Network line
+    // below still prints the real LAN IP for phone/tablet testing.
     if (
-      Deno.build.os === "windows" &&
-      (hostname === "0.0.0.0" || hostname === "::")
+      hostname === "0.0.0.0" || hostname === "::" ||
+      hostname === "127.0.0.1" || hostname === "::1"
     ) {
       hostname = "localhost";
     }

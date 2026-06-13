@@ -175,11 +175,22 @@ Validates path params, query params, and JSON body via Zod. Stores results via
 
 ### `asyncHandler` — `packages/howl/api/async-handler.ts`
 
-Auth (via `checkPermissionStrategy`), rate limiting, cache read/write, handler execution, response
-formatting. Response contract is **pass-through**: handler return == body. Howl lifts
-`statusCode`/`status` out as the HTTP status, strips `ok`, and emits the rest verbatim with
-`ok: true` injected. Handlers that want a `data` field on the wire must return one explicitly
-(`{ status: 200, data: [...] }` → `{ ok: true, data: [...] }`); Howl does not auto-nest.
+Auth (via `checkPermissionStrategy`), rate limiting, `before` hooks, cache read, handler execution,
+response formatting, cache write, `after` hooks. Response contract is **pass-through**: handler
+return == body. Howl lifts `statusCode`/`status` out as the HTTP status, strips `ok`, and emits the
+rest verbatim with `ok: true` injected. Handlers that want a `data` field on the wire must return
+one explicitly (`{ status: 200, data: [...] }` → `{ ok: true, data: [...] }`); Howl does not
+auto-nest.
+
+Pipeline guarantees: only 2xx (non-204) responses are cached, and cached entries replay their
+original status. Unexpected throws return the generic `"Something went wrong, try again."` —
+only `HttpError` / sub-500 `status` hints expose their message; the real error + stack is logged
+under the `correlationId`.
+
+Per-route hooks on the definition: `before: ApiBeforeHook[]` (post-auth/validation, pre-cache;
+returning a `Response` short-circuits the handler) and `after: ApiAfterHook[]` (`(ctx, response,
+app)`, runs on every successful response including cache hits, may replace the response; skipped on
+errors).
 
 Rate limit counters use `rateLimitCache` (separate from the response `cache`) so they can be shared
 across instances via Redis/KV while response caching stays per-instance in memory.
@@ -238,7 +249,8 @@ defineConfig({
 Rate limit keys are `ratelimit:{identifier}:{method}:{pathname}`. The identifier is resolved via
 `getRateLimitIdentifier(ctx)` on `HowlApiConfig` (e.g. `ctx.state.user?.id`). When the hook is unset
 or returns `undefined`, the limiter falls back to the client IP from `x-forwarded-for` / `x-real-ip`
-/ `remoteAddr`. Per-user response cache keys use the same hook (falling back to `"anonymous"`).
+/ `remoteAddr`. Per-user response cache keys use the same hook; when it's unset, response caching
+is **skipped** on role-protected routes (no safe per-user key).
 
 ---
 

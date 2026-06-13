@@ -90,7 +90,8 @@ export function preAsyncHandler<State>(
           { status: 400 },
         );
       }
-      return ctx.json({ error: `${err}` }, { status: 400 });
+      const message = err instanceof Error ? err.message : String(err);
+      return ctx.json({ error: message }, { status: 400 });
     }
   };
 }

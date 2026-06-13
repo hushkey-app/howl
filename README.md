@@ -335,12 +335,30 @@ app.get("/api/docs", requireRole("admin"), (ctx) => ctx.json(getApiSpecs()));
 once routes are registered — query params, request body, path params, roles, and responses all
 included.
 
+### Before / after hooks
+
+Per-endpoint middleware arrays for side effects around the handler — enqueue jobs, audit, decorate
+responses. `before` runs after auth/rate-limit/validation (typed body and query already on `ctx`);
+returning a `Response` short-circuits the handler. `after` runs on every successful response
+(handler result, cache hit, or `before` short-circuit), receives the outgoing `Response`, and may
+replace it. Hooks chain in array order; throwing aborts through the standard error envelope.
+
+```typescript
+export default defineApi({
+  // ...
+  before: [async (ctx, app) => void hound.enqueue("audit", { path: ctx.url.pathname })],
+  after: [async (ctx, response, app) => void hound.enqueue("metrics", { status: response.status })],
+  handler: (ctx) => ({ statusCode: 200, ok: true }),
+});
+```
+
 ---
 
 ## Caching
 
 Response caching is configured once in `howl.config.ts` and applied per-endpoint via
-`caching: { ttl }`.
+`caching: { ttl }`. Only successful responses are cached (2xx, excluding 204) and a cached entry
+replays its original status code — a handler returning an error never poisons the cache.
 
 Three adapters ship out of the box:
 
@@ -385,7 +403,8 @@ a shared backend.
 ### Rate limit identifier
 
 Counters key on whatever `getRateLimitIdentifier(ctx)` returns on `HowlApiConfig` — Howl doesn't
-assume a `State` shape. Falls back to the client IP when unset or `undefined`.
+assume a `State` shape. Falls back to the client IP when unset or `undefined`; in that case
+response caching is skipped on role-protected routes (no safe per-user cache key exists).
 
 ```ts
 defineConfig({
@@ -397,6 +416,9 @@ defineConfig({
 
 API errors are returned as `{ error, correlationId }` plus an `X-Howl-Correlation-Id` response
 header. The full route descriptor is logged server-side only — it is no longer leaked on the wire.
+Only deliberate errors (`HttpError` / `errors.*`, or a sub-500 `status` hint) expose their message;
+an unexpected throw returns a generic message and logs the real error + stack under the
+`correlationId`.
 
 ### Response redaction is your job
 

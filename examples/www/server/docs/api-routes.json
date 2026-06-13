@@ -97,12 +97,35 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Add caching.ttl (seconds) to cache the response. Authenticated routes are cached per user; public routes are shared."
+          "text": "Add caching.ttl (seconds) to cache the response. Authenticated routes are cached per user; public routes are shared. Only successful responses are cached (2xx, excluding 204) and a cached entry replays its original status code — a handler returning an error never poisons the cache."
         },
         {
           "type": "code",
           "lang": "ts",
           "text": "export default defineApi({\n  caching: { ttl: 60 }, // cache for 60 seconds\n  handler: async (ctx) => {\n    const data = await db.query(\"SELECT ...\");\n    return { statusCode: 200, data };\n  },\n});"
+        },
+        {
+          "type": "warning",
+          "text": "Per-user cache keys come from getRateLimitIdentifier on the API config. When that hook is unset (or returns undefined), caching is skipped on role-protected routes — without a user identifier a shared cache entry would serve one user's response to another."
+        }
+      ]
+    },
+    {
+      "id": "hooks",
+      "heading": "Before / after hooks",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "before and after are per-endpoint middleware arrays for side effects around the handler — enqueue jobs, audit, decorate responses. before hooks run after auth, rate limiting, and validation (the typed body and query are already on ctx) and before the cache lookup; returning a Response short-circuits the handler. after hooks run on every successful response — handler result, cache hit, or before short-circuit — receive the outgoing Response, and may replace it by returning a new one."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "export default defineApi({\n  name: \"Create Order\",\n  directory: \"orders\",\n  method: \"POST\",\n  roles: [\"user\"],\n  requestBody: orderSchema,\n  responses: { 201: z.object({ id: z.string() }) },\n  before: [\n    async (ctx, app) => {\n      await hound.enqueue(\"orders.audit\", { user: ctx.state.userContext?.id });\n    },\n    // returning a Response here skips the handler\n  ],\n  after: [\n    async (ctx, response, app) => {\n      await hound.enqueue(\"orders.metrics\", { status: response.status });\n    },\n  ],\n  handler: async (ctx) => ({ statusCode: 201, id: await createOrder(ctx.req.body) }),\n});"
+        },
+        {
+          "type": "p",
+          "text": "Hooks chain in array order and a throw from either aborts the request through the standard error envelope. after hooks are skipped when the request errors."
         }
       ]
     },
@@ -141,6 +164,10 @@
         {
           "type": "p",
           "text": "The full route descriptor (DIR/NAME/METHOD) is logged server-side only. The wire payload no longer leaks internal naming, which used to give attackers a free fingerprinting channel."
+        },
+        {
+          "type": "p",
+          "text": "Only deliberate errors expose their message: HttpError / errors.* throws (any status) and errors carrying an explicit sub-500 status hint. An unexpected throw (driver error, TypeError) returns the generic \"Something went wrong, try again.\" — its real message and stack are logged server-side under the correlationId, so nothing internal reaches the client."
         }
       ]
     },

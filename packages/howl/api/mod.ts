@@ -27,6 +27,8 @@ export { tryCache } from "./cache/tiered.ts";
 export { kvCache } from "./cache/kv.ts";
 export type {
   AnyApiDefinition,
+  ApiAfterHook,
+  ApiBeforeHook,
   ApiDefinition,
   CacheAdapter,
   ContextWithBody,

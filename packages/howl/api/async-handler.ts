@@ -23,14 +23,37 @@ function resolveIdentifier(ctx: AnyCtx, howlConfig: AnyApiConfig): string | unde
   return howlConfig?.getRateLimitIdentifier?.(ctx);
 }
 
+/**
+ * Fallback counter for adapters without atomic `incr`. Stores
+ * `"count:expiresAt"` so the window expiry survives re-writes — a plain
+ * `set(count, ttl)` would reset the TTL on every increment, turning the fixed
+ * window into a sliding one that never expires under steady traffic.
+ */
 async function nonAtomicIncr(
   cache: CacheAdapter,
   key: string,
   ttlSeconds: number,
 ): Promise<number> {
   const raw = await cache.get(key);
-  const next = (raw ? Number(raw) : 0) + 1;
-  await cache.set(key, String(next), ttlSeconds);
+  const now = Date.now();
+  let count = 0;
+  let expiresAt = now + ttlSeconds * 1000;
+  if (raw) {
+    const sep = raw.indexOf(":");
+    if (sep > -1) {
+      const storedExpiry = Number(raw.slice(sep + 1));
+      if (storedExpiry > now) {
+        count = Number(raw.slice(0, sep)) || 0;
+        expiresAt = storedExpiry;
+      }
+    } else {
+      // Legacy bare-number value — count it, start a fresh window.
+      count = Number(raw) || 0;
+    }
+  }
+  const next = count + 1;
+  const remainingSeconds = Math.max(1, Math.ceil((expiresAt - now) / 1000));
+  await cache.set(key, `${next}:${expiresAt}`, remainingSeconds);
   return next;
 }
 
@@ -80,10 +103,16 @@ async function checkRateLimit(
   return null;
 }
 
-function buildCacheKey(ctx: AnyCtx, perUser: boolean, howlConfig: AnyApiConfig): string {
+/**
+ * Cache key for a response, or `null` when caching must be skipped: on a
+ * role-protected route with no user identifier available, a shared cache
+ * entry would serve one user's response to another.
+ */
+function buildCacheKey(ctx: AnyCtx, perUser: boolean, howlConfig: AnyApiConfig): string | null {
   const base = `${ctx.req.method}:${ctx.url.pathname}${ctx.url.search}`;
   if (!perUser) return base;
-  const id = resolveIdentifier(ctx, howlConfig) ?? "anonymous";
+  const id = resolveIdentifier(ctx, howlConfig);
+  if (id === undefined) return null;
   return `${base}:${id}`;
 }
 
@@ -143,7 +172,7 @@ export function asyncHandler<State, Role extends string>(
   rateLimitCache: CacheAdapter,
 ): (ctx: Context<State>) => Promise<Response> {
   return async (ctx: Context<State>): Promise<Response> => {
-    const { name, directory, handler, roles, caching } = api;
+    const { name, directory, handler, roles, caching, before, after } = api;
     const ttl = caching?.ttl ?? 0;
     const protectedRoute = roles.length > 0;
 
@@ -170,71 +199,93 @@ export function asyncHandler<State, Role extends string>(
         }
       }
 
+      const handlerCtx = makeApiCtx(ctx);
+
+      // `after` hooks see every successful response the route emits — handler
+      // result, cache hit, or a `before` short-circuit. A hook returning a
+      // Response replaces the outgoing one; errors propagate to the catch.
+      const applyAfter = async (response: Response): Promise<Response> => {
+        if (after === undefined) return response;
+        let current = response;
+        for (const hook of after) {
+          const result = await hook(handlerCtx, current, app);
+          if (result instanceof Response) current = result;
+        }
+        return current;
+      };
+
+      // `before` hooks run post-auth/rate-limit/validation and pre-cache, so
+      // side effects (job enqueueing, auditing) fire on cache hits too.
+      if (before !== undefined) {
+        for (const hook of before) {
+          const result = await hook(handlerCtx, app);
+          if (result instanceof Response) return await applyAfter(result);
+        }
+      }
+
       const cacheKey = ttl > 0 ? buildCacheKey(ctx, protectedRoute, howlConfig) : null;
       if (cacheKey) {
         const cached = await cache.get(cacheKey);
         if (cached) {
-          return ctx.json(
-            { ok: true, ...JSON.parse(cached) },
-            { status: 200 },
-          );
+          const parsed = JSON.parse(cached) as Record<string, unknown>;
+          // Envelope carries the original status; bare objects are entries
+          // written before the envelope existed — serve them as 200.
+          const isEnvelope = parsed !== null && typeof parsed === "object" &&
+            "__howlStatus" in parsed && "__howlBody" in parsed;
+          const status = isEnvelope ? parsed.__howlStatus as number : 200;
+          const body = isEnvelope ? parsed.__howlBody as Record<string, unknown> : parsed;
+          return await applyAfter(ctx.json({ ok: true, ...body }, { status }));
         }
       }
 
-      const handlerCtx = makeApiCtx(ctx);
-
       type HandlerFn = (ctx: Context<State>, app: Howl<State>) => unknown;
-      let response: unknown;
-      try {
-        response = await Promise.resolve((handler as HandlerFn)(handlerCtx, app));
-      } catch (innerErr) {
-        if (isHttpError(innerErr)) throw innerErr;
-        // Re-wrap arbitrary errors so the outer catch's status read is
-        // consistent. Preserve a numeric `status`/`statusCode` hint if the
-        // underlying error carried one — `statusCode` is honoured for
-        // backwards compatibility with older user code.
-        const e = innerErr as
-          | { message?: unknown; status?: unknown; statusCode?: unknown }
-          | undefined;
-        const msg = typeof e?.message === "string"
-          ? e.message
-          : String(innerErr ?? "Unknown error");
-        const wrapped = new Error(msg) as Error & { status?: number };
-        const hint = typeof e?.status === "number"
-          ? e.status
-          : typeof e?.statusCode === "number"
-          ? e.statusCode
-          : undefined;
-        if (hint !== undefined) wrapped.status = hint;
-        throw wrapped;
-      }
+      const response: unknown = await (handler as HandlerFn)(handlerCtx, app);
 
-      if (response instanceof Response) return response;
+      if (response instanceof Response) return await applyAfter(response);
 
       const respObj = (response ?? {}) as
         & Record<string, unknown>
         & { statusCode?: number; status?: number };
       const location = (respObj.headers as Headers | undefined)?.get?.("location");
       if (location) {
-        return ctx.redirect(location, respObj.statusCode ?? respObj.status ?? 302);
+        return await applyAfter(
+          ctx.redirect(location, respObj.statusCode ?? respObj.status ?? 302),
+        );
       }
 
       const statusCode = respObj.statusCode ?? respObj.status ?? 200;
       const { statusCode: _sc, status: _st, ok: _ok, ...rest } = respObj;
 
-      if (cacheKey) {
-        await cache.set(cacheKey, JSON.stringify(rest), ttl);
+      // Only cache successful bodied responses — a cached 4xx/5xx would be
+      // replayed to every caller for the TTL, and 204 has no body to replay.
+      if (cacheKey && statusCode >= 200 && statusCode < 300 && statusCode !== 204) {
+        await cache.set(
+          cacheKey,
+          JSON.stringify({ __howlStatus: statusCode, __howlBody: rest }),
+          ttl,
+        );
       }
 
       if (statusCode === 204) {
-        return new Response(null, { status: 204, headers: ctx.headers });
+        return await applyAfter(new Response(null, { status: 204, headers: ctx.headers }));
       }
 
-      return ctx.json({ ok: true, ...rest }, { status: statusCode });
+      return await applyAfter(ctx.json({ ok: true, ...rest }, { status: statusCode }));
     } catch (err) {
-      const e = err as ApiHandlerError | undefined;
-      const statusCode = typeof e?.status === "number" ? e.status : 500;
-      const errorMessage = typeof e?.message === "string"
+      const e = err as ApiHandlerError & { statusCode?: number } | undefined;
+      // `statusCode` honoured alongside `status` for older user code.
+      const hinted = typeof e?.status === "number"
+        ? e.status
+        : typeof e?.statusCode === "number"
+        ? e.statusCode
+        : undefined;
+      const statusCode = hinted ?? 500;
+      // Only deliberate errors expose their message: HttpError (any status)
+      // and errors carrying an explicit sub-500 status hint. An unexpected
+      // throw could contain internals (driver errors, file paths) — the
+      // client gets a generic message keyed by correlationId instead.
+      const expose = isHttpError(err) || (hinted !== undefined && hinted < 500);
+      const errorMessage = expose && typeof e?.message === "string" && e.message !== ""
         ? e.message
         : "Something went wrong, try again.";
 
@@ -242,8 +293,9 @@ export function asyncHandler<State, Role extends string>(
       const service =
         `DIR_${directory.toLowerCase()}_NAME_${name.toLowerCase()}_METHOD_${ctx.req.method.toLowerCase()}`;
 
+      // Log the error itself (message + stack), not just the client-facing text.
       // deno-lint-ignore no-console
-      console.error(`[${correlationId}] ${service}\t${errorMessage}`);
+      console.error(`[${correlationId}] ${service}`, err);
 
       ctx.headers.set("X-Howl-Correlation-Id", correlationId);
       return ctx.json(

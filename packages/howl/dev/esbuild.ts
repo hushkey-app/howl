@@ -136,13 +136,14 @@ export async function bundleJs(
         const basename = path.basename(entryPath, path.extname(entryPath));
         const filePath = options.entryPoints[basename];
         const name = entryToName.get(filePath);
-        if (name === undefined) {
-          throw new Error(
-            `esbuild emitted entry chunk "${entryPath}" that maps to no registered ` +
-              `entry point (looked up "${basename}").`,
-          );
+        // esbuild also emits entry-flagged outputs we didn't register — e.g.
+        // chunks produced by a dynamic `import()` such as the React engine's
+        // `./devtools.ts`. Those aren't in `entryPoints`, so they map to no
+        // name; skip them. A real page entry that fails to map is caught later
+        // in builder.ts with a per-page "Could not find chunk" error.
+        if (name !== undefined) {
+          entryToChunk.set(name, entryPath);
         }
-        entryToChunk.set(name, entryPath);
       }
     }
   }
