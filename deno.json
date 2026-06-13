@@ -15,6 +15,7 @@
     "./examples/_vue",
     "./examples/kawaii-www",
     "./examples/_react",
+    "./examples/_react-shadcn",
     "./examples/_backend",
     "./examples/_db"
   ],

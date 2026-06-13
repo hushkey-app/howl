@@ -1,0 +1,37 @@
+{
+  "name": "@howl/_react-shadcn",
+  "version": "0.0.1",
+  "tasks": {
+    "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/ dev.ts",
+    "build": "deno run -A dev.ts build",
+    "start": "deno run -A dist/compiled-entry.js",
+    "compile": "deno compile -A --include dist/static --output dist/bin/reacty-shadcn dist/compiled-entry.js"
+  },
+  "exports": "./server/main.ts",
+  "imports": {
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.12.0",
+    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.12.0/dev",
+    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.12.0/api",
+    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.12.0",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@howl/config": "./howl.config.ts",
+    "@/": "./client/",
+    "react": "npm:react@^18.3.1",
+    "react/jsx-runtime": "npm:react@^18.3.1/jsx-runtime",
+    "react-dom": "npm:react-dom@^18.3.1",
+    "react-dom/server": "npm:react-dom@^18.3.1/server",
+    "react-dom/client": "npm:react-dom@^18.3.1/client",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "class-variance-authority": "npm:class-variance-authority@^0.7.1",
+    "clsx": "npm:clsx@^2.1.1",
+    "tailwind-merge": "npm:tailwind-merge@^3.3.1",
+    "lucide-react": "npm:lucide-react@^0.468.0",
+    "@radix-ui/react-slot": "npm:@radix-ui/react-slot@^1.1.2"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "npm:@types/react@^18.3.0",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
+  }
+}
