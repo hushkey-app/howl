@@ -1,66 +1,90 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { isAbsolute, join, resolve } from "@std/path";
-import { findTemplate, type TemplateMeta, templates } from "./src/templates.ts";
 import { PromptCancelled, type PromptDeps, ttyPrompt } from "./src/prompt.ts";
+import {
+  type AppType,
+  gatherSpec,
+  isFullstack,
+  type ProjectSpec,
+  type ServiceLayer,
+  type UiKit,
+} from "./src/spec.ts";
 import { scaffold } from "./src/scaffold.ts";
 
-/** Inputs to {@link runInit}. All fields optional — missing ones are filled by `prompt`. */
+/** Inputs to {@link runInit}. All fields optional — missing ones are prompted. */
 export interface RunInitOptions {
-  /** Project name. Becomes the target folder name (relative to `cwd`) and the `deno.json#name`. */
+  /** Project name — becomes the target folder (relative to `cwd`) and `deno.json#name`. */
   name?: string;
-  /** Template id — must match a folder under `templatesRoot`. */
-  template?: string;
+  /** App type — `backend`, `fullstack-react`, or `fullstack-vue`. */
+  appType?: AppType;
+  /** UI kit (fullstack only) — `tailwind`, `daisyui`, or `shadcn`. */
+  ui?: UiKit;
+  /** Service layer — `none`, `sqlite`, `postgres`, or `mongo`. */
+  service?: ServiceLayer;
   /** Working directory the project folder is created under. Defaults to `Deno.cwd()`. */
   cwd?: string;
   /** Prompt implementation. Defaults to {@link ttyPrompt}; tests inject a fake. */
   prompt?: PromptDeps;
-  /** Templates root override; tests use this to point at a fixture folder. */
-  templatesRoot?: string;
   /**
    * Progress callback fired once per file written. Defaults to a TTY progress
    * bar when stdout is a terminal; pass `undefined` explicitly to silence.
    */
   onProgress?: (progress: { current: number; total: number; file: string }) => void;
+  /**
+   * Run `deno fmt` over the generated project so the output is idiomatic.
+   * Best-effort — a missing `deno` binary or fmt error is ignored. Default
+   * `true`; tests pass `false` to stay fast and subprocess-free.
+   */
+  format?: boolean;
 }
 
 /** Outcome of a successful init run. */
 export interface RunInitResult {
   /** Absolute path of the created project directory. */
   path: string;
-  /** Project name resolved from args or prompt. */
-  name: string;
-  /** Template id used to scaffold the project. */
-  template: string;
+  /** The fully-resolved spec used to scaffold the project. */
+  spec: ProjectSpec;
 }
 
 /**
- * Programmatic entry — fills missing inputs via the prompt deps, then scaffolds.
- *
- * Tests should call this with explicit `name`, `template`, `cwd`, and `templatesRoot`
- * so no prompts run.
+ * Programmatic entry — resolves a full spec from the given options (prompting
+ * for anything missing) and scaffolds the project. Tests should pass explicit
+ * `name`, `appType`, `ui`, `service`, and `cwd` so no prompts run.
  */
 export async function runInit(opts: RunInitOptions = {}): Promise<RunInitResult> {
   const prompts = opts.prompt ?? ttyPrompt;
   const cwd = opts.cwd ?? Deno.cwd();
 
-  const name = (opts.name ?? prompts.ask("Project name", "my-howl-app")).trim();
-  if (!name) throw new Error("Project name is required");
-  validateProjectName(name);
+  const spec = gatherSpec(
+    { name: opts.name, appType: opts.appType, ui: opts.ui, service: opts.service },
+    prompts,
+  );
 
-  const templateId = resolveTemplateId(opts.template, prompts);
-  const targetDir = isAbsolute(name) ? name : resolve(join(cwd, name));
-
+  const targetDir = isAbsolute(spec.name) ? spec.name : resolve(join(cwd, spec.name));
   const progress = opts.onProgress ?? (Deno.stdout.isTerminal() ? ttyProgress() : undefined);
 
-  await scaffold({
-    templateId,
-    targetDir,
-    projectName: name,
-    templatesRoot: opts.templatesRoot,
-    onProgress: progress,
-  });
+  await scaffold({ spec, targetDir, onProgress: progress });
 
-  return { path: targetDir, name, template: templateId };
+  if (opts.format !== false) await tryFormat(targetDir);
+
+  return { path: targetDir, spec };
+}
+
+/**
+ * Best-effort `deno fmt` over the generated project so files match the
+ * formatter regardless of template whitespace. Swallows failures (no `deno`
+ * on PATH, fmt error) — the files are already valid, just unformatted.
+ */
+async function tryFormat(dir: string): Promise<void> {
+  try {
+    await new Deno.Command("deno", {
+      args: ["fmt", dir],
+      stdout: "null",
+      stderr: "null",
+    }).output();
+  } catch {
+    // leave the files as written
+  }
 }
 
 function ttyProgress(): (p: { current: number; total: number; file: string }) => void {
@@ -87,9 +111,9 @@ function ttyProgress(): (p: { current: number; total: number; file: string }) =>
 /** CLI entry — parses argv, calls {@link runInit}, prints next-steps on success. */
 export async function main(argv: string[] = Deno.args): Promise<void> {
   const flags = parseArgs(argv, {
-    string: ["name", "template"],
+    string: ["name", "type", "ui", "service"],
     boolean: ["help"],
-    alias: { h: "help", n: "name", t: "template" },
+    alias: { h: "help", n: "name", t: "type", u: "ui", s: "service" },
   });
 
   if (flags.help) {
@@ -101,7 +125,9 @@ export async function main(argv: string[] = Deno.args): Promise<void> {
   try {
     const result = await runInit({
       name: flags.name ?? positional,
-      template: flags.template,
+      appType: flags.type as AppType | undefined,
+      ui: flags.ui as UiKit | undefined,
+      service: flags.service as ServiceLayer | undefined,
     });
     printNextSteps(result);
   } catch (err) {
@@ -115,58 +141,37 @@ export async function main(argv: string[] = Deno.args): Promise<void> {
   }
 }
 
-function resolveTemplateId(requested: string | undefined, prompts: PromptDeps): string {
-  if (requested) {
-    const meta = findTemplate(requested);
-    if (!meta) {
-      const known = templates.map((t) => t.id).join(", ");
-      throw new Error(`Unknown template "${requested}". Available: ${known}`);
-    }
-    return meta.id;
-  }
-  const choice = prompts.pick<TemplateMeta>(
-    "Choose a template",
-    templates.map((t) => ({ label: t.label, description: t.description, value: t })),
-  );
-  return choice.id;
-}
-
-const PROJECT_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
-
-function validateProjectName(name: string): void {
-  if (!PROJECT_NAME_PATTERN.test(name)) {
-    throw new Error(
-      `Invalid project name "${name}" — use letters, digits, '-', '_', '.' (must start with letter or digit)`,
-    );
-  }
-}
-
 function printHelp(): void {
-  const ids = templates.map((t) => `    ${t.id.padEnd(12)} ${t.description}`).join("\n");
   console.log(
     [
       "howl-init — scaffold a new Howl project",
       "",
       "Usage:",
-      "  deno run -Ar jsr:@hushkey/howl-init [name] [--template <id>]",
-      "",
-      "Templates:",
-      ids,
+      "  deno run -Ar jsr:@hushkey/howl-init [name] [flags]",
       "",
       "Flags:",
-      "  -n, --name <name>       Project name (also accepted as positional arg)",
-      "  -t, --template <id>     Template id (skip the picker)",
-      "  -h, --help              Show this help",
+      "  -n, --name <name>        Project name (also accepted as positional arg)",
+      "  -t, --type <type>        backend | fullstack-react | fullstack-vue",
+      "  -u, --ui <kit>           tailwind | daisyui | shadcn (fullstack only)",
+      "  -s, --service <db>       none | sqlite | postgres | mongo",
+      "  -h, --help               Show this help",
+      "",
+      "Run with no flags for an interactive walkthrough.",
     ].join("\n"),
   );
 }
 
 function printNextSteps(result: RunInitResult): void {
-  console.log(`\n✓ Created ${result.name} at ${result.path}`);
-  console.log(`  template: ${result.template}\n`);
+  const { spec, path } = result;
+  console.log(`\n✓ Created ${spec.name} at ${path}`);
+  const bits = [`type: ${spec.appType}`];
+  if (isFullstack(spec)) bits.push(`ui: ${spec.ui}`);
+  bits.push(`service: ${spec.service}`);
+  console.log(`  ${bits.join("  ·  ")}\n`);
   console.log("Next:");
-  console.log(`  cd ${result.name}`);
+  console.log(`  cd ${spec.name}`);
   console.log(`  deno task dev`);
+  if (spec.service !== "none") console.log(`  open http://localhost:8000/studio`);
 }
 
 if (import.meta.main) await main();

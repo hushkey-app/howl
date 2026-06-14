@@ -25,42 +25,36 @@
         { "type": "code", "lang": "sh", "text": "deno run -Ar jsr:@hushkey/howl-init" },
         {
           "type": "p",
-          "text": "You will be asked for a project name and shown a list of templates to pick from. Each template ships with a working dev/build/start task and an import map already wired to the latest @hushkey/howl version."
+          "text": "There are no fixed templates — the scaffolder composes your project from four choices, then assembles deno.json, dev.ts, server/main.ts, pages, and a service layer to match. Every project ships working dev/build/start tasks, an import map wired to the latest @hushkey/howl, and a generated typed HTTP client."
         },
         {
           "type": "table",
-          "headers": ["Template", "What you get"],
+          "headers": ["Prompt", "Choices"],
           "rows": [
+            ["Project name", "The target folder."],
+            ["App type", "backend · fullstack-react · fullstack-vue"],
             [
-              "backend-only",
-              "Minimal API-only project — no client, no styling. Ships ping (GET) + pong (POST with requestBody) as starter routes"
+              "UI kit (fullstack only)",
+              "shadcn/ui or daisyUI for React; daisyUI or plain Tailwind for Vue. shadcn vendors cn + Button + Card into client/components/ui/."
             ],
             [
-              "fullstack",
-              "Minimal fullstack starter — 1 API, 1 page, 1 island, 1 signal-based component, Tailwind v4 + daisyUI"
-            ],
-            [
-              "docs",
-              "Tailwind v4 + daisyUI docs site driven by JSON manifests (this site is built from this template)"
-            ],
-            [
-              "cv",
-              "Tailwind v4 + daisyUI developer CV / portfolio with project cards and per-project detail pages"
+              "Service layer",
+              "none · sqlite · postgres · mongo. Any database wires @hushkey/service-core, a sample items service, and the Studio admin at /studio."
             ]
           ]
         },
         {
           "type": "p",
-          "text": "Skip the picker by passing the template id and project name as flags:"
+          "text": "Skip the prompts by passing flags:"
         },
         {
           "type": "code",
           "lang": "sh",
-          "text": "deno run -Ar jsr:@hushkey/howl-init my-app --template docs"
+          "text": "deno run -Ar jsr:@hushkey/howl-init my-app --type fullstack-react --ui shadcn --service sqlite"
         },
         {
           "type": "tip",
-          "text": "The scaffolder keeps its templates in lockstep with the published @hushkey/howl version, so a fresh project always lines up with the docs you are reading."
+          "text": "The scaffolder pins the published @hushkey/howl version, so a fresh project always lines up with the docs you are reading."
         }
       ]
     },
@@ -72,7 +66,7 @@
         { "type": "code", "lang": "sh", "text": "cd my-app\ndeno task dev" },
         {
           "type": "p",
-          "text": "The dev server boots HowlBuilder, runs esbuild for islands and CSS, watches the file system, and serves on http://localhost:8000 by default. Edit any file under pages/ or apis/ and the page reloads."
+          "text": "The dev server boots HowlBuilder, runs esbuild for pages and CSS, watches the file system, and serves on http://localhost:8000 by default. Edit any file under pages/ or apis/ and the page reloads."
         }
       ]
     },
@@ -82,7 +76,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Howl is convention over configuration — the file system itself is the router. Both shipped templates use the split-folder layout, with server-side code under server/ and pages/islands under client/:"
+          "text": "Howl is convention over configuration — the file system itself is the router. Scaffolded projects use the split-folder layout, with server-side code under server/ and pages under client/:"
         },
         {
           "type": "code",
@@ -139,12 +133,12 @@
       "blocks": [
         {
           "type": "p",
-          "text": "All scaffolded templates include a build task that produces a single bundled entry under dist/."
+          "text": "Every scaffolded project includes a build task that produces a single bundled entry under dist/."
         },
         { "type": "code", "lang": "sh", "text": "deno task build\ndeno task start" },
         {
           "type": "p",
-          "text": "The docs template adds a compile task that produces a self-contained binary via deno compile, useful for shipping to bare metal or Docker:"
+          "text": "Projects also include a compile task that produces a self-contained binary via deno compile, useful for shipping to bare metal or Docker:"
         },
         { "type": "code", "lang": "sh", "text": "deno task compile" }
       ]
@@ -159,7 +153,7 @@
             "Routing — file-system pages, layouts, and partial navigation",
             "API Routes — typed endpoints with Zod validation and OpenAPI generation",
             "Context — request/response helpers, cookies, headers",
-            "Islands — selective hydration for interactive components"
+            "Configuration — HowlBuilder, engines, and production builds"
           ]
         }
       ]

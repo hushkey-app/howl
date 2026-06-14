@@ -16,7 +16,6 @@
   "tasks": {
     "start": "deno run -A mod.ts",
     "test": "deno test -A --no-check tests/",
-    "manifest": "deno run -A scripts/generate_manifest.ts",
     "release": "deno run -A scripts/release.ts"
   },
   "imports": {
@@ -29,7 +28,6 @@
     "include": [
       "mod.ts",
       "src/",
-      "templates/",
       "README.md",
       "deno.json",
       "LICENSE"

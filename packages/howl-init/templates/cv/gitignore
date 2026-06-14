@@ -1,7 +1,0 @@
-node_modules/
-_howl/
-dist/
-.env
-.env.*
-!.env.example
-.DS_Store
