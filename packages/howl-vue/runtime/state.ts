@@ -1,4 +1,4 @@
-import { defineStore } from "pinia";
+import { defineStore, type StoreDefinition } from "pinia";
 
 /**
  * Global store mirroring the server `ctx.state` — the request-scoped context
@@ -13,7 +13,7 @@ import { defineStore } from "pinia";
  *
  * Requires Pinia enabled via `<body pinia>` in `_app.vue`.
  */
-const useStateStore = defineStore("state", {
+const useStateStore: StoreDefinition<"state", Record<string, unknown>> = defineStore("state", {
   state: () => ({}) as Record<string, unknown>,
 });
 

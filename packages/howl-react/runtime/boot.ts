@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import { type ComponentType, createElement, type ReactNode } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { createHead, UnheadProvider } from "@unhead/react/client";
@@ -43,13 +42,16 @@ function withProviders(tree: ReactNode): ReactNode {
   );
 }
 
-declare global {
-  var __REACT_PAGE_PROPS__: Record<string, unknown> | undefined;
+// Browser globals Howl injects into the page via inline `window.__…` scripts on
+// SSR. Read through a typed view of `globalThis` rather than a `declare global`
+// augmentation, which JSR disallows in published packages.
+const browserGlobals = globalThis as typeof globalThis & {
+  __REACT_PAGE_PROPS__?: Record<string, unknown>;
   /** AOT routes: route pattern (`/about/:id`) → client chunk URL. */
-  var __HOWL_REACT_AOT__: Record<string, string> | undefined;
+  __HOWL_REACT_AOT__?: Record<string, string>;
   /** Serialized `howlAtom` values from SSR: atom key → value. */
-  var __HOWL_REACT_STORE__: Record<string, unknown> | undefined;
-}
+  __HOWL_REACT_STORE__?: Record<string, unknown>;
+};
 
 const HOWL_APP_ID = "howl-app";
 const CLIENT_NAV_ATTR = "client-nav";
@@ -98,14 +100,14 @@ function reviveProps(raw: Record<string, unknown>): Record<string, unknown> {
 export function hydrateReactPage(components: AnyComponent[]): void {
   const el = document.getElementById(HOWL_APP_ID);
   if (el === null) return;
-  const props = reviveProps(globalThis.__REACT_PAGE_PROPS__ ?? {});
+  const props = reviveProps(browserGlobals.__REACT_PAGE_PROPS__ ?? {});
   syncState(props);
   syncLocation(props);
   // Rehydrate `howlAtom`s from their SSR values before the first render so the
   // markup matches (no hydration flash). Only on first paint — user atoms then
   // persist across client-nav, like Pinia stores (only `state` re-syncs on nav).
-  if (globalThis.__HOWL_REACT_STORE__ !== undefined) {
-    loadSerializableAtoms(store, globalThis.__HOWL_REACT_STORE__);
+  if (browserGlobals.__HOWL_REACT_STORE__ !== undefined) {
+    loadSerializableAtoms(store, browserGlobals.__HOWL_REACT_STORE__);
   }
   root = hydrateRoot(el, withProviders(composeReactTree(components, props)));
   maybeMountDevtools();
@@ -143,7 +145,7 @@ export function renderReactPage(
   props: Record<string, unknown>,
 ): void {
   if (root === null) {
-    globalThis.__REACT_PAGE_PROPS__ = props;
+    browserGlobals.__REACT_PAGE_PROPS__ = props;
     hydrateReactPage(components);
     return;
   }
@@ -162,7 +164,7 @@ export function aotMountReactPage(
   components: AnyComponent[],
   props: Record<string, unknown>,
 ): void {
-  globalThis.__REACT_PAGE_PROPS__ = props;
+  browserGlobals.__REACT_PAGE_PROPS__ = props;
   renderReactPage(components, props);
 }
 
@@ -315,7 +317,7 @@ async function navigateReactPage(url: URL, intent: NavIntent): Promise<void> {
   applyHistory(intent, landed);
   if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
 
-  globalThis.__REACT_PAGE_PROPS__ = nextProps;
+  browserGlobals.__REACT_PAGE_PROPS__ = nextProps;
   mod?.render?.(nextProps);
 }
 
@@ -333,7 +335,7 @@ let aotRoutes: AotRoute[] | null = null;
  * each `:param` becomes a capture group; non-matching patterns fall to SSR nav. */
 function getAotRoutes(): AotRoute[] {
   if (aotRoutes === null) {
-    aotRoutes = Object.entries(globalThis.__HOWL_REACT_AOT__ ?? {}).map(
+    aotRoutes = Object.entries(browserGlobals.__HOWL_REACT_AOT__ ?? {}).map(
       ([pattern, chunk]) => {
         const keys: string[] = [];
         const source = pattern
@@ -365,7 +367,7 @@ function matchAot(
 function currentState(): unknown {
   const s = store.get(howlStateAtom);
   if (s !== undefined && Object.keys(s).length > 0) return s;
-  return (globalThis.__REACT_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
+  return (browserGlobals.__REACT_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
 }
 
 /**

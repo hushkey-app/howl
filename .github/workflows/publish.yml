@@ -1,0 +1,122 @@
+name: Publish to JSR
+
+# Publishes every @hushkey/* package to JSR whenever the unified workspace
+# version changes. All packages share one version (see scripts/version.ts), so a
+# single "new version" — detected by the absence of a matching `vX.Y.Z` git tag —
+# triggers a publish of the whole set.
+#
+# Auth is OIDC (no tokens): GitHub Actions is trusted by the JSR scope, and the
+# workflow must run in the repo linked to the packages. Provenance is enabled by
+# default on GitHub Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Publish even if the version tag already exists"
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-jsr
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Detect new version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      should_publish: ${{ steps.check.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full tag history to know what's already released
+
+      - name: Resolve unified version and check for an existing tag
+        id: check
+        run: |
+          version="$(jq -r .version packages/howl/deno.json)"
+          echo "Unified workspace version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "Force publish requested."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          elif git rev-parse "v$version" >/dev/null 2>&1; then
+            echo "Tag v$version already exists — nothing to publish."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No tag v$version — this is a new version."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    name: Publish packages
+    needs: detect
+    if: needs.detect.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the release tag
+      id-token: write # OIDC auth to JSR
+    env:
+      VERSION: ${{ needs.detect.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check
+        run: |
+          deno task check
+          deno task check:services
+
+      - name: Test
+        run: |
+          deno task test
+          deno task test:services
+
+      # Each package is published from its own directory so only that member is
+      # uploaded (a root `deno publish` would also sweep in the example apps).
+      # Packages are skipped if their version is already on JSR, which makes the
+      # whole job idempotent: a re-run after a partial failure fills the gaps
+      # instead of erroring on the already-published members.
+      - name: Publish @hushkey/* to JSR
+        run: |
+          set -euo pipefail
+
+          publish_pkg() {
+            local dir="$1"
+            local ver
+            ver="$(jq -r .version "packages/$dir/deno.json")"
+            if curl -fsSL "https://jsr.io/@hushkey/$dir/${ver}_meta.json" >/dev/null 2>&1; then
+              echo "→ @hushkey/$dir@$ver already on JSR — skipping"
+            else
+              echo "→ publishing @hushkey/$dir@$ver"
+              (cd "packages/$dir" && deno publish)
+            fi
+          }
+
+          # Tier 0: no @hushkey cross-deps — must go first so dependents resolve.
+          for dir in howl howl-init service-core; do publish_pkg "$dir"; done
+          # Tier 1: depend on a tier-0 package.
+          for dir in howl-vue howl-react mongo-service pg-service sqlite-service studio; do
+            publish_pkg "$dir"
+          done
+
+      - name: Tag release
+        run: |
+          set -euo pipefail
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists — skipping."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"

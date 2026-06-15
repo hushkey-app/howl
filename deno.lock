@@ -48,6 +48,7 @@
     "jsr:@std/streams@^1.1.1": "1.1.1",
     "jsr:@std/testing@1": "1.0.19",
     "jsr:@std/uuid@^1.1.0": "1.1.1",
+    "jsr:@std/yaml@1": "1.1.1",
     "jsr:@zip-js/zip-js@^2.7.52": "2.8.26",
     "npm:@electric-sql/pglite@0.2": "0.2.17",
     "npm:@opentelemetry/api@^1.9.0": "1.9.1",
@@ -245,6 +246,9 @@
         "jsr:@std/bytes@^1.0.6",
         "jsr:@std/crypto"
       ]
+    },
+    "@std/yaml@1.1.1": {
+      "integrity": "a57665ecf3d17b926380593a56625d8a10cc7281802f1e993b5ebc94a48e71f8"
     },
     "@zip-js/zip-js@2.8.26": {
       "integrity": "2b78bfa2c5d43766c9a487fc0274981d45732de41bb5b82433d29d235be67191"
@@ -1179,20 +1183,20 @@
     "members": {
       "examples/_backend": {
         "dependencies": [
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:zod@4.3.6"
         ]
       },
       "examples/_db": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@0.12",
-          "jsr:@hushkey/howl@0.12",
-          "jsr:@hushkey/mongo-service@0.1",
-          "jsr:@hushkey/pg-service@0.1",
-          "jsr:@hushkey/service-core@0.1",
-          "jsr:@hushkey/sqlite-service@0.1",
-          "jsr:@hushkey/studio@0.1",
+          "jsr:@hushkey/howl-vue@0.13",
+          "jsr:@hushkey/howl@0.13",
+          "jsr:@hushkey/mongo-service@0.13",
+          "jsr:@hushkey/pg-service@0.13",
+          "jsr:@hushkey/service-core@0.13",
+          "jsr:@hushkey/sqlite-service@0.13",
+          "jsr:@hushkey/studio@0.13",
           "jsr:@std/path@1",
           "npm:@electric-sql/pglite@0.2",
           "npm:@unhead/vue@2",
@@ -1207,8 +1211,8 @@
       },
       "examples/_react": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@0.12",
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl-react@0.13",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:@types/react@^18.3.0",
           "npm:daisyui@5.5.18",
@@ -1219,8 +1223,8 @@
       },
       "examples/_react-shadcn": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@0.12",
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl-react@0.13",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:@radix-ui/react-slot@^1.1.2",
           "npm:@types/react@^18.3.0",
@@ -1235,8 +1239,8 @@
       },
       "examples/_vue": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@0.12",
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl-vue@0.13",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
@@ -1247,8 +1251,8 @@
       },
       "examples/kawaii-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@0.12",
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl-vue@0.13",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
@@ -1259,8 +1263,8 @@
       },
       "examples/software-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@0.12",
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl-react@0.13",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
           "npm:@types/react@^18.3.0",
@@ -1273,8 +1277,8 @@
       },
       "examples/www": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@0.12",
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl-react@0.13",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/path@1",
           "npm:@types/react@^18.3.0",
           "npm:daisyui@5.5.18",
@@ -1321,7 +1325,7 @@
       },
       "packages/howl-react": {
         "dependencies": [
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
           "npm:@unhead/react@2",
@@ -1333,7 +1337,7 @@
       },
       "packages/howl-vue": {
         "dependencies": [
-          "jsr:@hushkey/howl@0.12",
+          "jsr:@hushkey/howl@0.13",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
           "npm:@unhead/vue@2",
@@ -1347,7 +1351,7 @@
       },
       "packages/mongo-service": {
         "dependencies": [
-          "jsr:@hushkey/service-core@0.1",
+          "jsr:@hushkey/service-core@0.13",
           "jsr:@std/expect@^1.0.18",
           "npm:mongodb@6",
           "npm:zod@^4.3.6"
@@ -1355,7 +1359,7 @@
       },
       "packages/pg-service": {
         "dependencies": [
-          "jsr:@hushkey/service-core@0.1",
+          "jsr:@hushkey/service-core@0.13",
           "jsr:@std/expect@^1.0.18",
           "npm:@electric-sql/pglite@0.2",
           "npm:pg@^8.13.0"
@@ -1369,13 +1373,13 @@
       },
       "packages/sqlite-service": {
         "dependencies": [
-          "jsr:@hushkey/service-core@0.1",
+          "jsr:@hushkey/service-core@0.13",
           "jsr:@std/expect@^1.0.18"
         ]
       },
       "packages/studio": {
         "dependencies": [
-          "jsr:@hushkey/service-core@0.1",
+          "jsr:@hushkey/service-core@0.13",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
           "npm:@types/react@^18.3.0",

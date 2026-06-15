@@ -1,11 +1,12 @@
-/// <reference lib="dom" />
 import { type App, computed, type ComputedRef } from "vue";
 import { type HowlRoute, navigate } from "./router.ts";
 
-declare global {
-  /** Dev-only route map emitted by the Vue engine: every route + its mode. */
-  var __HOWL_ROUTES__: Array<{ pattern: string; mode: string; engine: string }> | undefined;
-}
+// Dev-only route map the Vue engine emits as `window.__HOWL_ROUTES__`. Read via a
+// typed `globalThis` view rather than a `declare global` augmentation (banned by
+// JSR for published packages).
+const browserGlobals = globalThis as typeof globalThis & {
+  __HOWL_ROUTES__?: Array<{ pattern: string; mode: string; engine: string }>;
+};
 
 /** One entry of the dev route map emitted as `window.__HOWL_ROUTES__`. */
 export interface HowlRouteEntry {
@@ -19,7 +20,7 @@ export interface HowlRouteEntry {
 
 /** Read the live route map emitted into the page (empty before first paint). */
 export function routeMap(): HowlRouteEntry[] {
-  return globalThis.__HOWL_ROUTES__ ?? [];
+  return browserGlobals.__HOWL_ROUTES__ ?? [];
 }
 
 /** Drop a trailing slash (except root `/`) so `ctx.route` matches manifest patterns. */

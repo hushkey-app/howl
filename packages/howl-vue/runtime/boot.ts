@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import {
   type App,
   type Component,
@@ -24,13 +23,16 @@ import { installRouterShim } from "./router_shim.ts";
 // pages mount/unmount across client-nav, so per-page title/meta update on nav.
 const head = createHead();
 
-declare global {
-  var __VUE_PAGE_PROPS__: Record<string, unknown> | undefined;
+// Browser globals Howl injects into the page via inline `window.__…` scripts on
+// SSR. Read through a typed view of `globalThis` rather than a `declare global`
+// augmentation, which JSR disallows in published packages.
+const browserGlobals = globalThis as typeof globalThis & {
+  __VUE_PAGE_PROPS__?: Record<string, unknown>;
   // deno-lint-ignore no-explicit-any
-  var __PINIA__: Record<string, any> | undefined;
+  __PINIA__?: Record<string, any>;
   /** AOT routes: route pattern (`/about/:id`) → client chunk URL. */
-  var __HOWL_VUE_AOT__: Record<string, string> | undefined;
-}
+  __HOWL_VUE_AOT__?: Record<string, string>;
+};
 
 // One Pinia for the session — hydrated once from the SSR state, then kept across
 // client-nav so stores persist (no reset on navigation).
@@ -38,7 +40,7 @@ let pinia: Pinia | null = null;
 function getPinia(): Pinia {
   if (pinia === null) {
     pinia = createPinia();
-    if (globalThis.__PINIA__ !== undefined) pinia.state.value = globalThis.__PINIA__;
+    if (browserGlobals.__PINIA__ !== undefined) pinia.state.value = browserGlobals.__PINIA__;
   }
   return pinia;
 }
@@ -107,7 +109,7 @@ function reviveProps(raw: Record<string, unknown>): Record<string, unknown> {
 export function hydrateVuePage(components: Component[]): void {
   const el = document.getElementById(HOWL_APP_ID);
   if (el === null) return;
-  const props = reviveProps(globalThis.__VUE_PAGE_PROPS__ ?? {});
+  const props = reviveProps(browserGlobals.__VUE_PAGE_PROPS__ ?? {});
   const render = composeVueTree(components, props);
 
   if (currentApp !== null && pageTree !== null) {
@@ -154,7 +156,7 @@ export function aotMountVuePage(
   props: Record<string, unknown>,
 ): void {
   injectPageStyles(styles);
-  globalThis.__VUE_PAGE_PROPS__ = props;
+  browserGlobals.__VUE_PAGE_PROPS__ = props;
   hydrateVuePage(components);
 }
 
@@ -337,7 +339,7 @@ async function navigateVuePage(url: URL, intent: NavIntent): Promise<void> {
   // history, then re-render — all synchronously, so the page swaps atomically.
   // The persistent app owns `#howl-app` and re-renders from the new props + chunk;
   // no manual markup swap (that would corrupt Vue's vdom).
-  globalThis.__VUE_PAGE_PROPS__ = nextProps;
+  browserGlobals.__VUE_PAGE_PROPS__ = nextProps;
 
   // Re-sync the `state` store with the new request's ctx.state (other stores
   // persist across nav — only this one tracks the server context).
@@ -402,7 +404,7 @@ let aotRoutes: AotRoute[] | null = null;
  * nav). */
 function getAotRoutes(): AotRoute[] {
   if (aotRoutes === null) {
-    aotRoutes = Object.entries(globalThis.__HOWL_VUE_AOT__ ?? {}).map(
+    aotRoutes = Object.entries(browserGlobals.__HOWL_VUE_AOT__ ?? {}).map(
       ([pattern, chunk]) => {
         const keys: string[] = [];
         const source = pattern
@@ -436,7 +438,7 @@ function currentState(): unknown {
     const s = getPinia().state.value.state;
     if (s !== undefined) return s;
   }
-  return (globalThis.__VUE_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
+  return (browserGlobals.__VUE_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
 }
 
 /**

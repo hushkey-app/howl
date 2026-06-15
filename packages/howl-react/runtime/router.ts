@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import { useCallback } from "react";
 import { useAtomValue } from "jotai";
 import { howlLocationAtom } from "./state.ts";

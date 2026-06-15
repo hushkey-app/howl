@@ -1,5 +1,5 @@
 import { engineOf, isFullstack, type ProjectSpec } from "../spec.ts";
-import { HOWL_VERSION, SERVICE_VERSION } from "../versions.ts";
+import { HOWL_VERSION } from "../versions.ts";
 
 /** Build the `deno.json` object for a project, composed from its spec. */
 export function denoJson(spec: ProjectSpec): string {
@@ -43,16 +43,16 @@ export function denoJson(spec: ProjectSpec): string {
   }
 
   if (spec.service !== "none") {
-    imports["@hushkey/service-core"] = `jsr:@hushkey/service-core@^${SERVICE_VERSION}`;
-    imports["@hushkey/studio"] = `jsr:@hushkey/studio@^${SERVICE_VERSION}`;
+    imports["@hushkey/service-core"] = `jsr:@hushkey/service-core@^${HOWL_VERSION}`;
+    imports["@hushkey/studio"] = `jsr:@hushkey/studio@^${HOWL_VERSION}`;
     if (spec.service === "sqlite") {
-      imports["@hushkey/sqlite-service"] = `jsr:@hushkey/sqlite-service@^${SERVICE_VERSION}`;
+      imports["@hushkey/sqlite-service"] = `jsr:@hushkey/sqlite-service@^${HOWL_VERSION}`;
     } else if (spec.service === "postgres") {
-      imports["@hushkey/pg-service"] = `jsr:@hushkey/pg-service@^${SERVICE_VERSION}`;
+      imports["@hushkey/pg-service"] = `jsr:@hushkey/pg-service@^${HOWL_VERSION}`;
       imports["pg"] = "npm:pg@^8.13.0";
       imports["@electric-sql/pglite"] = "npm:@electric-sql/pglite@^0.2.0";
     } else if (spec.service === "mongo") {
-      imports["@hushkey/mongo-service"] = `jsr:@hushkey/mongo-service@^${SERVICE_VERSION}`;
+      imports["@hushkey/mongo-service"] = `jsr:@hushkey/mongo-service@^${HOWL_VERSION}`;
       imports["mongodb"] = "npm:mongodb@^6.0.0";
     }
   }
