@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/studio",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,7 +18,7 @@
     "exclude": ["tests/"]
   },
   "imports": {
-    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.13.0",
+    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.0",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "esbuild": "npm:esbuild@^0.25.0",
