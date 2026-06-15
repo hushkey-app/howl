@@ -98,7 +98,9 @@ jobs:
               echo "→ @hushkey/$dir@$ver already on JSR — skipping"
             else
               echo "→ publishing @hushkey/$dir@$ver"
-              (cd "packages/$dir" && deno publish)
+              # --allow-dirty: the verify steps above can refresh deno.lock on the
+              # runner, leaving the tree dirty; publish would otherwise abort.
+              (cd "packages/$dir" && deno publish --allow-dirty)
             fi
           }
 
