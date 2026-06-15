@@ -19,7 +19,6 @@ export async function crawlRouteDir<State>(
   fs: FsAdapter,
   routeDir: string,
   ignore: RegExp[],
-  onIslandSpecifier: (spec: string) => void,
   engineByExt?: Record<string, string>,
 ): Promise<FsRouteFileNoMod<State>[]> {
   const files: FsRouteFileNoMod<State>[] = [];
@@ -28,14 +27,10 @@ export async function crawlRouteDir<State>(
     fs,
     routeDir,
     async (entry) => {
-      // A `(_islands)` path segment is a local island folder.
-      // Any route path segment wrapped in `(_...)` is ignored
-      // during route collection.
+      // Any route path segment wrapped in `(_...)` is ignored during route
+      // collection — colocate non-route files (components, helpers) there.
       const match = entry.path.match(GROUP_REG);
       if (match !== null) {
-        if (match[1] === "_islands") {
-          onIslandSpecifier(entry.path);
-        }
         return;
       }
 
@@ -102,9 +97,14 @@ export async function crawlRouteDir<State>(
         routePattern = pathToPattern(id.slice(1));
 
         const code = await fs.readTextFile(entry.path);
-        // Strip comments before searching so a passing mention of "routeOverride"
-        // in a doc comment doesn't accidentally force eager loading.
-        const stripped = code.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+        // Strip string literals and comments before searching so a passing
+        // mention of "routeOverride" in a doc comment or string doesn't
+        // accidentally force eager loading. (The real usage is a config key,
+        // never quoted text.)
+        const stripped = code.replace(
+          /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+          "",
+        );
         lazy = !/\brouteOverride\b/.test(stripped);
 
         // TODO: We could do an AST parse here to detect the
@@ -128,10 +128,7 @@ export async function crawlRouteDir<State>(
         ssg,
         // Render engine for this route is decided by the registered engine
         // plugins (each declares the extensions it owns, e.g. `vuePlugin` →
-        // `.vue`, `reactPlugin` → `.tsx`). Unmapped extensions (`.tsx` with no
-        // engine plugin) fall through to the built-in Preact renderer. This keeps
-        // engines out of core — and lets React + Preact share `.tsx` (the app
-        // picks one by registering its plugin).
+        // `.vue`, `reactPlugin` → `.tsx`). This keeps engines out of core.
         engine: engineByExt?.[extOf(entry.path)],
       });
     },
@@ -165,61 +162,19 @@ export async function walkDir(
   }
 }
 
-const ISLAND_NAME_RE = /\.island\.(tsx|jsx|ts|js)$/;
-const VUE_ISLAND_RE = /\.island\.vue$/;
-
 export async function crawlFsItem(
   options: {
-    islandDir: string;
     routeDir: string;
     ignore: RegExp[];
     engineByExt?: Record<string, string>;
   },
-): Promise<
-  { islands: string[]; vueIslands: string[]; routes: FsRouteFileNoMod<unknown>[] }
-> {
-  const islands: string[] = [];
-  // `.island.vue` files are handled by a separate engine (`@hushkey/howl-vue`)
-  // and must NOT be server-imported or registered in the Preact island
-  // registry, so they're collected apart from `.island.tsx` islands.
-  const vueIslands: string[] = [];
+): Promise<{ routes: FsRouteFileNoMod<unknown>[] }> {
+  const routes = await crawlRouteDir(
+    fsAdapter,
+    options.routeDir,
+    options.ignore,
+    options.engineByExt,
+  );
 
-  const [, routes] = await Promise.all([
-    walkDir(
-      fsAdapter,
-      options.islandDir,
-      (entry) => {
-        if (VUE_ISLAND_RE.test(entry.path)) {
-          vueIslands.push(entry.path);
-          return;
-        }
-        if (!ISLAND_NAME_RE.test(entry.path)) {
-          throw new Error(
-            `${entry.path} is in the islands directory but is not named *.island.tsx. ` +
-              `Rename the file to follow the framework convention.`,
-          );
-        }
-        islands.push(entry.path);
-      },
-      options.ignore,
-      ["tsx", "jsx", "ts", "js", "vue"],
-    ),
-    crawlRouteDir(
-      fsAdapter,
-      options.routeDir,
-      options.ignore,
-      (entry) => {
-        if (!ISLAND_NAME_RE.test(entry)) {
-          throw new Error(
-            `${entry} is registered as an island via (_islands) but is not named *.island.tsx. ` +
-              `Rename the file to follow the framework convention.`,
-          );
-        }
-        islands.push(entry);
-      },
-      options.engineByExt,
-    ),
-  ]);
-
-  return { islands, vueIslands, routes };
+  return { routes };
 }

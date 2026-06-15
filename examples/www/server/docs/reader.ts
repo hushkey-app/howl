@@ -4,7 +4,6 @@ import routing from "./routing.json" with { type: "json" };
 import apiRoutes from "./api-routes.json" with { type: "json" };
 import context from "./context.json" with { type: "json" };
 import middlewares from "./middlewares.json" with { type: "json" };
-import islands from "./islands.json" with { type: "json" };
 import sse from "./sse.json" with { type: "json" };
 import cacheAdapters from "./cache-adapters.json" with { type: "json" };
 import rateLimiting from "./rate-limiting.json" with { type: "json" };
@@ -49,7 +48,6 @@ const DOC_REGISTRY: Record<string, DocPage> = {
   "api-routes": apiRoutes as unknown as DocPage,
   "context": context as unknown as DocPage,
   "middlewares": middlewares as unknown as DocPage,
-  "islands": islands as unknown as DocPage,
   "sse": sse as unknown as DocPage,
   "cache-adapters": cacheAdapters as unknown as DocPage,
   "rate-limiting": rateLimiting as unknown as DocPage,

@@ -1,138 +1,47 @@
 import { dirname, join } from "@std/path";
 import { ensureDir } from "@std/fs";
-
-/**
- * Default URL pointing at the shipped template folders.
- *
- * Resolves to a `file://` URL during local development and to a `https://` JSR
- * URL when the package runs from the registry. Always ends with a trailing
- * slash so it can be used as a base for `new URL(rel, root)`.
- */
-export const DEFAULT_TEMPLATES_ROOT: string = new URL("../templates/", import.meta.url).href;
-
-/** Token replaced inside `.tpl` files with the project name. */
-export const PROJECT_NAME_TOKEN = "{{PROJECT_NAME}}";
-
-/** Token replaced inside `.tpl` files with the published `@hushkey/howl` version. */
-export const HOWL_VERSION_TOKEN = "{{HOWL_VERSION}}";
+import type { ProjectSpec } from "./spec.ts";
+import { buildProjectFiles } from "./blueprint/mod.ts";
 
 /** Progress callback invoked after each file is written. */
 export interface ScaffoldProgress {
   /** Index of the file just written, starting at 1. */
   current: number;
-  /** Total number of files in the template. */
+  /** Total number of files to write. */
   total: number;
-  /** Template-relative path of the file just written. */
+  /** Project-relative path of the file just written. */
   file: string;
 }
 
 /** Inputs to {@link scaffold}. */
 export interface ScaffoldOptions {
-  /** Template id — must match a key in the manifest under `templatesRoot`. */
-  templateId: string;
+  /** Resolved project description (name, app type, UI kit, service layer). */
+  spec: ProjectSpec;
   /** Absolute path of the new project directory. Created if missing; must be empty if it exists. */
   targetDir: string;
-  /** Project name written into `deno.json` and any other token sites. */
-  projectName: string;
-  /**
-   * Override the templates root (used in tests). Accepts a URL string (with
-   * scheme) or an absolute filesystem path. Defaults to {@link DEFAULT_TEMPLATES_ROOT}.
-   */
-  templatesRoot?: string;
-  /** Optional progress callback. Fires once per file as it is written. */
+  /** Optional progress callback, fired once per file as it is written. */
   onProgress?: (progress: ScaffoldProgress) => void;
 }
 
-/** Manifest written by `scripts/generate_manifest.ts` and shipped under `templates/`. */
-export interface TemplateManifest {
-  /** Resolved `@hushkey/howl` version baked at publish time. Substituted into `{{HOWL_VERSION}}`. */
-  howlVersion: string;
-  /** Mapping of template id to sorted list of template-relative file paths. */
-  templates: Record<string, string[]>;
-}
-
 /**
- * Copies a template folder into `targetDir`.
+ * Generate a project from its {@link ProjectSpec} and write it to `targetDir`.
  *
- * File rules:
- * - Files ending in `.tpl` have the suffix stripped and `{{PROJECT_NAME}}` tokens replaced.
- * - A file named exactly `gitignore` is renamed to `.gitignore` (dotfiles inside `templates/`
- *   would otherwise be filtered by some packaging tools).
- * - A file named exactly `env.example` is renamed to `.env.example`.
- * - All other files are copied byte-for-byte.
+ * The file set is composed in-memory by {@link buildProjectFiles} — there is no
+ * template folder or manifest to fetch. The target directory must be empty (or
+ * not exist).
  */
 export async function scaffold(opts: ScaffoldOptions): Promise<void> {
-  const root = normaliseRoot(opts.templatesRoot ?? DEFAULT_TEMPLATES_ROOT);
-  const manifest = await loadManifest(root);
-  const files = manifest.templates[opts.templateId];
-  if (!files || files.length === 0) {
-    throw new Error(`Template not found: ${opts.templateId} (looked in ${root})`);
-  }
-
   await assertEmptyTarget(opts.targetDir);
   await ensureDir(opts.targetDir);
 
+  const files = [...buildProjectFiles(opts.spec)];
   for (let i = 0; i < files.length; i++) {
-    const rel = files[i];
-    const sourceUrl = new URL(`${opts.templateId}/${rel}`, root);
-    const { destRel, isTemplate } = mapName(rel);
-    const destPath = join(opts.targetDir, destRel);
+    const [rel, content] = files[i];
+    const destPath = join(opts.targetDir, rel);
     await ensureDir(dirname(destPath));
-
-    const res = await fetch(sourceUrl);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch template file ${sourceUrl}: ${res.status}`);
-    }
-
-    if (isTemplate) {
-      const source = await res.text();
-      const rendered = source
-        .replaceAll(PROJECT_NAME_TOKEN, opts.projectName)
-        .replaceAll(HOWL_VERSION_TOKEN, manifest.howlVersion);
-      await Deno.writeTextFile(destPath, rendered);
-    } else {
-      const buf = new Uint8Array(await res.arrayBuffer());
-      await Deno.writeFile(destPath, buf);
-    }
-
+    await Deno.writeTextFile(destPath, content);
     opts.onProgress?.({ current: i + 1, total: files.length, file: rel });
   }
-}
-
-/** Maps a template-relative file path to its scaffolded destination. */
-export function mapName(relPath: string): { destRel: string; isTemplate: boolean } {
-  const parts = relPath.split("/");
-  const last = parts[parts.length - 1];
-  let renamed = last;
-  let isTemplate = false;
-
-  if (renamed.endsWith(".tpl")) {
-    renamed = renamed.slice(0, -".tpl".length);
-    isTemplate = true;
-  }
-  if (renamed === "gitignore") renamed = ".gitignore";
-  else if (renamed === "env.example") renamed = ".env.example";
-
-  parts[parts.length - 1] = renamed;
-  return { destRel: parts.join("/"), isTemplate };
-}
-
-function normaliseRoot(root: string): URL {
-  const withSlash = root.endsWith("/") ? root : `${root}/`;
-  try {
-    return new URL(withSlash);
-  } catch {
-    return new URL(`file://${withSlash}`);
-  }
-}
-
-async function loadManifest(root: URL): Promise<TemplateManifest> {
-  const url = new URL("manifest.json", root);
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to load template manifest: ${res.status} ${url}`);
-  }
-  return await res.json() as TemplateManifest;
 }
 
 async function assertEmptyTarget(targetDir: string): Promise<void> {

@@ -185,9 +185,13 @@ function createOnListen(
     const protocol = "key" in options && options.key && options.cert ? "https:" : "http:";
 
     let hostname = params.hostname;
+    // The "Local" line is for clicking/copying: loopback and wildcard binds
+    // all answer on localhost (navigating to 0.0.0.0/:: doesn't work in every
+    // browser, and 127.0.0.1 is just noisier than localhost). The Network line
+    // below still prints the real LAN IP for phone/tablet testing.
     if (
-      Deno.build.os === "windows" &&
-      (hostname === "0.0.0.0" || hostname === "::")
+      hostname === "0.0.0.0" || hostname === "::" ||
+      hostname === "127.0.0.1" || hostname === "::1"
     ) {
       hostname = "localhost";
     }
@@ -761,7 +765,10 @@ export class Howl<State = any> {
       conn: Deno.ServeHandlerInfo = DEFAULT_CONN_INFO,
     ) => {
       const url = new URL(req.url);
-      url.pathname = url.pathname.replace(/\/+/g, "/");
+      // Collapse duplicate slashes; assigning `url.pathname` re-serializes the
+      // URL, so skip the write in the common no-double-slash case.
+      const collapsed = url.pathname.replace(/\/+/g, "/");
+      if (collapsed !== url.pathname) url.pathname = collapsed;
 
       // Cached dev clients (with `/_howl/alive` baked into their bundle)
       // hit production servers in a reconnect loop, throwing 404s every
@@ -811,8 +818,8 @@ export class Howl<State = any> {
       if (
         (method === "GET" || method === "HEAD") &&
         pattern !== null &&
-        !url.searchParams.has(PARTIAL_SEARCH_PARAM) &&
-        buildCache!.ssgPages.size > 0
+        buildCache!.ssgPages.size > 0 &&
+        !url.searchParams.has(PARTIAL_SEARCH_PARAM)
       ) {
         const html = buildCache!.ssgPages.get(pattern);
         if (html !== undefined) {

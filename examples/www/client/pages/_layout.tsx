@@ -46,11 +46,11 @@ export default function Layout(props: ReactPageProps<unknown, State>) {
             : "border-b border-transparent bg-base-100/50"
         }`}
       >
-        <nav className="mx-auto flex h-full max-w-285 items-center gap-4 px-5 sm:px-9">
+        <nav className="mx-auto flex h-full max-w-360 items-center gap-4 px-5 sm:px-9">
           <a href="/" className="flex items-center gap-2.5">
-            <img src="/logo.svg" alt="Howl" className="h-9 w-9 sm:h-10 sm:w-10" />
+            <img src="/logo.svg" alt="Howl" className="h-12 w-12 sm:h-14 sm:w-14" />
             <span className="flex flex-col leading-none">
-              <span className="font-mono text-lg font-extrabold tracking-tight text-ink">
+              <span className="font-mono text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
                 howl
               </span>
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-3">
@@ -58,9 +58,14 @@ export default function Layout(props: ReactPageProps<unknown, State>) {
               </span>
             </span>
           </a>
+          {version && (
+            <span className="rounded-lg border border-primary/40 bg-accent-soft/40 px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-tight text-primary">
+              v{version}
+            </span>
+          )}
 
           {/* Desktop nav */}
-          <div className="ml-auto hidden items-center gap-1 font-mono text-[13px] sm:flex">
+          <div className="ml-auto hidden items-center gap-2 font-mono text-[13px] sm:flex">
             <a
               href="/docs"
               className="rounded-lg px-3 py-2 font-semibold text-ink-2 transition-colors hover:bg-accent-soft hover:text-primary"
@@ -99,32 +104,14 @@ export default function Layout(props: ReactPageProps<unknown, State>) {
 
       {/* Footer (PRD §5) */}
       <footer className="border-t border-line bg-base-100 pb-(--nav-h) sm:pb-0">
-        <div className="mx-auto flex max-w-285 flex-col items-center justify-between gap-3 px-5 py-6 font-mono text-[12px] text-ink-3 sm:flex-row sm:px-9">
+        <div className="mx-auto flex max-w-360 flex-col items-center justify-between gap-3 px-5 py-6 font-mono text-[12px] text-ink-3 sm:flex-row sm:px-9">
           <p>
             howl v{version} <span className="px-1 text-line-2">·</span>{" "}
             <span className="text-ink-2">MIT</span>
           </p>
-          <nav className="flex items-center gap-5">
-            <a href="/docs" className="transition-colors hover:text-primary">Docs</a>
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="transition-colors hover:text-primary"
-            >
-              GitHub
-            </a>
-            <a
-              href={JSR_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="transition-colors hover:text-primary"
-            >
-              JSR
-            </a>
-          </nav>
+
           <p>
-            howl<span className="text-primary">.</span> by hushkey
+            howl<span className="text-primary">.</span> by <a href="https://hushkey.app">hushkey</a>
           </p>
         </div>
       </footer>

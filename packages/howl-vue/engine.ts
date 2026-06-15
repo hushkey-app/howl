@@ -5,7 +5,6 @@ import { renderToString } from "vue/server-renderer";
 import { createHead, renderSSRHead } from "@unhead/vue/server";
 import { createPinia, type Pinia } from "pinia";
 import * as path from "@std/path";
-import { compileSfc, prepareTypeResolution } from "./sfc.ts";
 import { composeVueTree } from "./runtime/compose.ts";
 import { createRoute, provideRoute } from "./runtime/router.ts";
 
@@ -68,6 +67,10 @@ async function loadSsr(filePath: string): Promise<{ comp: Component; styles: str
     return { comp: hit.comp, styles: hit.styles };
   }
 
+  // The SFC compiler is only needed on this dev path (prod renders from
+  // precompiled SSR modules) — import it lazily so a production server never
+  // loads `@vue/compiler-sfc` at startup.
+  const { compileSfc, prepareTypeResolution } = await import("./sfc.ts");
   await prepareTypeResolution();
   const src = await Deno.readTextFile(filePath);
   const { code, styles } = compileSfc(src, filePath, { ssr: true });
@@ -146,6 +149,20 @@ export async function discoverVueChain(pageFilePath: string): Promise<VueChain> 
 
 const PINIA_CACHE = new Map<string, boolean>();
 
+/** Per-module render artefacts derived once from an immutable prod SSR module. */
+interface PreparedSsrModule {
+  /** The `[…layouts, page]` chain handed to `composeVueTree`. */
+  innerComps: Component[];
+  /** The chain's scoped CSS joined into a single inline `<style>` tag. */
+  styleTag: string;
+}
+const PREPARED_SSR_MODULES = new WeakMap<object, PreparedSsrModule>();
+
+/** Inline `<style>` tag for a page chain's scoped CSS (empty when no styles). */
+function styleTagFor(styles: string[]): string {
+  return styles.length > 0 ? `<style data-howl-vue-css>${styles.join("\n")}</style>` : "";
+}
+
 /** Whether `_app.vue` opts into Pinia via a `pinia` attribute on `<body>`. */
 async function appUsesPinia(appPath: string): Promise<boolean> {
   const cached = PINIA_CACHE.get(appPath);
@@ -172,17 +189,17 @@ function injectBefore(html: string, closeTag: string, content: string): string {
  * modulepreload↔import URL match). Prod only; dev leaves assets un-busted so
  * edits show immediately.
  */
+const LOCAL_ASSET = /(\/(?!\/|_howl\/)[^"]*)/;
+const LINK_HREF_RE = new RegExp(`(<link\\b[^>]*?\\shref=")${LOCAL_ASSET.source}(")`, "gi");
+const MEDIA_SRC_RE = new RegExp(
+  `(<(?:script|img|source)\\b[^>]*?\\ssrc=")${LOCAL_ASSET.source}(")`,
+  "gi",
+);
+
 function cacheBustLocalAssets(html: string): string {
-  const local = /(\/(?!\/|_howl\/)[^"]*)/;
   return html
-    .replace(
-      new RegExp(`(<link\\b[^>]*?\\shref=")${local.source}(")`, "gi"),
-      (_m, pre, url, post) => `${pre}${asset(url)}${post}`,
-    )
-    .replace(
-      new RegExp(`(<(?:script|img|source)\\b[^>]*?\\ssrc=")${local.source}(")`, "gi"),
-      (_m, pre, url, post) => `${pre}${asset(url)}${post}`,
-    );
+    .replace(LINK_HREF_RE, (_m, pre, url, post) => `${pre}${asset(url)}${post}`)
+    .replace(MEDIA_SRC_RE, (_m, pre, url, post) => `${pre}${asset(url)}${post}`);
 }
 
 /**
@@ -330,13 +347,24 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
         // chain's scoped CSS (app first), and whether `_app.vue` opts into Pinia.
         let appComp: Component | null;
         let innerComps: Component[];
-        let styles: string[];
+        let styleTag: string;
         let usesPinia: boolean;
         const ssrModule = opts.module as VueSsrModule | undefined;
         if (ssrModule !== undefined) {
+          // The module is immutable after a prod build — derive the inner
+          // component chain and the joined style tag once per module, not per
+          // request.
+          let prepared = PREPARED_SSR_MODULES.get(ssrModule);
+          if (prepared === undefined) {
+            prepared = {
+              innerComps: [...ssrModule.layouts, ssrModule.page],
+              styleTag: styleTagFor(ssrModule.styles),
+            };
+            PREPARED_SSR_MODULES.set(ssrModule, prepared);
+          }
           appComp = ssrModule.app;
-          innerComps = [...ssrModule.layouts, ssrModule.page];
-          styles = [...ssrModule.styles];
+          innerComps = prepared.innerComps;
+          styleTag = prepared.styleTag;
           usesPinia = ssrModule.pinia;
         } else {
           const { app, layouts } = await discoverVueChain(opts.filePath);
@@ -344,7 +372,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
             [...layouts, opts.filePath].map(loadSsr),
           );
           innerComps = innerLoaded.map((m) => m.comp);
-          styles = innerLoaded.flatMap((m) => m.styles);
+          let styles = innerLoaded.flatMap((m) => m.styles);
           if (app !== null) {
             const appLoaded = await loadSsr(app);
             appComp = appLoaded.comp;
@@ -354,6 +382,7 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
             appComp = null;
             usesPinia = false;
           }
+          styleTag = styleTagFor(styles);
         }
 
         // `#howl-app` always wraps the hydrated [layouts, page] tree. `_app.vue`
@@ -378,9 +407,6 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
 
         let html: string;
         if (appComp !== null) {
-          const styleTag = styles.length > 0
-            ? `<style data-howl-vue-css>${styles.join("\n")}</style>`
-            : "";
           const ssrApp = createSSRApp({
             render: () =>
               h(appComp, { ...props }, {
@@ -419,9 +445,6 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
             : `<!DOCTYPE html><html lang="en">${html}</html>`;
         } else {
           // No `_app.vue`: Howl provides a minimal shell.
-          const styleTag = styles.length > 0
-            ? `<style data-howl-vue-css>${styles.join("\n")}</style>`
-            : "";
           const ssrApp = createSSRApp(inner);
           ssrApp.use(head);
           provideRoute(ssrApp, createRoute(props as unknown as Record<string, unknown>));
@@ -521,9 +544,13 @@ function escapeHtml(s: string): string {
  * U+2028 / U+2029 line separators (legal in JSON strings, but JS parse hazards
  * when emitted verbatim into a script literal).
  */
+const SCRIPT_HAZARD_RE = /[<\u2028\u2029]/g;
+const SCRIPT_HAZARD_MAP: Record<string, string> = {
+  "<": "\\u003c",
+  "\u2028": "\\u2028",
+  "\u2029": "\\u2029",
+};
+
 function escapeJsonForScript(json: string): string {
-  return json
-    .replaceAll("<", "\\u003c")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+  return json.replace(SCRIPT_HAZARD_RE, (ch) => SCRIPT_HAZARD_MAP[ch]);
 }

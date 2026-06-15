@@ -150,10 +150,14 @@ export class UrlPatternRouter<T> implements Router<T> {
       return result;
     }
 
+    // Match on the pathname only: passing the full `URL` makes URLPattern
+    // coerce and match all 8 URL components per pattern, but every pattern
+    // here was registered with `{ pathname }` (the rest are wildcards).
+    const pathnameInput = { pathname: url.pathname };
     for (let i = 0; i < this.#dynamicArr.length; i++) {
       const route = this.#dynamicArr[i];
 
-      const match = route.pattern.exec(url);
+      const match = route.pattern.exec(pathnameInput);
       if (match === null) continue;
 
       result.pattern = route.pattern.pathname;

@@ -28,7 +28,7 @@ Howl solves all of these natively.
 
 | Import                     | Description                                                                                         |
 | -------------------------- | --------------------------------------------------------------------------------------------------- |
-| `@hushkey/howl`            | Core runtime — routing, context, islands, SSR                                                       |
+| `@hushkey/howl`            | Core runtime — routing, context, engine seam                                                        |
 | `@hushkey/howl/dev`        | Build pipeline — esbuild, HMR                                                                       |
 | `@hushkey/howl/plugins`    | Official plugins — Tailwind v4, typed http client gen                                               |
 | `@hushkey/howl/api`        | Endpoint contracts — defineApi, Zod validation, OpenAPI                                             |
@@ -45,8 +45,8 @@ my-app/
 │   │   ├── _app.tsx        ← root shell (html/head/body)
 │   │   ├── _layout.tsx     ← shared UI layout (nav, sidebar, etc.)
 │   │   └── index.tsx
-│   └── islands/
-│       └── counter.island.tsx
+│   └── components/
+│       └── Counter.tsx
 ├── server/
 │   ├── main.ts             ← app entrypoint
 │   ├── middleware/
@@ -116,15 +116,15 @@ export const { defineApi, config: apiConfig } = defineConfig<State, Role>({
 
 ```typescript
 import { Howl, staticFiles } from "@hushkey/howl";
-import { preactEngine } from "@hushkey/howl-preact";
+import { reactEngine } from "@hushkey/howl-react";
 import { coalesceRequests, compression } from "@hushkey/howl/middleware";
 import type { State } from "../howl.config.ts";
 import { apiConfig } from "../howl.config.ts";
 import { middleware } from "./middleware/_index.middleware.ts";
 
-// Page rendering is a registered engine (no implicit default) — pick Preact,
-// Vue (@hushkey/howl-vue), or React (@hushkey/howl-react).
-export const app = new Howl<State>({ logger: true, engines: { preact: preactEngine() } });
+// Page rendering is a registered engine (no implicit default) — pick React
+// (@hushkey/howl-react) or Vue (@hushkey/howl-vue).
+export const app = new Howl<State>({ logger: true, engines: { react: reactEngine() } });
 
 app.use(coalesceRequests()); // thundering-herd protection — must be first
 app.use(compression());
@@ -195,8 +195,7 @@ if (Deno.args.includes("build")) {
 
 ```tsx
 import type { PageProps } from "@hushkey/howl";
-import type { JSX } from "preact";
-import { Partial } from "@hushkey/howl/runtime";
+import type { JSX } from "react";
 import type { State } from "../../howl.config.ts";
 
 export default function App({ Component, state }: PageProps<unknown, State>): JSX.Element {
@@ -207,9 +206,7 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
         <link rel="stylesheet" href="/style.css" />
       </head>
       <body client-nav>
-        <Partial name="main">
-          <Component />
-        </Partial>
+        <Component />
       </body>
     </html>
   );
@@ -220,7 +217,7 @@ export default function App({ Component, state }: PageProps<unknown, State>): JS
 
 ```tsx
 import type { PageProps } from "@hushkey/howl";
-import type { JSX } from "preact";
+import type { JSX } from "react";
 import type { State } from "../../howl.config.ts";
 
 export default function Layout({ Component, state }: PageProps<unknown, State>): JSX.Element {
@@ -243,12 +240,7 @@ export default function Layout({ Component, state }: PageProps<unknown, State>):
 }
 ```
 
-> **Note:** `@hushkey/howl/runtime` must point to `shared.ts`, not `client/mod.ts`. `client/mod.ts`
-> imports `partials.ts` which calls `document.addEventListener` at module level — it crashes
-> server-side. `shared.ts` exports `Partial`, `IS_BROWSER`, `asset`, and `Head` safely for both
-> server and client.
-
-> **Partial-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource (a
+> **Client-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource (a
 > file download, an image, a `Content-Disposition: attachment` response, etc.), the client SPA
 > detects the non-HTML `Content-Type` and falls back to a full browser navigation instead of trying
 > to apply the response as a partial. API routes are not the intended target for `<a href>` — use
@@ -258,7 +250,7 @@ export default function Layout({ Component, state }: PageProps<unknown, State>):
 
 Add a `client-prefetch` boundary to **prefetch on intent** — when the pointer hovers (after a brief
 ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals intent. AOT routes
-pre-`import()` their JS chunk; SSR routes pre-fetch their partial response. The eventual click
+pre-`import()` their JS chunk; SSR routes pre-fetch their SSR HTML. The eventual click
 reuses the warmed result, so navigation feels instant — the same idea as Hotwired Turbo /
 instant.page.
 
@@ -278,16 +270,14 @@ one with `client-prefetch="false"`:
 
 ```tsx
 import type { Context } from "@hushkey/howl";
-import type { JSX } from "preact";
-import { Head } from "@hushkey/howl/runtime";
+import type { JSX } from "react";
+import { useHead } from "@hushkey/howl-react/head";
 import type { State } from "../../howl.config.ts";
 
 export default function Index(_ctx: Context<State>): JSX.Element {
+  useHead({ title: `${_ctx.state.client.title} — Home` });
   return (
     <>
-      <Head>
-        <title>{_ctx.state.client.title} — Home</title>
-      </Head>
       <h1>Welcome to {_ctx.state.client.title}</h1>
       <p>v{_ctx.state.client.version}</p>
     </>
@@ -316,7 +306,7 @@ import {
 
 ```typescript
 app.use(coalesceRequests()); // thundering-herd protection — must be first
-app.use(compression()); // gzip/deflate for text, JSON, JS, SVG
+app.use(compression()); // gzip/deflate for text, JSON, JS, SVG (skips bodies < 1 KB)
 app.use(staticFiles());
 app.use(cors({ origin: "https://myapp.example.com", credentials: true }));
 app.use(csrf());
@@ -484,12 +474,45 @@ app.get("/api/docs", requireRole("admin"), (ctx) => ctx.json(getApiSpecs()));
 once routes are registered — query params, request body, path params, roles, and responses all
 included.
 
+**Before / after hooks**
+
+Per-endpoint middleware arrays for side effects around the handler — enqueue jobs, audit, decorate
+responses. `before` hooks run after auth, rate limiting, and validation (the typed body/query are
+already on `ctx`) and before the cache lookup; returning a `Response` short-circuits the handler.
+`after` hooks run on every successful response — handler result, cache hit, or `before`
+short-circuit — receive the outgoing `Response`, and may replace it by returning a new one. Hooks
+chain in array order; a throw from either aborts the request through the standard error envelope.
+`after` hooks are skipped when the request errors.
+
+```typescript
+export default defineApi({
+  name: "Create Order",
+  directory: "orders",
+  method: "POST",
+  roles: ["user"],
+  requestBody: orderSchema,
+  responses: { 201: z.object({ id: z.string() }) },
+  before: [
+    async (ctx, app) => {
+      await hound.enqueue("orders.audit", { user: ctx.state.userContext?.id });
+    },
+  ],
+  after: [
+    async (ctx, response, app) => {
+      await hound.enqueue("orders.metrics", { status: response.status });
+    },
+  ],
+  handler: async (ctx) => ({ statusCode: 201, id: await createOrder(ctx.req.body) }),
+});
+```
+
 ---
 
 ## Caching
 
 Response caching is configured once in `howl.config.ts` and applied per-endpoint via
-`caching: { ttl }`.
+`caching: { ttl }`. Only successful responses are cached (2xx, excluding 204) and a cached entry
+replays its original status code — a handler returning an error never poisons the cache.
 
 Three adapters ship out of the box:
 
@@ -539,8 +562,9 @@ through the limit.
 Counters and per-user response cache keys are keyed on whatever `getRateLimitIdentifier(ctx)`
 returns — Howl makes no assumptions about your `State` shape. Define it on `HowlApiConfig` to read
 whichever field you store (user id, session id, API key, tenant). When the hook is unset or returns
-`undefined`, the limiter falls back to the client IP and per-user cache keys fall back to
-`"anonymous"`.
+`undefined`, the limiter falls back to the client IP and **response caching is skipped on
+role-protected routes** — without a user identifier a shared cache entry would serve one user's
+response to another.
 
 ```ts
 defineConfig({
@@ -558,6 +582,11 @@ descriptor is logged server-side only — it is no longer leaked on the wire.
 ```json
 { "error": "Forbidden", "correlationId": "5b6e1d2c-..." }
 ```
+
+Only deliberate errors expose their message: `HttpError` / `errors.*` throws (any status) and
+errors carrying an explicit sub-500 `status` hint. An unexpected throw (driver error, TypeError)
+returns the generic `"Something went wrong, try again."` — its real message and stack are logged
+server-side under the `correlationId`, so nothing internal reaches the client.
 
 ### Response redaction is your job
 
@@ -586,82 +615,33 @@ const all = ctx.query();
 
 ---
 
-## React ecosystem
+## Thick client — no islands
 
-React libs work transparently — no configuration needed:
+Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as
+a SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside
+your pages, and client navigation never reloads the document.
 
-```tsx
-// client/islands/ToastIsland.island.tsx
-import { toast, Toaster } from "sonner";
-import { useState } from "preact/hooks";
-import { ClientOnly } from "@hushkey/howl";
-
-export default function ToastIsland() {
-  const [count, setCount] = useState(0);
-  return (
-    <div>
-      <ClientOnly>{() => <Toaster />}</ClientOnly>
-      <button
-        onClick={() => {
-          setCount((c) => c + 1);
-          toast.success(`${count + 1}`);
-        }}
-      >
-        Click
-      </button>
-    </div>
-  );
-}
-```
-
-Three escape hatches for browser-only code, ordered from coarse to fine:
-
-| Tool                                                    | Scope              | Use when                                                                       |
-| ------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------ |
-| `export const howl = { ssr: false }`                    | Whole island       | Component itself can't SSR (Mapbox, WebGL, libs that touch `window` on import) |
-| `<ClientOnly>{() => <X />}</ClientOnly>`                | One nested element | Most of the island SSRs fine but one child crashes (e.g. sonner `<Toaster />`) |
-| `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"` | One branch in code | Need a different value or to skip a side-effect on the server                  |
+For code that must branch per environment, use the inline guards:
 
 ```tsx
-// Inline guard
+import { IS_BROWSER, IS_SERVER } from "@hushkey/howl";
+
 const stored = IS_BROWSER ? localStorage.getItem("prefs") : null;
 ```
 
-For islands that opt out of SSR you can supply a layout-matching skeleton so the page doesn't shift
-while JS loads:
-
-```tsx
-export const howl = {
-  ssr: false,
-  skeleton: () => <div class="h-64 bg-base-200 animate-pulse rounded" />,
-};
-```
-
-The skeleton receives the same props as the island and is replaced by the real component on first
-client render.
-
-> Default islands (`ssr: true`, no directive) hydrate against their SSR output — no flash, no wipe.
-> The hydrate switch is automatic; nothing to configure.
+Environment variables stay server-only unless explicitly opted in: variables prefixed
+**`howl_PUBLIC_`** are inlined into the client bundle at build time, everything else never leaves
+the server. Treat any `howl_PUBLIC_*` value as public — never put a secret behind that prefix.
 
 ---
 
 ## File-system conventions
 
-Howl enforces naming conventions at build time. The crawler **throws** when an island file isn't
-named `*.island.tsx` — both inside `islands/` directories and inside `(_islands)` route groups.
-Earlier releases warned and continued; that masked subtle hydration bugs, so it's now a hard error.
-
-> **Vue islands (experimental).** Top-level `*.island.vue` files are recognised by the crawler and
-> handled by the optional `@hushkey/howl-vue` package — author an island as a Vue SFC and use it via
-> `<VueIsland name="…" />`. Built with Howl's existing esbuild toolchain (no Vite); requires
-> `vuePlugin()` in your builder. See that package's README.
-
-> **Pluggable render engines — Preact, Vue & React.** Page rendering is a registered engine with
-> **no implicit default**. Four packages: `@hushkey/howl` (core + Preact runtime) ·
-> `@hushkey/howl-preact` · `@hushkey/howl-vue` · `@hushkey/howl-react`. Select one on the app —
-> `new Howl({ engines: { preact:
-> preactEngine() } })` (or `vue: vueEngine()` /
-> `react: reactEngine()`) — plus the matching builder plugin (`preactPlugin()` / `vuePlugin()` /
+> **Pluggable render engines — Vue & React.** Page rendering is a registered engine with
+> **no implicit default**. Three packages: `@hushkey/howl` (engine-agnostic core) ·
+> `@hushkey/howl-vue` · `@hushkey/howl-react`. Select one on the app —
+> `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) — plus the matching
+> builder plugin (`vuePlugin()` /
 > `reactPlugin()`). The shared backend (routing, APIs, middleware, `client-nav` + `client-prefetch`,
 > AOT/SSG, `deno compile`) is reused; only the renderer differs. Each engine also backs
 > `ctx.renderToString(component, props?)` — render a standalone template to an HTML string (emails,
@@ -669,12 +649,8 @@ Earlier releases warned and continued; that masked subtle hydration bugs, so it'
 > configured but no engine is registered, the build throws. Backend-only apps (no client entry) are
 > unaffected.
 
-```
-client/islands/Counter.island.tsx          ✅
-client/islands/Counter.tsx                 ❌ throws at build
-client/pages/foo/(_islands)/Foo.island.tsx ✅
-client/pages/foo/(_islands)/Foo.tsx        ❌ throws at build
-```
+Route-group folders — any path segment wrapped in `(_...)`, e.g. `(_components)` — are skipped by
+the route crawler, so you can colocate non-route files next to the pages that use them.
 
 ---
 
@@ -686,30 +662,20 @@ works.
 
 | Prefix        | Mode | First paint                           | Client nav                                |
 | ------------- | ---- | ------------------------------------- | ----------------------------------------- |
-| (none)        | SSR  | Renderer runs per request             | Partial-nav fetches a partial fragment    |
+| (none)        | SSR  | Renderer runs per request             | Fetches fresh SSR HTML, swaps in place    |
 | `__page.tsx`  | AOT  | Renderer runs per request             | Dynamic-imports a client chunk, no server |
 | `___page.tsx` | SSG  | Prerendered HTML served from snapshot | Dynamic-imports a client chunk, no server |
 
-AOT (double underscore) emits an ESM chunk per route. The chunk contains exactly what would appear
-**inside** the active `<Partial>` markers on an SSR partial response: inner layouts (those rendered
-below the partial) plus the page. Files above the partial — the `_app.tsx` shell and any outer
-`_layout.tsx` — are not bundled. They're already in the DOM on first paint and stay across AOT navs,
-so layout-level islands (navbar, sidebar) keep their state when the user clicks an AOT link. The
-chunk is `import()`-ed on first click and rendered into the active `<Partial>` outlet — no full
-document fetch, no re-execution of the SSR shell.
-
-`<Partial>` placement is detected at build time by a static scan of each app/layout file's source.
-JSX form (`<Partial …>`, `<Partial />`) and `h`/`jsx`-call form (`h(Partial, …)`) are both
-recognized; aliased imports (`{ Partial as P }`) are not — use the literal `Partial` identifier in
-app/layout files. When no `<Partial>` is found in an AOT page's chain the build silently skips chunk
-emission for that route: the page still SSRs (or serves prerendered HTML for SSG), and client
-navigation falls back to a full document load. Apps that intentionally drop `client-nav` keep
-AOT/SSG prefixes working without forcing a `<Partial>` they don't need.
+AOT (double underscore) emits an ESM chunk per route containing the `[layouts, page]` tree — the
+`_app` shell stays static in the DOM, so persistent chrome (navbar, sidebar) keeps its state across
+navigations. The engine emits the AOT manifest (route pattern → chunk URL) into the page; on a
+client-nav click to an AOT route the boot runtime `import()`s the chunk and renders it in place —
+no server round-trip. Routes that aren't AOT fall back to the SSR fetch-and-swap path.
 
 AOT navigation respects `client-nav`. Without a `client-nav` ancestor on the clicked element (or
 with the attribute explicitly set to `"false"`), the AOT navigator stands down and the browser
-performs a regular document-level navigation — matching how SSR partial nav already behaved, so
-removing `client-nav` cleanly disables SPA mode for the whole app.
+performs a regular document-level navigation — so removing `client-nav` cleanly disables SPA mode
+for the whole app.
 
 SSG (triple underscore) implies AOT and additionally runs the handler **once at build time** with an
 empty `ctx`, capturing the HTML into the production snapshot. Subsequent requests skip the renderer
@@ -717,17 +683,11 @@ entirely — the cached HTML is served directly.
 
 ```tsx
 // pages/___about.tsx
-import { Head } from "@hushkey/howl/runtime";
+import { useHead } from "@hushkey/howl-react/head";
 
 export default function About() {
-  return (
-    <>
-      <Head>
-        <title>About</title>
-      </Head>
-      <p>Built once at build time, served forever (per build).</p>
-    </>
-  );
+  useHead({ title: "About" });
+  return <p>Built once at build time, served forever (per build).</p>;
 }
 ```
 
@@ -768,14 +728,12 @@ middleware before requesting the handler.
 | Root HTML shell       | `client/pages/_app.tsx`                  |
 | Shared UI layout      | `client/pages/_layout.tsx`               |
 | Pages                 | `client/pages/`                          |
-| Islands               | `client/islands/`                        |
 | Endpoint contracts    | `server/apis/**/*.api.ts`                |
 | Middleware            | `server/middleware/`                     |
 | Static files          | `static/`                                |
 | Config                | `howl.config.ts`                         |
 | Build output          | `dist/`                                  |
 | OpenAPI spec          | `getApiSpecs()` from `@hushkey/howl/api` |
-| Client runtime import | `@hushkey/howl/runtime` → `shared.ts`    |
 
 ---
 

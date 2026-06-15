@@ -2,9 +2,6 @@ import * as path from "@std/path";
 import type { Command } from "./commands.ts";
 import type { EngineRouteInfo } from "./engine.ts";
 import { fsItemsToCommands, type FsRouteFile } from "./fs_routes.ts";
-import type { ServerIslandRegistry } from "./context.ts";
-import type { AnyComponent, ComponentType } from "./component.ts";
-import { UniqueNamer } from "./utils.ts";
 import { setBuildId } from "../utils/build-id.ts";
 
 /**
@@ -20,6 +17,8 @@ export interface FileSnapshot {
   hash: string | null;
   /** Resolved MIME type. */
   contentType: string;
+  /** Size in bytes, captured at build time (absent in pre-size snapshots). */
+  size?: number;
 }
 
 /**
@@ -37,18 +36,10 @@ export interface BuildSnapshot<State> {
   apiRoutes?: unknown[];
   /** Map from public pathname to {@linkcode FileSnapshot}. */
   staticFiles: Map<string, FileSnapshot>;
-  /** Compiled island registry. */
-  islands: ServerIslandRegistry;
   /** JS/CSS asset URLs that ship with every page. */
   entryAssets: string[];
-  /** Map of route pattern → AOT chunk URL for ahead-of-time-compiled pages. */
-  aotRoutes?: Map<string, string>;
   /** Map of route pattern → prerendered HTML for SSG-flagged pages. */
   ssgPages?: Map<string, string>;
-  /** Map of Vue island name → client chunk URL (`@hushkey/howl-vue`). */
-  vueIslands?: Map<string, string>;
-  /** Client chunk URL of the Vue island boot runtime; absent when no Vue islands. */
-  vueBoot?: string;
   /** Map of AOT `.vue` route pattern → client chunk URL (client-rendered on nav). */
   engineAot?: Map<string, string>;
   /** Map of `.vue` page file path → client hydration chunk URL. */
@@ -82,8 +73,6 @@ export interface StaticFile {
 export interface BuildCache<State = any> {
   /** Project root that file paths are resolved against. */
   root: string;
-  /** Registry of islands compiled into the build. */
-  islandRegistry: ServerIslandRegistry;
   /** Registry of API definitions keyed by path — used for client generation */
   apiRegistry: Map<string, unknown>;
   /** URL of the client runtime entry chunk. */
@@ -108,29 +97,11 @@ export interface BuildCache<State = any> {
   /** Returns the JS/CSS asset URLs that ship with every page. */
   getEntryAssets(): string[];
   /**
-   * Map of route pattern → AOT chunk URL. Populated for pages opted into
-   * client-side navigation via the `__page.tsx` filename prefix. Empty when
-   * no AOT pages are registered.
-   */
-  aotRoutes: Map<string, string>;
-  /**
    * Map of route pattern → prerendered HTML string. Populated at build time
    * for routes flagged with the `___page.tsx` SSG prefix. Looked up before
    * the dynamic renderer to short-circuit request handling.
    */
   ssgPages: Map<string, string>;
-  /**
-   * Map of Vue island name (the `.island.vue` basename) → client chunk URL.
-   * Empty unless the project contains `.island.vue` files built with
-   * `@hushkey/howl-vue`'s `vuePlugin`. Emitted to the page as
-   * `window.__HOWL_VUE__` so the Vue boot runtime can mount each island.
-   */
-  vueIslands: Map<string, string>;
-  /**
-   * Client chunk URL of the Vue island boot runtime (`@hushkey/howl-vue/boot`),
-   * or `""` when the project has no Vue islands.
-   */
-  vueBoot: string;
   /**
    * Map of AOT `.vue` route pattern (`/about/:id`) → client chunk URL. Populated
    * for `__`-prefixed `.vue` routes; emitted as `window.__HOWL_VUE_AOT__` so the
@@ -158,22 +129,14 @@ export interface BuildCache<State = any> {
  */
 export class ProdBuildCache<State> implements BuildCache<State> {
   #snapshot: BuildSnapshot<State>;
-  /** Registry of compiled islands. */
-  islandRegistry: ServerIslandRegistry;
   /** URL of the client entrypoint chunk. */
   clientEntry: string;
   /** Map of `METHOD:path` to API definition. */
   apiRegistry: Map<string, unknown> = new Map();
   /** Disabled in production builds. */
   features: { errorOverlay: boolean } = { errorOverlay: false };
-  /** Map of route pattern → AOT chunk URL, populated from the snapshot. */
-  aotRoutes: Map<string, string>;
   /** Map of route pattern → prerendered HTML, populated from the snapshot. */
   ssgPages: Map<string, string>;
-  /** Map of Vue island name → client chunk URL, populated from the snapshot. */
-  vueIslands: Map<string, string>;
-  /** Vue island boot runtime chunk URL, populated from the snapshot. */
-  vueBoot: string;
   /** Map of AOT `.vue` route pattern → client chunk URL, from the snapshot. */
   engineAot: Map<string, string>;
   /** Map of `.vue` page file path → hydration chunk URL, from the snapshot. */
@@ -185,12 +148,8 @@ export class ProdBuildCache<State> implements BuildCache<State> {
   constructor(public root: string, snapshot: BuildSnapshot<State>) {
     setBuildId(snapshot.version);
     this.#snapshot = snapshot;
-    this.islandRegistry = snapshot.islands;
     this.clientEntry = snapshot.clientEntry;
-    this.aotRoutes = snapshot.aotRoutes ?? new Map();
     this.ssgPages = snapshot.ssgPages ?? new Map();
-    this.vueIslands = snapshot.vueIslands ?? new Map();
-    this.vueBoot = snapshot.vueBoot ?? "";
     this.engineAot = snapshot.engineAot ?? new Map();
     this.enginePages = snapshot.enginePages ?? new Map();
     this.engineSsrModules = snapshot.engineSsrModules ?? new Map();
@@ -232,61 +191,18 @@ export class ProdBuildCache<State> implements BuildCache<State> {
       ? info.filePath
       : path.join(this.root, info.filePath);
 
-    const [stat, file] = await Promise.all([
-      Deno.stat(filePath),
-      Deno.open(filePath),
-    ]);
+    // Size comes from the snapshot (captured at build time); the stat fallback
+    // only runs for snapshots produced before the field existed.
+    const file = await Deno.open(filePath);
+    const size = info.size ?? (await file.stat()).size;
 
     return {
       hash: info.hash,
       contentType: info.contentType,
-      size: stat.size,
+      size,
       readable: file.readable,
       close: () => file.close(),
     };
   }
 }
 
-/**
- * Walks an island module's exports and registers each component in the
- * {@linkcode ServerIslandRegistry} with a unique name.
- */
-export class IslandPreparer {
-  #namer = new UniqueNamer();
-
-  /**
-   * Register every function export in `mod` as an island component, attaching
-   * the resolved chunk name and CSS dependencies.
-   */
-  prepare(
-    registry: ServerIslandRegistry,
-    mod: Record<string, unknown>,
-    chunkName: string,
-    modName: string,
-    css: string[],
-  ): void {
-    const directive = mod["howl"] as
-      | { ssr?: boolean; skeleton?: ComponentType }
-      | undefined;
-    const ssr = directive?.ssr !== false; // default true
-    const skeleton = directive?.skeleton;
-
-    for (const [name, value] of Object.entries(mod)) {
-      if (typeof value !== "function") continue;
-
-      const islandName = name === "default" ? modName : name;
-      const uniqueName = this.#namer.getUniqueName(islandName);
-
-      const fn = value as AnyComponent;
-      registry.set(fn, {
-        exportName: name,
-        file: chunkName,
-        fn,
-        name: uniqueName,
-        css,
-        ssr,
-        skeleton,
-      });
-    }
-  }
-}

@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import { type App, inject, type InjectionKey, reactive } from "vue";
 
 /** Options for an imperative {@linkcode navigate}. */

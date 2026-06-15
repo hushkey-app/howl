@@ -2,69 +2,6 @@ import { denoPlugin } from "@deno/esbuild-plugin";
 import type { BuildOptions, Plugin as EsbuildPlugin } from "esbuild";
 import * as path from "@std/path";
 
-/**
- * Forces all React imports to resolve to preact/compat.
- * This works at the resolver level, catching imports inside node_modules
- * that the alias map misses.
- */
-function reactCompatPlugin(cwd: string): EsbuildPlugin {
-  return {
-    name: "howl-react-compat",
-    setup(build) {
-      build.onResolve({ filter: /^react$/ }, () => ({
-        path: "react",
-        namespace: "howl-react-compat",
-      }));
-      build.onResolve({ filter: /^react-dom$/ }, () => ({
-        path: "react-dom",
-        namespace: "howl-react-compat",
-      }));
-      build.onResolve({ filter: /^react\/jsx-runtime$/ }, () => ({
-        path: "react/jsx-runtime",
-        namespace: "howl-react-compat",
-      }));
-      build.onResolve({ filter: /^react\/jsx-dev-runtime$/ }, () => ({
-        path: "react/jsx-dev-runtime",
-        namespace: "howl-react-compat",
-      }));
-
-      build.onLoad(
-        { filter: /^react$/, namespace: "howl-react-compat" },
-        () => ({
-          contents: `export * from "preact/compat"; export { default } from "preact/compat";`,
-          loader: "js",
-          resolveDir: cwd,
-        }),
-      );
-      build.onLoad(
-        { filter: /^react-dom$/, namespace: "howl-react-compat" },
-        () => ({
-          contents: `export * from "preact/compat"; export { default } from "preact/compat";`,
-          loader: "js",
-          resolveDir: cwd,
-        }),
-      );
-      build.onLoad(
-        { filter: /^react\/jsx-runtime$/, namespace: "howl-react-compat" },
-        () => ({
-          contents:
-            `export * from "preact/jsx-runtime"; export { default } from "preact/jsx-runtime";`,
-          loader: "js",
-          resolveDir: cwd,
-        }),
-      );
-      build.onLoad(
-        { filter: /^react\/jsx-dev-runtime$/, namespace: "howl-react-compat" },
-        () => ({
-          contents:
-            `export * from "preact/jsx-dev-runtime"; export { default } from "preact/jsx-dev-runtime";`,
-          loader: "js",
-          resolveDir: cwd,
-        }),
-      );
-    },
-  };
-}
 export interface HowlBundleOptions {
   dev: boolean;
   cwd: string;
@@ -74,14 +11,11 @@ export interface HowlBundleOptions {
   entryPoints: Record<string, string>;
   target: string | string[];
   jsxImportSource?: string;
-  /**
-   * Alias map passed directly to esbuild.
-   * @example { "react": "npm:preact/compat", "react-dom": "npm:preact/compat" }
-   */
+  /** Alias map passed directly to esbuild. */
   alias?: Record<string, string>;
   /**
    * Additional esbuild plugins injected before the Deno resolver.
-   * User plugins run after internal plugins (build-id, preact-debugger)
+   * User plugins run after internal plugins (build-id)
    * but before denoPlugin so they can intercept imports first.
    */
   plugins?: EsbuildPlugin[];
@@ -100,28 +34,11 @@ export interface BuildOutput {
 
 let esbuild: null | typeof import("esbuild") = null;
 
-const PREACT_ENV = Deno.env.get("PREACT_PATH");
-
 export async function bundleJs(
   options: HowlBundleOptions,
 ): Promise<BuildOutput> {
   if (esbuild === null) {
     await startEsbuild();
-  }
-
-  // A real-React app (registers `reactPlugin`, which declares its engine under
-  // the `howl.engine` symbol) must NOT get the React→Preact compat shim, so its
-  // `react` / `react-dom` imports resolve to real React.
-  // deno-lint-ignore no-explicit-any
-  const realReact = (options.plugins ?? []).some((p: any) =>
-    p?.[Symbol.for("howl.engine")]?.engine === "react"
-  );
-  let alias = options.alias;
-  if (realReact && alias !== undefined) {
-    alias = { ...alias };
-    for (const k of ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"]) {
-      delete alias[k];
-    }
   }
 
   try {
@@ -153,15 +70,14 @@ export async function bundleJs(
 
     jsxDev: options.dev,
     jsx: "automatic",
-    jsxImportSource: options.jsxImportSource ?? "preact",
+    jsxImportSource: options.jsxImportSource,
 
     absWorkingDir: options.cwd,
     outdir: ".",
     write: false,
     metafile: true,
 
-    // React → Preact/compat shim and other aliases (stripped for real React)
-    alias,
+    alias: options.alias,
 
     define: {
       "process.env.NODE_ENV": JSON.stringify(
@@ -170,10 +86,8 @@ export async function bundleJs(
     },
 
     plugins: [
-      preactDebugger(PREACT_ENV),
       buildIdPlugin(options.buildId),
       windowsPathFixer(),
-      ...(realReact ? [] : [reactCompatPlugin(options.cwd)]),
       ...(options.plugins ?? []),
       denoPlugin({
         preserveJsx: true,
@@ -221,17 +135,34 @@ export async function bundleJs(
       if (entryPath !== "howl-runtime.js" && entry.entryPoint !== undefined) {
         const basename = path.basename(entryPath, path.extname(entryPath));
         const filePath = options.entryPoints[basename];
-        const name = entryToName.get(filePath)!;
-        entryToChunk.set(name, entryPath);
+        const name = entryToName.get(filePath);
+        // esbuild also emits entry-flagged outputs we didn't register — e.g.
+        // chunks produced by a dynamic `import()` such as the React engine's
+        // `./devtools.ts`. Those aren't in `entryPoints`, so they map to no
+        // name; skip them. A real page entry that fails to map is caught later
+        // in builder.ts with a per-page "Could not find chunk" error.
+        if (name !== undefined) {
+          entryToChunk.set(name, entryPath);
+        }
       }
     }
   }
 
-  if (!options.dev) {
-    esbuild = null;
-  }
-
   return { files, entryToChunk, dependencies };
+}
+
+/**
+ * Shut down the esbuild service process. Without this a one-shot production
+ * build leaves the esbuild child process running until the Deno process exits.
+ * Safe to call when nothing was started; a later bundle call restarts the
+ * service. Called by `HowlBuilder.build()` after all clients are built.
+ */
+export async function stopEsbuild(): Promise<void> {
+  if (esbuild !== null) {
+    await esbuild.stop();
+    esbuild = null;
+    initialized = false;
+  }
 }
 
 /**
@@ -327,29 +258,6 @@ function buildIdPlugin(buildId: string): EsbuildPlugin {
       }, () => ({
         contents:
           `export const BUILD_ID = "${buildId}"; export const DENO_DEPLOYMENT_ID = undefined; export function setBuildId(id) { }`,
-      }));
-    },
-  };
-}
-
-function toPreactModPath(mod: string): string {
-  if (mod === "preact/debug") return path.join("debug", "dist", "debug.module.js");
-  if (mod === "preact/hooks") return path.join("hooks", "dist", "hooks.module.js");
-  if (mod === "preact/devtools") return path.join("devtools", "dist", "devtools.module.js");
-  if (mod === "preact/compat") return path.join("compat", "dist", "compat.module.js");
-  if (mod === "preact/jsx-runtime" || mod === "preact/jsx-dev-runtime") {
-    return path.join("jsx-runtime", "dist", "jsxRuntime.module.js");
-  }
-  return path.join("dist", "preact.module.js");
-}
-
-function preactDebugger(preactPath: string | undefined): EsbuildPlugin {
-  return {
-    name: "howl-preact-debugger",
-    setup(build) {
-      if (preactPath === undefined) return;
-      build.onResolve({ filter: /^preact/ }, (args) => ({
-        path: path.resolve(preactPath, toPreactModPath(args.path)),
       }));
     },
   };

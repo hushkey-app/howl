@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import {
   type App,
   type Component,
@@ -9,9 +8,7 @@ import {
 } from "vue";
 import { createHead } from "@unhead/vue/client";
 import { createPinia, type Pinia } from "pinia";
-import { mountVueIsland } from "./mount.ts";
 import { composeVueTree } from "./compose.ts";
-import { VUE_ISLAND_ATTR, VUE_ISLAND_PROPS_ATTR } from "./host.ts";
 import {
   createRoute,
   type HowlRoute,
@@ -26,14 +23,16 @@ import { installRouterShim } from "./router_shim.ts";
 // pages mount/unmount across client-nav, so per-page title/meta update on nav.
 const head = createHead();
 
-declare global {
-  var __HOWL_VUE__: Record<string, string> | undefined;
-  var __VUE_PAGE_PROPS__: Record<string, unknown> | undefined;
+// Browser globals Howl injects into the page via inline `window.__…` scripts on
+// SSR. Read through a typed view of `globalThis` rather than a `declare global`
+// augmentation, which JSR disallows in published packages.
+const browserGlobals = globalThis as typeof globalThis & {
+  __VUE_PAGE_PROPS__?: Record<string, unknown>;
   // deno-lint-ignore no-explicit-any
-  var __PINIA__: Record<string, any> | undefined;
+  __PINIA__?: Record<string, any>;
   /** AOT routes: route pattern (`/about/:id`) → client chunk URL. */
-  var __HOWL_VUE_AOT__: Record<string, string> | undefined;
-}
+  __HOWL_VUE_AOT__?: Record<string, string>;
+};
 
 // One Pinia for the session — hydrated once from the SSR state, then kept across
 // client-nav so stores persist (no reset on navigation).
@@ -41,7 +40,7 @@ let pinia: Pinia | null = null;
 function getPinia(): Pinia {
   if (pinia === null) {
     pinia = createPinia();
-    if (globalThis.__PINIA__ !== undefined) pinia.state.value = globalThis.__PINIA__;
+    if (browserGlobals.__PINIA__ !== undefined) pinia.state.value = browserGlobals.__PINIA__;
   }
   return pinia;
 }
@@ -110,7 +109,7 @@ function reviveProps(raw: Record<string, unknown>): Record<string, unknown> {
 export function hydrateVuePage(components: Component[]): void {
   const el = document.getElementById(HOWL_APP_ID);
   if (el === null) return;
-  const props = reviveProps(globalThis.__VUE_PAGE_PROPS__ ?? {});
+  const props = reviveProps(browserGlobals.__VUE_PAGE_PROPS__ ?? {});
   const render = composeVueTree(components, props);
 
   if (currentApp !== null && pageTree !== null) {
@@ -157,7 +156,7 @@ export function aotMountVuePage(
   props: Record<string, unknown>,
 ): void {
   injectPageStyles(styles);
-  globalThis.__VUE_PAGE_PROPS__ = props;
+  browserGlobals.__VUE_PAGE_PROPS__ = props;
   hydrateVuePage(components);
 }
 
@@ -207,6 +206,14 @@ function prefetchPage(href: string): void {
   }
   const existing = prefetchCache.get(href);
   if (existing !== undefined && Date.now() - existing.ts < PREFETCH_TTL_MS) return;
+  // Sweep expired entries before adding — hovered-but-never-clicked pages
+  // would otherwise accumulate for the whole session.
+  if (prefetchCache.size >= 32) {
+    const now = Date.now();
+    for (const [key, entry] of prefetchCache) {
+      if (now - entry.ts >= PREFETCH_TTL_MS) prefetchCache.delete(key);
+    }
+  }
   const job = fetch(partialFetchUrl(href), {
     headers: { Accept: "text/html" },
     // deno-lint-ignore no-explicit-any
@@ -332,7 +339,7 @@ async function navigateVuePage(url: URL, intent: NavIntent): Promise<void> {
   // history, then re-render — all synchronously, so the page swaps atomically.
   // The persistent app owns `#howl-app` and re-renders from the new props + chunk;
   // no manual markup swap (that would corrupt Vue's vdom).
-  globalThis.__VUE_PAGE_PROPS__ = nextProps;
+  browserGlobals.__VUE_PAGE_PROPS__ = nextProps;
 
   // Re-sync the `state` store with the new request's ctx.state (other stores
   // persist across nav — only this one tracks the server context).
@@ -397,7 +404,7 @@ let aotRoutes: AotRoute[] | null = null;
  * nav). */
 function getAotRoutes(): AotRoute[] {
   if (aotRoutes === null) {
-    aotRoutes = Object.entries(globalThis.__HOWL_VUE_AOT__ ?? {}).map(
+    aotRoutes = Object.entries(browserGlobals.__HOWL_VUE_AOT__ ?? {}).map(
       ([pattern, chunk]) => {
         const keys: string[] = [];
         const source = pattern
@@ -431,7 +438,7 @@ function currentState(): unknown {
     const s = getPinia().state.value.state;
     if (s !== undefined) return s;
   }
-  return (globalThis.__VUE_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
+  return (browserGlobals.__VUE_PAGE_PROPS__ as { state?: unknown } | undefined)?.state;
 }
 
 /**
@@ -476,61 +483,7 @@ function navigateTo(url: URL, intent: NavIntent): void {
   else void navigateVuePage(url, intent);
 }
 
-/** Mounts a resolved Vue component into its container. */
-export type IslandMounter = (
-  component: Component,
-  props: Record<string, unknown>,
-  el: Element,
-) => void;
-
-/** Dynamically imports a Vue island chunk by URL. */
-export type ChunkImporter = (url: string) => Promise<{ default: Component }>;
-
-/**
- * Find every Vue island placeholder in `doc`, resolve its chunk from `manifest`
- * (island name → chunk URL), import it, and mount the component with the props
- * the server serialised. Injectable `mount` / `importer` make it testable
- * without a real bundle or browser.
- */
-export function bootVueIslands(
-  doc: Document,
-  manifest: Record<string, string>,
-  mount: IslandMounter = mountVueIsland,
-  importer: ChunkImporter = (url) => import(url),
-): Promise<void> {
-  const jobs: Promise<void>[] = [];
-  doc.querySelectorAll(`[${VUE_ISLAND_ATTR}]`).forEach((el) => {
-    const name = el.getAttribute(VUE_ISLAND_ATTR);
-    if (name === null) return;
-    const chunk = manifest[name];
-    if (chunk === undefined) {
-      // deno-lint-ignore no-console
-      console.warn(`No Vue island chunk registered for "${name}".`);
-      return;
-    }
-    let props: Record<string, unknown> = {};
-    const raw = el.getAttribute(VUE_ISLAND_PROPS_ATTR);
-    if (raw !== null && raw !== "") {
-      try {
-        props = JSON.parse(raw);
-      } catch {
-        // deno-lint-ignore no-console
-        console.warn(`Malformed props for Vue island "${name}".`);
-      }
-    }
-    jobs.push(importer(chunk).then((mod) => mount(mod.default, props, el)));
-  });
-  return Promise.all(jobs).then(() => undefined);
-}
-
 if (typeof document !== "undefined") {
-  const run = () => bootVueIslands(document, globalThis.__HOWL_VUE__ ?? {});
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", run, { once: true });
-  } else {
-    run();
-  }
-
   // Tag the initial history entry so a Back navigation to it triggers a client
   // swap (popstate only acts on entries we marked).
   if (

@@ -4,7 +4,7 @@
  * Public entrypoint for `@hushkey/howl`. Exports the core application
  * primitives — the {@linkcode Howl} class, {@linkcode Context}, the
  * built-in middleware barrel, the cookie manager, page/route types,
- * islands utilities ({@linkcode ClientOnly}, environment guards), the
+ * environment guards ({@linkcode IS_BROWSER} / {@linkcode IS_SERVER}), the
  * built-in {@linkcode HowlLogger}, configuration types, and
  * shared HTTP helpers including {@linkcode HttpError} and
  * {@linkcode isHttpError}.
@@ -74,9 +74,8 @@ export {
 // --- Internals used by @howl/dev (not public API) ---
 export { type FsAdapter, fsAdapter } from "./fs.ts";
 export { assertInDir, pathToExportName, pathToSpec, UniqueNamer } from "./utils.ts";
-export { type BuildCache, IslandPreparer, ProdBuildCache, type StaticFile } from "./build_cache.ts";
+export { type BuildCache, ProdBuildCache, type StaticFile } from "./build_cache.ts";
 export { fsItemsToCommands, type FsRouteFile } from "./fs_routes.ts";
 export { type Command, CommandType } from "./commands.ts";
 
-export { type Island, type ServerIslandRegistry } from "./context.ts";
 export type { ApiConfig, ClientConfig, WebSocketHandlers, WebSocketUpgradeOptions } from "./app.ts";

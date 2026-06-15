@@ -30,11 +30,30 @@ export interface CookieOptions {
 export class CookieManager {
   #requestHeaders: Headers;
   #responseHeaders: Headers;
+  /** Request cookies parsed once on first read; the header never changes. */
+  #parsed: Record<string, string> | null = null;
 
   /** Wrap the incoming and outgoing header sets for cookie I/O. */
   constructor(requestHeaders: Headers, responseHeaders: Headers) {
     this.#requestHeaders = requestHeaders;
     this.#responseHeaders = responseHeaders;
+  }
+
+  #parse(): Record<string, string> {
+    if (this.#parsed !== null) return this.#parsed;
+
+    const parsed: Record<string, string> = {};
+    const cookieHeader = this.#requestHeaders.get("cookie");
+    if (cookieHeader) {
+      for (const part of cookieHeader.split(";")) {
+        const [key, ...rest] = part.trim().split("=");
+        const name = key.trim();
+        // First occurrence wins — matches RFC 6265's "most relevant first".
+        if (name && !(name in parsed)) parsed[name] = rest.join("=");
+      }
+    }
+    this.#parsed = parsed;
+    return parsed;
   }
 
   /**
@@ -44,14 +63,7 @@ export class CookieManager {
    * const token = ctx.cookies.get("token");
    */
   get(name: string): string | undefined {
-    const cookieHeader = this.#requestHeaders.get("cookie");
-    if (!cookieHeader) return undefined;
-
-    for (const part of cookieHeader.split(";")) {
-      const [key, ...rest] = part.trim().split("=");
-      if (key.trim() === name) return rest.join("=");
-    }
-    return undefined;
+    return this.#parse()[name];
   }
 
   /**
@@ -110,13 +122,6 @@ export class CookieManager {
    * const all = ctx.cookies.all();
    */
   all(): Record<string, string> {
-    const cookieHeader = this.#requestHeaders.get("cookie");
-    if (!cookieHeader) return {};
-
-    return cookieHeader.split(";").reduce((acc, part) => {
-      const [key, ...rest] = part.trim().split("=");
-      if (key.trim()) acc[key.trim()] = rest.join("=");
-      return acc;
-    }, {} as Record<string, string>);
+    return { ...this.#parse() };
   }
 }

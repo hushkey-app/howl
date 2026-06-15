@@ -23,34 +23,6 @@ export interface SSEEvent {
   retry?: number;
 }
 
-/**
- * Metadata describing a single island registered with the server-side
- * island registry. Populated by the build cache.
- */
-export interface Island {
-  /** Source file path on disk. */
-  file: string;
-  /** Stable display name used in the runtime island marker. */
-  name: string;
-  /** Name of the export inside `file` that is the island component. */
-  exportName: string;
-  /** The actual component function/class. */
-  fn: ComponentType;
-  /** CSS asset URLs that should be preloaded when the island is rendered. */
-  css: string[];
-  /** Skip SSR for this island. Set via `export const howl = { ssr: false }` in the island file. */
-  ssr: boolean;
-  /**
-   * Optional placeholder rendered server-side when `ssr` is `false`. Set via
-   * `export const howl = { ssr: false, skeleton: () => <div /> }`. The
-   * skeleton output is replaced by a full client render after hydration.
-   */
-  skeleton?: ComponentType;
-}
-
-/** Registry mapping island components to their metadata. */
-export type ServerIslandRegistry = Map<ComponentType, Island>;
-
 /** Symbol used to access framework-internal context fields. */
 export const internals: unique symbol = Symbol("howl_internal");
 
@@ -303,7 +275,7 @@ export class Context<State> {
     }
     throw new Error(
       "ctx.renderToString: no registered render engine provides it — register " +
-        "an engine (preactEngine() / vueEngine() / reactEngine()).",
+        "an engine (vueEngine() / reactEngine()).",
     );
   }
 

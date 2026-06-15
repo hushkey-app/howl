@@ -1,6 +1,16 @@
 import type { Plugin } from "esbuild";
 import * as path from "@std/path";
-import { compileSfc, prepareTypeResolution } from "./sfc.ts";
+
+/**
+ * Load the SFC compiler module on first use. The plugin only compiles during
+ * a build/dev session — deferring the import keeps `@vue/compiler-sfc` out of
+ * the module graph evaluated by a production server that imports this package.
+ */
+async function sfcCompiler(): Promise<typeof import("./sfc.ts")> {
+  const mod = await import("./sfc.ts");
+  await mod.prepareTypeResolution();
+  return mod;
+}
 
 /** Marker query appended to a `.vue` path to import its extracted styles. */
 const STYLE_QUERY = "?howl-vue-style=";
@@ -36,8 +46,7 @@ export interface VuePluginOptions {
 /**
  * esbuild plugin that compiles Vue Single-File Components (`.vue`) using
  * `@vue/compiler-sfc` — no Vite required. Each `<style>` block is emitted as a
- * virtual CSS module so it flows into esbuild's normal CSS output (and, in
- * turn, Howl's island-CSS asset pipeline).
+ * virtual CSS module so it flows into esbuild's normal CSS output.
  *
  * Bare `vue` / `vue/server-renderer` imports in the generated code are left
  * for esbuild (and Howl's Deno resolver) to resolve.
@@ -76,7 +85,7 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
       build.onLoad(
         { filter: /.*/, namespace: "howl-vue-ssr" },
         async (args) => {
-          await prepareTypeResolution();
+          const { compileSfc } = await sfcCompiler();
           const source = await Deno.readTextFile(args.path);
           const { code, styles } = compileSfc(source, args.path, { ssr: true });
           const contents = `${code}\nexport const __howlStyles = ${JSON.stringify(styles)};\n`;
@@ -96,7 +105,7 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
       build.onLoad(
         { filter: /.*/, namespace: "howl-vue-aot" },
         async (args) => {
-          await prepareTypeResolution();
+          const { compileSfc } = await sfcCompiler();
           const source = await Deno.readTextFile(args.path);
           const { code, styles } = compileSfc(source, args.path, { ssr: false });
           const contents = `${code}\nexport const __howlStyles = ${JSON.stringify(styles)};\n`;
@@ -105,7 +114,7 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
       );
 
       build.onLoad({ filter: /\.vue$/ }, async (args) => {
-        await prepareTypeResolution();
+        const { compileSfc } = await sfcCompiler();
         const source = await Deno.readTextFile(args.path);
         const { code, styles } = compileSfc(source, args.path, { ssr });
         styleStore.set(args.path, styles);

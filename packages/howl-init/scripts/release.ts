@@ -39,9 +39,6 @@ if (!flags["dry-run"]) {
   console.log(`✓ Updated deno.json`);
 }
 
-console.log("→ Generating manifest");
-await runOrExit(["deno", "task", "manifest"]);
-
 console.log("→ Running tests");
 await runOrExit(["deno", "task", "test"]);
 
@@ -116,14 +113,14 @@ function bumpSemver(version: string, kind: Bump): string {
 function printHelp(): void {
   console.log(
     [
-      "release — bump version, regenerate manifest, run tests, publish to JSR",
+      "release — bump version, run tests, publish to JSR",
       "",
       "Usage:",
       "  deno task release                    # patch bump + publish",
       "  deno task release --bump minor       # minor bump + publish",
       "  deno task release --version 1.2.3    # set explicit version + publish",
       "  deno task release --dry-run          # preview only, no writes, dry-run publish",
-      "  deno task release --skip-publish     # bump + manifest + tests, no publish",
+      "  deno task release --skip-publish     # bump + tests, no publish",
       "",
       "Flags:",
       "  -b, --bump <major|minor|patch>   Default: patch",

@@ -15,6 +15,23 @@ export function liveReload<T>(): Middleware<T> {
         return new Response(null, { status: 501 });
       }
 
+      // WebSockets bypass CORS, so an arbitrary website could open
+      // `ws://localhost:8000/_howl/alive` from a visitor's browser. Reject
+      // upgrades whose Origin doesn't match the host being served (an absent
+      // Origin means a non-browser client — allowed).
+      const origin = req.headers.get("origin");
+      if (origin !== null) {
+        let originHost: string | null = null;
+        try {
+          originHost = new URL(origin).host;
+        } catch {
+          // malformed Origin — treat as cross-origin
+        }
+        if (originHost !== url.host) {
+          return new Response(null, { status: 403 });
+        }
+      }
+
       // TODO: When a change is made the Deno server restarts,
       // so for now the WebSocket connection is only used for
       // the client to know when the server is back up. Once we

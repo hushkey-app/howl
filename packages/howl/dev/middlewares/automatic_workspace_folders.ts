@@ -31,6 +31,18 @@ export function automaticWorkspaceFolders<T>(root: string): Middleware<T> {
       return ctx.next();
     }
 
+    // The payload contains the absolute project root. Only Chrome DevTools on
+    // the dev machine itself requests this file, so answer loopback clients
+    // only — LAN devices (phone/tablet testing) get a quiet 404 and never need
+    // it anyway.
+    const remote = ctx.info?.remoteAddr as Deno.NetAddr | undefined;
+    const isLoopback = remote === undefined || remote.transport !== "tcp" ||
+      remote.hostname === "127.0.0.1" || remote.hostname === "::1" ||
+      remote.hostname === "localhost";
+    if (!isLoopback) {
+      return new Response(null, { status: 404 });
+    }
+
     uuid ??= await generate(
       NAMESPACE_URL,
       new TextEncoder().encode(

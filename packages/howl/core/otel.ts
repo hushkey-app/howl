@@ -16,3 +16,22 @@ export function recordSpanError(span: Span, err: unknown) {
     });
   }
 }
+
+const INVALID_TRACE_ID = "00000000000000000000000000000000";
+let tracingActive: boolean | null = null;
+
+/**
+ * Whether a real OpenTelemetry tracer provider is registered. With the default
+ * no-op provider every span is dead weight on the request hot path, so callers
+ * skip span creation entirely. Probed lazily on first request (providers
+ * register at startup, after this module loads) and memoized — a no-op span
+ * carries the invalid all-zero trace id regardless of sampling.
+ */
+export function isTracingActive(): boolean {
+  if (tracingActive === null) {
+    const probe = tracer.startSpan("howl.tracing.probe");
+    tracingActive = probe.spanContext().traceId !== INVALID_TRACE_ID;
+    probe.end();
+  }
+  return tracingActive;
+}

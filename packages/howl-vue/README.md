@@ -3,10 +3,9 @@
 > **Experimental.** Vue Single-File Component support for [Howl](../howl), built on Howl's existing
 > **esbuild** toolchain — **no Vite**.
 
-Howl is Preact-native. This package adds a second render engine so Vue `.vue` components can live
-alongside Preact in the same project. It plugs into Howl's build pipeline rather than replacing it;
-the shared backend (routing, APIs, middleware, client navigation + link prefetch) is reused
-unchanged.
+Howl's core is engine-agnostic — page rendering is a registered engine. This package is the Vue
+engine. It plugs into Howl's build pipeline rather than replacing it; the shared backend (routing,
+APIs, middleware, client navigation + link prefetch) is reused unchanged.
 
 ## Status
 
@@ -14,23 +13,19 @@ unchanged.
 | ---------------------------------------------------------------------------------------------------- | --------------- |
 | `.vue` → JS compiler (`compileSfc`) — options API, `<script setup>`, TS, scoped styles, SSR + client | ✅ done, tested |
 | esbuild plugin (`vuePlugin`) — `.vue` `onLoad` + scoped-CSS virtual modules                          | ✅ done, tested |
-| Client island runtime — `VueIsland` host + `bootVueIslands` + `mountVueIsland`                       | ✅ done, tested |
-| Howl build wiring — crawl `.island.vue`, bundle chunks, emit `window.__HOWL_VUE__` manifest          | ✅ done, tested |
 | **Full Vue pages** (`.vue` routes) — `RenderEngine` seam, SSR first paint + hydrate                  | ✅ done, tested |
 | **`_app.vue` + `_layout.vue`** composition (wrap the page, SSR + hydrate)                            | ✅ done, tested |
 | **Client-nav** — `client-nav` link/back-forward, DOM swap + re-hydrate, hover prefetch, no reload    | ✅ done, tested |
-| Vue island SSR (no flash, async pre-pass)                                                            | ⬜ later        |
-| Vue pages: head/SEO API, prod snapshot                                                               | ⬜ later        |
+| Head/SEO (`useHead` via `@hushkey/howl-vue/head`), Pinia, prod snapshot (precompiled SSR modules)    | ✅ done, tested |
 
-Vue islands **and** full Vue pages both work end-to-end (browser-verified in `examples/www` `/vue`
-and `examples/vuety` `/page`).
+The model is **thick client**: SSR first paint → full hydrate → SPA. There is no islands system —
+interactive components are ordinary Vue components inside pages.
 
 ## Full Vue pages (`vueEngine`)
 
 A `.vue` file under your pages directory is a full route rendered by Vue: **SSR on first load
-(crawlable SEO HTML, zero JS) → hydrate → live SPA** — the universal-SSR model. Howl core stays
-Preact; `.vue` routes are dispatched to the engine via the pluggable `RenderEngine` seam
-(`config.engines`).
+(crawlable SEO HTML, zero JS) → hydrate → live SPA** — the universal-SSR model. `.vue` routes are
+dispatched to the engine via the pluggable `RenderEngine` seam (`config.engines`).
 
 ```ts
 // server/main.ts
@@ -75,20 +70,8 @@ respects `Save-Data` / `prefers-reduced-data`; exclude a link or subtree with
 
 Scoped CSS for the whole chain is **inlined** into the document as one `<style data-howl-vue-css>`
 (no extra request, no stale-chunk 404, and it travels with the client-nav swap) — so styling works
-on both dev and prod. In dev, Vue pages also get a small live-reload script (they don't load Howl's
-Preact runtime).
-
-**Current limits:** dedicated head/SEO API for _pages_ (today only `_app.vue` controls `<head>`, and
-its content is static); the prod snapshot of `vuePages` (the JS hydration chunk map) is still to
-wire, so on a production build pages SSR + style correctly but **hydration** runs in `dev` only.
-
-**Island model (client-only, mirrors AOT).** A `.vue` component can't be a Preact `vnode.type`,
-can't be imported by Deno on the server, and SSRs asynchronously — so Vue islands don't ride Howl's
-Preact island registry. Instead a Preact host `<VueIsland name="…" props={…} />` renders a
-`<div data-howl-vue>` marker. At build time Howl discovers each `.island.vue`, bundles it (and the
-boot runtime) via `vuePlugin`, and emits `window.__HOWL_VUE__ = { name: chunkUrl }`. On the client
-`bootVueIslands` reads that manifest, imports the chunk, and mounts the Vue component into the
-marker. No server-side `.vue` import, no Preact-registry interop.
+on both dev and prod. In dev, Vue pages also get a small live-reload script (they don't load any
+shared framework runtime).
 
 ## Wire it into your app
 
@@ -100,27 +83,20 @@ import { vuePlugin } from "@hushkey/howl-vue/plugin";
 new HowlBuilder(app, { /* … */ plugins: [vuePlugin()] });
 ```
 
+```ts
+// 2. server/main.ts — select the engine
+import { vueEngine } from "@hushkey/howl-vue";
+export const app = new Howl<State>({ engines: { vue: vueEngine() } });
+```
+
 ```vue
-<!-- 2. client/islands/counter.island.vue -->
+<!-- 3. client/pages/index.vue — a route -->
 <template><button @click="n++">count {{ n }}</button></template>
 <script setup lang="ts">
 import { ref } from "vue";
-const props = defineProps<{ start?: number }>();
-const n = ref(props.start ?? 0);
+const n = ref(0);
 </script>
 ```
-
-```tsx
-// 3. any Preact page — name matches the filename
-import { VueIsland } from "@hushkey/howl-vue";
-<VueIsland name="counter" props={{ start: 41 }}>
-  <button disabled>loading…</button>
-  {/* optional skeleton */}
-</VueIsland>;
-```
-
-Vue islands live in the islands directory (top-level `.island.vue`); colocated `(_islands)/*.vue`
-isn't supported yet. The island is **client-only** (mounts after load); SSR is a later phase.
 
 ## Router — `navigate` / `useNavigate` / `useRoute`
 
@@ -172,7 +148,7 @@ fed by Howl's route map and reactive route. Must be installed before `app.mount(
 ### `vuePlugin(options?)`
 
 esbuild plugin that compiles `.vue` files. Each `<style>` block becomes a virtual CSS module so it
-flows into esbuild's CSS output (and Howl's island-CSS asset pipeline).
+flows into esbuild's CSS output.
 
 ```ts
 import { vuePlugin } from "@hushkey/howl-vue/plugin";
@@ -188,27 +164,17 @@ browser render functions.
 ### `compileSfc(source, filename, options?)`
 
 Lower-level: compile one SFC string to `{ code, styles, scopeId }`. Bare `vue` /
-`vue/server-renderer` imports are left for the bundler to resolve.
+`vue/server-renderer` imports are left for the bundler to resolve. Exposed at
+`@hushkey/howl-vue/sfc` (not the package root) so a production server importing
+`vueEngine` never loads `@vue/compiler-sfc` at startup — the engine and the
+esbuild plugin lazy-import it only when a `.vue` file actually compiles
+(dev / build time).
 
-### `<VueIsland name props>` + `bootVueIslands(doc, manifest)`
+### `hydrateVuePage(comps)` / `aotMountVuePage(comps, styles, props)`
 
-`VueIsland` is a Preact host placeholder used inside a Preact page; it renders the
-`<div data-howl-vue>` marker. `bootVueIslands` runs on the client (import `@hushkey/howl-vue/boot`
-from your client entry), scans for markers, and mounts each from the manifest. Both `mount` and the
-chunk `importer` are injectable for testing.
-
-```tsx
-import { VueIsland } from "@hushkey/howl-vue";
-// chart.island.vue ←→ name="chart"
-<VueIsland name="chart" props={{ points }}>
-  <span>loading…</span> {/* optional skeleton */}
-</VueIsland>;
-```
-
-### `mountVueIsland(component, props, container)`
-
-Client adapter: `createSSRApp(component, props).mount(container)` — hydrates in place over SSR
-markup, or renders fresh otherwise. The Vue analogue of Howl's Preact hydrate/render branch.
+Boot runtime entries (`@hushkey/howl-vue/boot`) imported by the generated per-page hydration
+chunks — `hydrate()` re-renders the `[layouts, page]` tree over the SSR markup in `#howl-app`;
+`aotMount()` renders an AOT route client-side on navigation with no server round-trip.
 
 ## Standalone rendering — `ctx.renderToString`
 
@@ -224,6 +190,6 @@ const html = await ctx.renderToString(WelcomeEmail, { name: user.name });
 
 `@vitejs/plugin-vue` only wraps `@vue/compiler-sfc`, which is standalone. Howl calls it directly
 from an esbuild `onLoad` hook. This keeps **one** dev story (full-reload live-reload) across both
-engines, and `vue` never enters a Preact-only app's dependency graph (and vice versa).
+engines, and `vue` never enters a non-Vue app's dependency graph (and vice versa).
 
 See [`spikes/vue-no-vite/`](../../spikes/vue-no-vite/) for the original feasibility proof.

@@ -282,3 +282,253 @@ Deno.test("api — explicit `path` overrides FS-derived path", async () => {
   const wrong = await t.fetch("/api/webhooks/stripe-webhook", { method: "POST" });
   expect(wrong.status).toBe(404);
 });
+
+Deno.test("api — before hooks run in order before the handler", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  const order: string[] = [];
+  const route = defineApi({
+    name: "Hooked",
+    directory: "hooks",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    responses: { 200: z.object({ ok: z.boolean() }) },
+    before: [
+      () => {
+        order.push("first");
+      },
+      async () => {
+        order.push("second");
+      },
+    ],
+    handler: () => {
+      order.push("handler");
+      return { statusCode: 200, ok: true };
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  const res = await t.fetch("/api/hooks/hooked");
+  expect(res.status).toBe(200);
+  expect(order).toEqual(["first", "second", "handler"]);
+});
+
+Deno.test("api — before hook returning a Response short-circuits the handler", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  let handlerRan = false;
+  const route = defineApi({
+    name: "Gated",
+    directory: "hooks",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    responses: { 200: z.object({ ok: z.boolean() }) },
+    before: [
+      (ctx) => ctx.json({ blocked: true }, { status: 418 }),
+    ],
+    handler: () => {
+      handlerRan = true;
+      return { statusCode: 200, ok: true };
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  const res = await t.fetch("/api/hooks/gated");
+  expect(res.status).toBe(418);
+  expect(await json(res)).toEqual({ blocked: true });
+  expect(handlerRan).toBe(false);
+});
+
+Deno.test("api — after hooks receive the response and can replace it", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  const seen: number[] = [];
+  const route = defineApi({
+    name: "Tapped",
+    directory: "hooks",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    responses: { 200: z.object({ ok: z.boolean() }) },
+    after: [
+      (_ctx, response) => {
+        seen.push(response.status);
+      },
+      (_ctx, response) => {
+        const headers = new Headers(response.headers);
+        headers.set("X-Tapped", "yes");
+        return new Response(response.body, { status: response.status, headers });
+      },
+    ],
+    handler: () => ({ statusCode: 200, ok: true }),
+  });
+  apiHandler(t.app, [route], config);
+
+  const res = await t.fetch("/api/hooks/tapped");
+  expect(res.status).toBe(200);
+  expect(res.headers.get("X-Tapped")).toBe("yes");
+  expect(seen).toEqual([200]);
+  expect(await json(res)).toEqual({ ok: true });
+});
+
+Deno.test("api — after hooks run on cache hits too", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  let afterRuns = 0;
+  let handlerRuns = 0;
+  const route = defineApi({
+    name: "Cached Hook",
+    directory: "hooks",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    caching: { ttl: 60 },
+    responses: { 200: z.object({ n: z.number() }) },
+    after: [
+      () => {
+        afterRuns++;
+      },
+    ],
+    handler: () => {
+      handlerRuns++;
+      return { statusCode: 200, n: handlerRuns };
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  await t.fetch("/api/hooks/cached-hook");
+  await t.fetch("/api/hooks/cached-hook");
+  expect(handlerRuns).toBe(1);
+  expect(afterRuns).toBe(2);
+});
+
+Deno.test("api — unexpected 500 hides the internal message but keeps correlationId", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  const route = defineApi({
+    name: "Internal Boom",
+    directory: "items",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    responses: { 200: z.object({ ok: z.boolean() }) },
+    handler: () => {
+      throw new Error("postgres://user:hunter2@db.internal refused connection");
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  const res = await t.fetch("/api/items/internal-boom");
+  expect(res.status).toBe(500);
+  const body = await json<{ error: string; correlationId: string }>(res);
+  expect(body.error).toBe("Something went wrong, try again.");
+  expect(body.error).not.toContain("hunter2");
+  expect(typeof body.correlationId).toBe("string");
+  expect(res.headers.get("X-Howl-Correlation-Id")).toBe(body.correlationId);
+});
+
+Deno.test("api — HttpError message is still exposed to the client", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  const route = defineApi({
+    name: "Named Missing",
+    directory: "items",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    responses: { 200: z.object({ ok: z.boolean() }) },
+    handler: () => {
+      throw errors.notFound("Property not found");
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  const res = await t.fetch("/api/items/named-missing");
+  expect(res.status).toBe(404);
+  const body = await json<{ error: string }>(res);
+  expect(body.error).toBe("Property not found");
+});
+
+Deno.test("api — non-2xx handler results are not cached", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  let runs = 0;
+  const route = defineApi({
+    name: "Flaky",
+    directory: "items",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    caching: { ttl: 60 },
+    responses: { 200: z.object({ ok: z.boolean() }) },
+    handler: () => {
+      runs++;
+      if (runs === 1) return { status: 503, error: "warming up" };
+      return { statusCode: 200, ok: true };
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  const first = await t.fetch("/api/items/flaky");
+  expect(first.status).toBe(503);
+  const second = await t.fetch("/api/items/flaky");
+  expect(second.status).toBe(200);
+  expect(runs).toBe(2);
+});
+
+Deno.test("api — cached responses replay their original status code", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup();
+  let runs = 0;
+  const route = defineApi({
+    name: "Created",
+    directory: "items",
+    method: "GET",
+    roles: [],
+    rateLimit: false,
+    caching: { ttl: 60 },
+    responses: { 201: z.object({ id: z.string() }) },
+    handler: () => {
+      runs++;
+      return { statusCode: 201, id: "abc" };
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  const first = await t.fetch("/api/items/created");
+  const second = await t.fetch("/api/items/created");
+  expect(first.status).toBe(201);
+  expect(second.status).toBe(201);
+  expect(await json(second)).toEqual({ ok: true, id: "abc" });
+  expect(runs).toBe(1);
+});
+
+Deno.test("api — protected route skips caching when no identifier is configured", async () => {
+  const t = makeApp<State>();
+  const { defineApi, config } = setup({
+    checkPermissionStrategy: () => {}, // allow everyone, but no identifier hook
+  });
+  let runs = 0;
+  const route = defineApi({
+    name: "Private Cached",
+    directory: "admin",
+    method: "GET",
+    roles: ["USER"],
+    rateLimit: false,
+    caching: { ttl: 60 },
+    responses: { 200: z.object({ n: z.number() }) },
+    handler: () => {
+      runs++;
+      return { statusCode: 200, n: runs };
+    },
+  });
+  apiHandler(t.app, [route], config);
+
+  await t.fetch("/api/admin/private-cached");
+  await t.fetch("/api/admin/private-cached");
+  // Without getRateLimitIdentifier there is no safe per-user key — every
+  // request must execute the handler instead of sharing one cache entry.
+  expect(runs).toBe(2);
+});

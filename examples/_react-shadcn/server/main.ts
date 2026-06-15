@@ -1,0 +1,19 @@
+import { Howl, staticFiles } from "@hushkey/howl";
+import { reactEngine } from "@hushkey/howl-react";
+import type { State } from "../howl.config.ts";
+
+export const app = new Howl<State>({
+  logger: true,
+  engines: { react: reactEngine() },
+});
+
+app.use(staticFiles());
+
+app.use((ctx) => {
+  ctx.state.title = "Howl · React + shadcn/ui";
+  return ctx.next();
+});
+
+app.fsClientRoutes();
+
+export default { app };

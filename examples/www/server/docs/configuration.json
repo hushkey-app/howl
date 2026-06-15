@@ -69,7 +69,11 @@
       "blocks": [
         {
           "type": "p",
-          "text": "HowlBuilder wraps esbuild to bundle islands, apply CSS modules, and run the dev server with hot reload."
+          "text": "HowlBuilder wraps esbuild to bundle page hydration chunks, apply CSS modules, and run the dev server with live reload."
+        },
+        {
+          "type": "warning",
+          "text": "Environment variables stay server-only unless explicitly opted in: variables prefixed howl_PUBLIC_ are inlined into the client bundle at build time. Treat any howl_PUBLIC_* value as public — never put a secret behind that prefix."
         },
         {
           "type": "code",
@@ -94,6 +98,10 @@
         {
           "type": "p",
           "text": "compiled-entry.js coerces DENO_PORT to a number and throws on a non-numeric value, so a typo fails fast at startup instead of silently picking a random port."
+        },
+        {
+          "type": "p",
+          "text": "Production builds fail fast on broken API definitions: a *.api.ts that throws on import, or whose file-system-inferred route contains URLPattern-special characters (like parentheses in a filename), aborts the build naming the offending file. The dev server logs the failure and keeps serving instead."
         }
       ]
     },

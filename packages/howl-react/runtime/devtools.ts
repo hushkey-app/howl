@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import {
   type ChangeEvent,
   createElement as h,
@@ -9,10 +8,12 @@ import {
 } from "react";
 import { navigate, useRoute } from "./router.ts";
 
-declare global {
-  /** Dev-only route map emitted by the React engine: every route + its mode. */
-  var __HOWL_REACT_ROUTES__: Array<{ pattern: string; mode: string; engine: string }> | undefined;
-}
+// Dev-only route map the React engine emits as `window.__HOWL_REACT_ROUTES__`.
+// Read via a typed `globalThis` view rather than a `declare global` augmentation
+// (banned by JSR for published packages).
+const browserGlobals = globalThis as typeof globalThis & {
+  __HOWL_REACT_ROUTES__?: Array<{ pattern: string; mode: string; engine: string }>;
+};
 
 const MODE_COLOR: Record<string, string> = {
   ssr: "#3b82f6",
@@ -22,7 +23,7 @@ const MODE_COLOR: Record<string, string> = {
 
 /** Read the dev route map emitted into the page (empty before first paint). */
 function routeMap(): Array<{ pattern: string; mode: string; engine: string }> {
-  return globalThis.__HOWL_REACT_ROUTES__ ?? [];
+  return browserGlobals.__HOWL_REACT_ROUTES__ ?? [];
 }
 
 /** Drop a trailing slash (except root `/`) so `ctx.route` matches manifest patterns. */

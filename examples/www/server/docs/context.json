@@ -29,7 +29,7 @@
         {
           "type": "code",
           "lang": "ts",
-          "text": "// JSON response\nreturn ctx.json({ ok: true, data: user });\nreturn ctx.json({ error: \"not found\" }, { status: 404 });\n\n// HTML response\nreturn ctx.html(\"<h1>Hello</h1>\");\n\n// Plain text\nreturn ctx.text(\"OK\");\n\n// SSR render a page — Preact engine only (renders a JSX VNode)\nreturn ctx.render(<MyPage data={data} />);\n\n// Standalone template -> HTML string in the app's engine (emails, notifications);\n// no page shell. Works for Preact, Vue, and React.\nconst html = await ctx.renderToString(WelcomeEmail, { name: user.name });\n\n// Redirect — preserves the SPA partial-nav search param automatically\n// for partial requests, so middleware guards keep the SPA navigation flow.\nreturn ctx.redirect(\"/login\");\nreturn ctx.redirect(\"/dashboard\", 301);"
+          "text": "// JSON response\nreturn ctx.json({ ok: true, data: user });\nreturn ctx.json({ error: \"not found\" }, { status: 404 });\n\n// HTML response\nreturn ctx.html(\"<h1>Hello</h1>\");\n\n// Plain text\nreturn ctx.text(\"OK\");\n\n// Standalone template -> HTML string in the app's engine (emails, notifications);\n// no page shell. Works for Vue and React engines.\nconst html = await ctx.renderToString(WelcomeEmail, { name: user.name });\n\n// Redirect — preserves the SPA partial-nav search param automatically\n// for partial requests, so middleware guards keep the SPA navigation flow.\nreturn ctx.redirect(\"/login\");\nreturn ctx.redirect(\"/dashboard\", 301);"
         }
       ]
     },

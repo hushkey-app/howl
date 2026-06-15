@@ -10,10 +10,10 @@
  * fold a chain into a single handler.
  */
 
-import { type Context, getInternals } from "../context.ts";
+import type { Context } from "../context.ts";
 import type { Howl as _Howl } from "../app.ts";
 import type { Define as _Define } from "../define.ts";
-import { recordSpanError, tracer } from "../otel.ts";
+import { isTracingActive, recordSpanError, tracer } from "../otel.ts";
 // --- Built-in middleware implementations ---
 export { compression } from "./compression.ts";
 export { coalesceRequests } from "./coalesce.ts";
@@ -136,10 +136,10 @@ export function compileMiddlewares<State>(
     const nextChain = chain;
     let middleware = middlewares[i];
     chain = async (ctx, tail) => {
-      const internals = getInternals(ctx);
-      const { app: prevApp, layouts: prevLayouts } = internals;
-
-      ctx.next = () => Promise.resolve(nextChain(ctx, tail));
+      // Note: no internals (app/layouts) bookkeeping here — the only mutators
+      // are the segment middlewares (self-restoring in their own `finally`)
+      // and `renderRoute` (restores in its own `finally`).
+      ctx.next = () => nextChain(ctx, tail) as Promise<Response>;
       try {
         const result = await middleware(ctx);
         if (typeof result === "function") {
@@ -157,9 +157,6 @@ export function compileMiddlewares<State>(
           }
         }
         throw err;
-      } finally {
-        internals.app = prevApp;
-        internals.layouts = prevLayouts;
       }
     };
   }
@@ -167,6 +164,9 @@ export function compileMiddlewares<State>(
   const count = middlewares.length;
   return (ctx) => {
     const tail = ctx.next;
+    if (!isTracingActive()) {
+      return Promise.resolve(chain(ctx, tail));
+    }
     return tracer.startActiveSpan("middlewares", {
       attributes: { "howl.middleware.count": count },
     }, async (span) => {

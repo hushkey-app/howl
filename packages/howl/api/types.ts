@@ -99,14 +99,53 @@ export interface HowlApiConfig<
    * Returns the identifier used to key rate limit counters and per-user cache
    * entries. Receives the request context — typically reads from
    * `ctx.state` (e.g. an authenticated user id, session id, API key).
-   * Return `undefined` to fall back to the client IP for rate limiting and to
-   * `"anonymous"` for per-user cache keys.
+   * When unset (or returning `undefined`), rate limiting falls back to the
+   * client IP and **response caching is skipped on role-protected routes** —
+   * without a user identifier a shared cache entry would leak one user's
+   * response to another.
    *
    * @example
    * getRateLimitIdentifier: (ctx) => ctx.state.user?.id
    */
   getRateLimitIdentifier?: (ctx: Context<State>) => string | undefined;
 }
+
+/**
+ * Hook executed before the route handler (after auth, rate limiting, and
+ * validation — the parsed body/query are already available on `ctx`). Hooks
+ * run in array order; returning a `Response` short-circuits the chain: the
+ * remaining `before` hooks and the handler are skipped, and the `after`
+ * chain receives the short-circuit response. Throwing aborts the request
+ * through the standard API error envelope.
+ *
+ * @example
+ * before: [
+ *   async (ctx, app) => { await hound.enqueue("audit", { path: ctx.url.pathname }); },
+ * ]
+ */
+export type ApiBeforeHook<State = unknown> = (
+  ctx: Context<State>,
+  app: Howl<State>,
+) => void | Response | Promise<void | Response>;
+
+/**
+ * Hook executed after a response is produced — by the handler, a cache hit,
+ * or a short-circuiting `before` hook. Receives the outgoing `Response`;
+ * returning a new `Response` replaces it for the rest of the chain, returning
+ * nothing keeps the current one. Not invoked when the request fails with an
+ * error (the error envelope is returned directly). Throwing aborts the
+ * request through the standard API error envelope.
+ *
+ * @example
+ * after: [
+ *   async (ctx, response, app) => { await hound.enqueue("metrics", { status: response.status }); },
+ * ]
+ */
+export type ApiAfterHook<State = unknown> = (
+  ctx: Context<State>,
+  response: Response,
+  app: Howl<State>,
+) => void | Response | Promise<void | Response>;
 
 /**
  * Map of HTTP status codes to Zod schemas describing the response body.
@@ -248,6 +287,18 @@ export interface ApiDefinition<
   query?: Q;
   /** Path params Zod schema */
   params?: z.ZodObject<any, any>;
+  /**
+   * Hooks run before the handler (post-auth, post-validation), in order.
+   * A hook returning a `Response` short-circuits the handler. Use for
+   * side effects like enqueueing jobs, auditing, or request decoration.
+   */
+  before?: ApiBeforeHook<State>[];
+  /**
+   * Hooks run after a response is produced (handler, cache hit, or `before`
+   * short-circuit), in order. Each receives the outgoing `Response` and may
+   * replace it by returning a new one. Skipped when the request errors.
+   */
+  after?: ApiAfterHook<State>[];
   /** Request handler invoked after auth, validation, rate-limiting, and cache lookup. */
   handler: B extends RequestBodySchema
     ? Q extends QuerySchema

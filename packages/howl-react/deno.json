@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/howl-react",
-  "version": "0.0.1",
+  "version": "0.13.0",
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",
@@ -12,7 +12,7 @@
     "./router": "./runtime/router.ts"
   },
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.10.0",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.13.0",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "esbuild": "npm:esbuild@^0.25.0",
@@ -29,6 +29,7 @@
   },
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "react"
+    "jsxImportSource": "react",
+    "lib": ["deno.ns", "dom", "dom.iterable", "dom.asynciterable", "esnext"]
   }
 }

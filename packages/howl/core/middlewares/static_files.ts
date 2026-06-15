@@ -10,7 +10,7 @@
 import type { Middleware } from "./mod.ts";
 import { ASSET_CACHE_BUST_KEY, INTERNAL_PREFIX } from "../constants.ts";
 import { BUILD_ID } from "../../utils/build-id.ts";
-import { tracer } from "../otel.ts";
+import { isTracingActive, tracer } from "../otel.ts";
 import { getBuildCache } from "../context.ts";
 
 /**
@@ -34,12 +34,9 @@ export function staticFiles<T>(): Middleware<T> {
       pathname = pathname !== config.basePath ? pathname.slice(config.basePath.length) : "/";
     }
 
-    // deno-lint-ignore no-console
-
-    const startTime = performance.now() + performance.timeOrigin;
+    const tracing = isTracingActive();
+    const startTime = tracing ? performance.now() + performance.timeOrigin : 0;
     const file = await buildCache.readFile(pathname);
-
-    // deno-lint-ignore no-console
 
     if (pathname === "/" || file === null) {
       if (pathname === "/favicon.ico") {
@@ -60,10 +57,12 @@ export function staticFiles<T>(): Middleware<T> {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
-    const span = tracer.startSpan("static file", {
-      attributes: { "howl.span_type": "static_file" },
-      startTime,
-    });
+    const span = tracing
+      ? tracer.startSpan("static file", {
+        attributes: { "howl.span_type": "static_file" },
+        startTime,
+      })
+      : null;
 
     try {
       const cacheKey = url.searchParams.get(ASSET_CACHE_BUST_KEY);
@@ -71,8 +70,8 @@ export function staticFiles<T>(): Middleware<T> {
         url.searchParams.delete(ASSET_CACHE_BUST_KEY);
         const location = url.pathname + url.search;
         file.close();
-        span.setAttribute("howl.cache", "invalid_bust_key");
-        span.setAttribute("howl.cache_key", cacheKey);
+        span?.setAttribute("howl.cache", "invalid_bust_key");
+        span?.setAttribute("howl.cache_key", cacheKey);
         return new Response(null, {
           status: 307,
           headers: {
@@ -96,7 +95,7 @@ export function staticFiles<T>(): Middleware<T> {
           (ifNoneMatch === etag || ifNoneMatch === `W/"${etag}"`)
         ) {
           file.close();
-          span.setAttribute("howl.cache", "not_modified");
+          span?.setAttribute("howl.cache", "not_modified");
           return new Response(null, { status: 304, headers });
         } else if (etag !== null) {
           headers.set("Etag", `W/"${etag}"`);
@@ -110,10 +109,10 @@ export function staticFiles<T>(): Middleware<T> {
             `${ctx.config.basePath}/_howl/js/${BUILD_ID}/`,
           ))
       ) {
-        span.setAttribute("howl.cache", "immutable");
+        span?.setAttribute("howl.cache", "immutable");
         headers.append("Cache-Control", "public, max-age=31536000, immutable");
       } else {
-        span.setAttribute("howl.cache", "no_cache");
+        span?.setAttribute("howl.cache", "no_cache");
         headers.append(
           "Cache-Control",
           "no-cache, no-store, max-age=0, must-revalidate",
@@ -130,7 +129,7 @@ export function staticFiles<T>(): Middleware<T> {
       // deno-lint-ignore no-explicit-any
       return new Response(file.readable as any, { headers });
     } finally {
-      span.end();
+      span?.end();
     }
   };
 }
