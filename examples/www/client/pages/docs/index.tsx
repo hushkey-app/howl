@@ -1,10 +1,10 @@
 import type { ReactPageProps } from "@hushkey/howl-react";
 import type { State } from "../../../howl.config.ts";
-import { readManifest } from "../../../server/docs/reader.ts";
+import { readManifestGrouped } from "../../../server/docs/reader.ts";
 import { useHead } from "@hushkey/howl-react/head";
 
 export default function DocsIndex(props: ReactPageProps<unknown, State>) {
-  const manifest = readManifest();
+  const groups = readManifestGrouped();
   const title = props.state.client.title;
 
   useHead({
@@ -39,11 +39,11 @@ export default function DocsIndex(props: ReactPageProps<unknown, State>) {
             {title} Docs
           </h1>
           <p className="text-base sm:text-lg text-base-content/70 sm:text-base-content/60 leading-relaxed">
-            Backend-first, Deno-native full-stack framework. Typed endpoints, SSR islands, built-in
-            RBAC, and middleware that propagates to every response.
+            Server-first, Deno-native full-stack framework. Typed endpoints, pluggable Vue/React
+            engines, built-in RBAC, and middleware that propagates to every response.
           </p>
           <div className="flex gap-2 mt-4 flex-wrap">
-            {["Deno 2.x", "Fresh 2.x", "React 18", "TypeScript"].map((t) => (
+            {["Deno 2.x", "Vue 3", "React 18", "TypeScript"].map((t) => (
               <kbd key={t} className="kbd kbd-sm sm:kbd-md font-mono text-xs sm:text-sm">{t}</kbd>
             ))}
           </div>
@@ -61,30 +61,37 @@ export default function DocsIndex(props: ReactPageProps<unknown, State>) {
           </div>
         </div>
 
-        {/* Section grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {manifest.map((item) => (
-            <a
-              key={item.slug}
-              href={`/docs/${item.slug}`}
-              className="group rounded-2xl border border-base-300 bg-base-200/60 backdrop-blur hover:border-primary/40 hover:bg-base-200 transition-all overflow-hidden"
-            >
-              <div className="px-5 py-4 sm:py-5">
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="font-semibold text-base sm:text-base group-hover:text-primary transition-colors">
-                    {item.title}
-                  </h2>
-                  <span className="text-base-content/30 group-hover:text-primary transition-colors text-lg shrink-0">
-                    →
-                  </span>
-                </div>
-                <p className="text-sm text-base-content/60 mt-1.5 leading-relaxed">
-                  {item.description}
-                </p>
-              </div>
-            </a>
-          ))}
-        </div>
+        {/* Section grid, grouped by category */}
+        {groups.map((group) => (
+          <div key={group.id} className="mb-8 sm:mb-10">
+            <p className="font-mono text-xs uppercase tracking-widest text-base-content/40 mb-3 px-0">
+              {group.label}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {group.items.map((item) => (
+                <a
+                  key={item.slug}
+                  href={`/docs/${item.slug}`}
+                  className="group rounded-2xl border border-base-300 bg-base-200/60 backdrop-blur hover:border-primary/40 hover:bg-base-200 transition-all overflow-hidden"
+                >
+                  <div className="px-5 py-4 sm:py-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <h2 className="font-semibold text-base sm:text-base group-hover:text-primary transition-colors">
+                        {item.title}
+                      </h2>
+                      <span className="text-base-content/30 group-hover:text-primary transition-colors text-lg shrink-0">
+                        →
+                      </span>
+                    </div>
+                    <p className="text-sm text-base-content/60 mt-1.5 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-base-300 flex gap-6 text-sm text-base-content/40 font-mono px-0">

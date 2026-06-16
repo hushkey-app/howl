@@ -1,0 +1,109 @@
+{
+  "slug": "deployment",
+  "title": "Deployment & Performance",
+  "description": "Production builds, deno compile binaries, asset locking and performance middleware",
+  "sections": [
+    {
+      "id": "build",
+      "heading": "Production build",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "deno task build runs dev.ts in build mode (builder.build()): bundles pages, CSS and the server entry into dist/, prerenders SSG routes, and regenerates the HTTP client. deno task start runs it."
+        },
+        { "type": "code", "lang": "sh", "text": "deno task build\ndeno task start" },
+        {
+          "type": "p",
+          "text": "Under the Vue engine, the build precompiles every .vue page chain into an importable SSR module that the snapshot statically imports — so the production server (and a deno compile binary) never needs .vue source on disk, and never loads the Vue compiler at runtime."
+        }
+      ]
+    },
+    {
+      "id": "compile",
+      "heading": "Self-contained binary",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "deno task compile wraps deno compile into a single executable — runtime, code, and (fullstack) static assets baked in. Ship to bare metal or a scratch image, no Deno install needed."
+        },
+        { "type": "code", "lang": "sh", "text": "deno task compile\n./dist/bin/my-app" },
+        {
+          "type": "tip",
+          "text": "The fullstack compile task passes --include dist/static so the binary serves your built assets directly. Backend-only apps skip the include."
+        }
+      ]
+    },
+    {
+      "id": "docker",
+      "heading": "Docker",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Two shapes work well: run the built JS with the official Deno image, or compile to a binary and drop it into a minimal base. The compiled binary keeps the image tiny."
+        },
+        {
+          "type": "code",
+          "lang": "text",
+          "filename": "Dockerfile",
+          "text": "FROM denoland/deno:latest AS build\nWORKDIR /app\nCOPY . .\nRUN deno task build\n\nFROM denoland/deno:latest\nWORKDIR /app\nCOPY --from=build /app/dist ./dist\nEXPOSE 8000\nCMD [\"run\", \"-A\", \"dist/compiled-entry.js\"]"
+        }
+      ]
+    },
+    {
+      "id": "asset-locking",
+      "heading": "Asset locking and cache busting",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Each build gets a unique BUILD_ID. Hydration chunks are served immutable (Cache-Control: max-age=31536000) — safe because the BUILD_ID is in their URL, so a new deploy rotates every URL and busts the cache. The id is a UUID locally, or DENO_DEPLOYMENT_ID / GITHUB_SHA in CI/Deploy."
+        },
+        {
+          "type": "p",
+          "text": "Run your own static assets (images, fonts) through asset() to carry the BUILD_ID and earn the same immutable cache; assetSrcSet() does it for a whole srcset. Server-only — call from render/SSR, not client bundles."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { asset, assetSrcSet } from \"@hushkey/howl\";\n\nconst logo = asset(\"/static/logo.svg\");\nconst srcset = assetSrcSet(\"/img/hero.png 1x, /img/hero@2x.png 2x\");"
+        }
+      ]
+    },
+    {
+      "id": "performance",
+      "heading": "Performance middleware",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Three built-ins do most of the heavy lifting in production. Register them high in the chain."
+        },
+        {
+          "type": "table",
+          "headers": ["Middleware", "Effect"],
+          "rows": [
+            ["coalesceRequests()", "Collapses a thundering herd of identical concurrent GETs into one handler execution."],
+            ["compression()", "Gzip/deflate for text, JSON, JS and SVG responses."],
+            ["staticFiles()", "Serves static/, applying immutable caching to locked assets."]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Render modes are the bigger lever: AOT (__page) avoids server round-trips on navigation; SSG (___page) serves prerendered HTML straight from the snapshot. See Routing."
+        }
+      ]
+    },
+    {
+      "id": "deno-deploy",
+      "heading": "Deno Deploy",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Deploy sets DENO_DEPLOYMENT_ID, which Howl uses as the BUILD_ID — asset URLs and cache busting line up per revision automatically. For multiple instances, point rateLimitCache at a shared backend (Redis/Deno KV); per-instance counters let the limit scale with instance count."
+        },
+        {
+          "type": "warning",
+          "text": "Build before serving in production: a production server with no build output throws \"Could not find _howl directory. Did you forget to run deno task build?\". Run deno task build (or compile) as part of your deploy."
+        }
+      ]
+    }
+  ]
+}

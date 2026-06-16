@@ -5,93 +5,74 @@
   "sections": [
     {
       "id": "overview",
-      "heading": "Overview",
+      "heading": "Managed WebSocket endpoints",
       "blocks": [
         {
           "type": "p",
-          "text": "app.ws(path, handlers, options?) registers a WebSocket endpoint that runs through the same middleware pipeline as the rest of the app — auth, request id, logging, and ctx.state populated by your JWT/cookie middleware all work unchanged."
-        },
-        {
-          "type": "p",
-          "text": "API matches Fresh 2.3's app.ws() (PR #3774): always managed mode, handlers receive the upgraded WebSocket plus the request Context, returns this for chaining. Non-WebSocket requests to the path automatically return 426 Upgrade Required."
+          "text": "app.ws() registers a WebSocket endpoint. Howl runs the middleware pipeline, performs the upgrade, and wires your handlers as listeners. Each handler gets the socket and the request Context, so middleware-set state (auth, request id) is available before the first frame."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "interface WebSocketHandlers<State> {\n  open?(socket: WebSocket, ctx: Context<State>): void;\n  message?(socket: WebSocket, event: MessageEvent, ctx: Context<State>): void;\n  close?(socket: WebSocket, code: number, reason: string, ctx: Context<State>): void;\n  error?(socket: WebSocket, event: Event, ctx: Context<State>): void;\n}\n\ninterface WebSocketUpgradeOptions extends Deno.UpgradeWebSocketOptions {\n  /** Bind the endpoint to its own Deno.serve listener. */\n  port?: number;\n  /** Optional hostname for the secondary listener. */\n  hostname?: string;\n}"
+          "text": "app.ws(\"/ws\", {\n  open(socket, ctx) {\n    const userId = ctx.state.userContext?.id;\n    if (!userId) { socket.close(1008, \"Unauthorized\"); return; }\n    hub.subscribe(`user:${userId}`, socket);\n  },\n  message(socket, event) {\n    socket.send(`echo: ${event.data}`);\n  },\n  close(socket, code, reason) {\n    hub.unsubscribe(socket);\n  },\n  error(socket, event) {\n    console.error(\"ws error\", event);\n  },\n}, { idleTimeout: 30 });"
+        },
+        {
+          "type": "warning",
+          "text": "A non-WebSocket request to a registered WS path returns 426 Upgrade Required."
         }
       ]
     },
     {
-      "id": "same-port",
-      "heading": "Same-port WebSockets",
+      "id": "handlers",
+      "heading": "Lifecycle handlers",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": ["Handler", "Signature", "Fires when"],
+          "rows": [
+            ["open", "(socket, ctx)", "The connection opens."],
+            ["message", "(socket, event, ctx)", "Every inbound frame."],
+            ["close", "(socket, code, reason, ctx)", "The connection closes (clean or unclean)."],
+            ["error", "(socket, event, ctx)", "A protocol or transport error occurs."]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "All four are optional. ctx is the same context the middleware chain built, so middleware auth applies to the socket exactly as it does to HTTP routes."
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "heading": "Authenticating sockets",
       "blocks": [
         {
           "type": "p",
-          "text": "By default, WS routes share the main HTTP port. The handler runs after global middleware, so ctx.state is populated by your auth pipeline before the upgrade fires."
+          "text": "Run your normal auth middleware before app.ws(); it populates ctx.state, then reject unauthenticated upgrades in open() with a close code."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "import { hub } from \"./ws-relay.ts\";\n\napp.ws(\"/ws\", {\n  open(socket, ctx) {\n    const userId = ctx.state.userContext?.user?.id;\n    if (!userId) {\n      socket.close(1008, \"Unauthorized\");\n      return;\n    }\n    hub.connect(userId, socket);\n  },\n  message(socket, event) {\n    socket.send(`echo: ${event.data}`);\n  },\n  close(socket, _code, _reason, ctx) {\n    const userId = ctx.state.userContext?.user?.id;\n    if (userId) hub.disconnect(userId, socket);\n  },\n  error(_socket, event) {\n    const msg = (event as ErrorEvent).message ?? \"\";\n    if (!/connection reset/i.test(msg)) console.error(\"[WS]\", msg);\n  },\n}, { idleTimeout: 30 });"
+          "text": "app.use(authMiddleware);  // sets ctx.state.userContext\n\napp.ws(\"/ws\", {\n  open(socket, ctx) {\n    if (!ctx.state.userContext) socket.close(1008, \"Unauthorized\");\n  },\n});"
+        }
+      ]
+    },
+    {
+      "id": "port-isolation",
+      "heading": "Port isolation",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pass options.port to bind a WS endpoint to its own Deno.serve listener. app.listen() spawns it automatically, sharing the middleware pipeline but exposing only that port's WS paths — everything else 404s there, and the path is hidden from the main port."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "app.ws(\"/realtime\", handlers, { port: 8443, idleTimeout: 60 });\n\n// app.listen() starts the main HTTP listener AND the WS listener on 8443\napp.listen({ port: 8000 });"
         },
         {
           "type": "tip",
-          "text": "Don't re-parse cookies in the open handler. Your existing JWT/cookie middleware already runs for every WS upgrade — just read ctx.state.userContext like any other route."
-        }
-      ]
-    },
-    {
-      "id": "port-isolated",
-      "heading": "Port-isolated WebSockets",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Set options.port to bind the endpoint to its own Deno.serve listener. Howl spawns the secondary listener automatically when app.listen() runs. The same global middleware pipeline executes (auth, ctx.state work identically), but the WS path is hidden from the main listener — only the WS routes registered on that port are reachable on it."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "app.ws(\"/ws\", { /* same handlers */ }, { port: 9000 });\n\nawait app.listen({ port: 8000 });\n// 🐺 Howl ready\n//    Local:    http://localhost:8000/\n//    WebSocket: ws://0.0.0.0:9000  ← /ws"
-        },
-        {
-          "type": "p",
-          "text": "Useful when you want to scale the WS surface independently or terminate TLS separately. Multiple WS routes can share a port — call app.ws() again with the same port and they're added to the same listener."
-        },
-        {
-          "type": "table",
-          "headers": ["Setup", "Same port", "Port isolated"],
-          "rows": [
-            ["Listener", "Main app port", "Dedicated Deno.serve on options.port"],
-            ["Middleware pipeline", "Shared", "Shared (same handler closure)"],
-            ["Reachable from main port", "Yes", "No (404)"],
-            ["Other routes on the WS port", "—", "404"],
-            ["Use case", "Default — keep things simple", "Scale or TLS-terminate WS independently"]
-          ]
-        }
-      ]
-    },
-    {
-      "id": "options",
-      "heading": "Options",
-      "blocks": [
-        {
-          "type": "table",
-          "headers": ["Option", "Type", "Purpose"],
-          "rows": [
-            ["protocol", "string", "Sub-protocol negotiation — forwarded to Deno.upgradeWebSocket"],
-            [
-              "idleTimeout",
-              "number",
-              "Idle timeout in seconds — forwarded to Deno.upgradeWebSocket"
-            ],
-            ["port", "number", "Bind to a separate Deno.serve listener (Howl extension)"],
-            [
-              "hostname",
-              "string",
-              "Hostname for the secondary listener (defaults to main app's hostname)"
-            ]
-          ]
+          "text": "Use port isolation when the WebSocket surface should scale or terminate TLS independently from the rest of the HTTP app."
         }
       ]
     }

@@ -1,0 +1,85 @@
+{
+  "slug": "caching",
+  "title": "Caching",
+  "description": "Response caching and the memory, Redis, Deno KV and tiered adapters",
+  "sections": [
+    {
+      "id": "response-cache",
+      "heading": "Response caching",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cache responses per route with caching.ttl (seconds) in defineApi. Only 2xx (non-204) responses are cached; a hit replays the original status."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "export default defineApi({\n  name: \"List Posts\",\n  directory: \"public\",\n  method: \"GET\",\n  roles: [],\n  caching: { ttl: 30 },   // cache successful responses for 30s\n  responses: { 200: z.object({ data: z.array(PostSchema) }) },\n  handler: async () => ({ status: 200, data: await posts.all() }),\n});"
+        },
+        {
+          "type": "warning",
+          "text": "On role-protected routes, cache keys are namespaced per user via getRateLimitIdentifier. If that hook is unset, response caching is skipped on those routes — a shared key would leak one user's response to another. Public routes cache by URL."
+        }
+      ]
+    },
+    {
+      "id": "adapters",
+      "heading": "Cache adapters",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Set the adapter once via the cache field. All live in @hushkey/howl/api/cache and share the CacheAdapter interface, so they're interchangeable."
+        },
+        {
+          "type": "table",
+          "headers": ["Adapter", "Signature", "Notes"],
+          "rows": [
+            ["memoryCache()", "memoryCache({ maxSize? })", "LRU in-memory, per-instance. Default 500 entries."],
+            ["redisCache()", "redisCache(client)", "Redis-backed, shared across instances. Accepts an ioredis-like client."],
+            ["kvCache()", "kvCache(kv, { prefix? })", "Deno KV — shared on Deploy, per-process locally."],
+            ["tryCache()", "tryCache(primary, fallback, { timeoutMs? })", "Tiered: primary with a timeout, falling back to a secondary."]
+          ]
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { memoryCache, redisCache, kvCache, tryCache } from \"@hushkey/howl/api/cache\";\n\nmemoryCache({ maxSize: 1000 });\nredisCache(redis);\nkvCache(await Deno.openKv());\ntryCache(memoryCache(), redisCache(redis), { timeoutMs: 300 });"
+        }
+      ]
+    },
+    {
+      "id": "multi-instance",
+      "heading": "Multi-instance setup",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Response caching is idempotent, so a per-instance memory cache is fine. Counters must be shared. Use a tiered cache for responses and a shared backend for counters."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "defineConfig<State, Role>({\n  roles,\n  cache: tryCache(memoryCache(), redisCache(r)), // fast local, shared fallback\n  rateLimitCache: redisCache(r),                  // counters — must be shared\n});"
+        },
+        {
+          "type": "tip",
+          "text": "tryCache races the primary against a timeout (default 300ms) and falls back to the secondary if it is slow or errors — so a Redis hiccup degrades to local memory instead of failing the request."
+        }
+      ]
+    },
+    {
+      "id": "custom",
+      "heading": "Writing an adapter",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Any object implementing CacheAdapter plugs in. Implement get/set/delete; add an atomic incr if you want the adapter usable as a shared rateLimitCache."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import type { CacheAdapter } from \"@hushkey/howl/api\";\n\nconst adapter: CacheAdapter = {\n  async get(key) { /* return string | null */ },\n  async set(key, value, ttlSeconds) { /* write with TTL */ },\n  async delete(key) { /* remove */ },\n  async incr(key, ttlSeconds) { /* atomic counter for rate limiting */ },\n};"
+        }
+      ]
+    }
+  ]
+}

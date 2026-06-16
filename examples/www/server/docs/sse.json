@@ -5,73 +5,60 @@
   "sections": [
     {
       "id": "overview",
-      "heading": "Overview",
+      "heading": "ctx.sse()",
       "blocks": [
         {
           "type": "p",
-          "text": "Server-Sent Events (SSE) let the server push updates to the client over a single long-lived HTTP connection. Unlike WebSockets, SSE is unidirectional (server → client) and uses regular HTTP — great for live feeds, notifications, and progress updates."
-        },
-        {
-          "type": "p",
-          "text": "ctx.sse() handles the SSE framing, headers (Content-Type: text/event-stream, Cache-Control: no-cache), and keep-alive automatically."
-        }
-      ]
-    },
-    {
-      "id": "basic-usage",
-      "heading": "Basic usage",
-      "blocks": [
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "// In a page handler or API handler\nreturn ctx.sse(async (send) => {\n  // Send an event every second for 10 seconds\n  for (let i = 0; i < 10; i++) {\n    await send({ data: { tick: i }, event: \"tick\" });\n    await new Promise(r => setTimeout(r, 1000));\n  }\n});"
-        }
-      ]
-    },
-    {
-      "id": "sse-event",
-      "heading": "SSEEvent interface",
-      "blocks": [
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "interface SSEEvent {\n  data: unknown;          // serialized to JSON\n  event?: string;        // event type (default: \"message\")\n  id?: string | number;  // last-event-id for reconnection\n  retry?: number;        // reconnect delay hint in ms\n}"
+          "text": "ctx.sse() streams Server-Sent Events. Pass an async iterable (or a function returning one) of SSEEvent frames; it sets Content-Type: text/event-stream, Cache-Control: no-cache, and Connection: keep-alive automatically, and merges ctx.headers."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "await send({ data: { user: \"leo\" }, event: \"join\", id: 1 });\nawait send({ data: { message: \"hello\" }, event: \"chat\", id: 2, retry: 3000 });"
+          "text": "app.get(\"/events\", (ctx) =>\n  ctx.sse(async function* () {\n    while (true) {\n      yield { data: { time: Date.now() }, event: \"tick\" };\n      await new Promise((r) => setTimeout(r, 1000));\n    }\n  }));"
         }
       ]
     },
     {
-      "id": "client-side",
-      "heading": "Client-side (EventSource)",
+      "id": "event-shape",
+      "heading": "The SSEEvent frame",
       "blocks": [
         {
           "type": "p",
-          "text": "In a browser island, use the native EventSource API to consume SSE streams."
+          "text": "Each yielded value is an SSEEvent. Only data is required; non-string data is JSON-stringified before being written."
         },
         {
-          "type": "code",
-          "lang": "tsx",
-          "text": "import { useEffect, useState } from \"preact/hooks\";\n\nexport default function LiveFeed() {\n  const [events, setEvents] = useState<string[]>([]);\n\n  useEffect(() => {\n    const es = new EventSource(\"/api/public/live-feed\");\n\n    es.addEventListener(\"update\", (e) => {\n      const data = JSON.parse(e.data);\n      setEvents(prev => [...prev, data.message]);\n    });\n\n    es.onerror = () => es.close();\n\n    return () => es.close();\n  }, []);\n\n  return (\n    <ul>\n      {events.map((e, i) => <li key={i}>{e}</li>)}\n    </ul>\n  );\n}"
-        }
-      ]
-    },
-    {
-      "id": "use-cases",
-      "heading": "Use cases",
-      "blocks": [
-        {
-          "type": "list",
-          "items": [
-            "Live notifications — push alerts to connected users without polling",
-            "Progress bars — stream progress of long-running server operations",
-            "Chat feeds — append messages to a live chat UI",
-            "Dashboard metrics — push updated stats every few seconds",
-            "AI streaming — stream LLM token output progressively"
+          "type": "table",
+          "headers": ["Field", "Type", "Meaning"],
+          "rows": [
+            ["data", "unknown", "The payload. Objects are JSON-stringified."],
+            ["event", "string?", "Event name (the client's addEventListener type). Defaults to \"message\"."],
+            ["id", "string | number?", "Event id used by the client to resume after reconnect."],
+            ["retry", "number?", "Reconnection delay hint, in milliseconds."]
           ]
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "yield { data: { hello: \"world\" }, event: \"update\", id: 1, retry: 3000 };"
+        }
+      ]
+    },
+    {
+      "id": "client",
+      "heading": "Consuming on the client",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Use the browser's EventSource. Listen for the default message event, or for the named event you set in the frame."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "const es = new EventSource(\"/events\");\nes.addEventListener(\"tick\", (e) => {\n  const payload = JSON.parse(e.data);\n  console.log(payload.time);\n});"
+        },
+        {
+          "type": "tip",
+          "text": "SSE is one-way (server → client) and reconnects automatically. For bidirectional messaging, use a WebSocket instead — see the WebSockets page. The SSEEvent type is exported from @hushkey/howl."
         }
       ]
     }

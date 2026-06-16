@@ -1,65 +1,47 @@
 {
   "slug": "routing",
   "title": "Routing",
-  "description": "File-based routing, layouts, SPA navigation, AOT chunks, and SSG prerender",
+  "description": "File-system pages, layouts, dynamic params, AOT chunks and SSG prerender",
   "sections": [
     {
-      "id": "file-based",
-      "heading": "File-based routing",
+      "id": "fs-routing",
+      "heading": "The file system is the router",
       "blocks": [
         {
           "type": "p",
-          "text": "Page files live in client/pages/. The file path maps directly to the URL."
+          "text": "app.fsClientRoutes() crawls pages/ at build time. The path on disk is the URL — move a file, move the route. No route config to maintain."
+        },
+        {
+          "type": "code",
+          "lang": "text",
+          "text": "client/pages/\n  index.tsx              ← /\n  about.tsx              ← /about\n  blog/\n    index.tsx            ← /blog\n    [slug].tsx           ← /blog/:slug\n  docs/\n    [slug].tsx           ← /docs/:slug"
+        },
+        {
+          "type": "p",
+          "text": "Pages are .vue (Vue engine) or .tsx (React engine), chosen once in the Howl constructor. Registering page routes with no engine throws."
+        }
+      ]
+    },
+    {
+      "id": "special-files",
+      "heading": "Special files",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A handful of underscore-prefixed file names are structural rather than routable:"
         },
         {
           "type": "table",
-          "headers": ["File", "URL"],
+          "headers": ["File", "Role"],
           "rows": [
-            ["pages/index.tsx", "/"],
-            ["pages/about.tsx", "/about"],
-            ["pages/blog/index.tsx", "/blog"],
-            ["pages/blog/[slug].tsx", "/blog/:slug"],
-            ["pages/user/[id]/settings.tsx", "/user/:id/settings"],
-            ["pages/files/[...path].tsx", "/files/* (catch-all)"],
-            ["pages/[[name]].tsx", "/ and /:name (optional)"]
+            ["_app.{vue,tsx}", "The HTML shell — <head>, scripts, the outermost wrapper. Stays static in the DOM across navigation."],
+            ["_layout.{vue,tsx}", "A layout that wraps every page in its directory and below. Layouts stack root → leaf."],
+            ["_error.{vue,tsx}", "Rendered when a request throws. Receives the serialized error via page props (ctx.error)."]
           ]
         },
         {
           "type": "p",
-          "text": "A page component receives ctx as its argument, which is the full request context including state, params, url, and all response helpers."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "import type { Context } from \"@hushkey/howl\";\nimport type { State } from \"../../howl.config.ts\";\n\nexport default function HomePage(ctx: Context<State>) {\n  return <h1>Hello, {ctx.state.userContext?.id ?? \"guest\"}</h1>;\n}"
-        }
-      ]
-    },
-    {
-      "id": "trailing-slashes",
-      "heading": "Trailing slashes",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "The router tolerates trailing-slash mismatches automatically. A route registered as /wissen matches both /wissen and /wissen/, and vice versa — no 404 either way. Exact matches always take priority when both forms are registered."
-        },
-        {
-          "type": "p",
-          "text": "Use the trailingSlashes() middleware (always | never) when you want to canonicalise URLs for SEO/analytics or force a 308 redirect. Without it, both forms simply work."
-        }
-      ]
-    },
-    {
-      "id": "middleware-segments",
-      "heading": "Middleware and optional segments",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "File-based middleware (_middleware.ts) applies to its directory and below — and it correctly matches routes that contain optional parameters. A middleware at pages/api/_middleware.ts will run for both pages/api/[[id]].tsx and pages/api/users/[id].tsx, even though the first route's URL pattern includes an optional group."
-        },
-        {
-          "type": "p",
-          "text": "Internally, the router strips optional {/:param}? groups before splitting a route into segments, so /api{/:opt}?/endpoint segments identically to /api/endpoint. Without this, middleware registered at /api would skip routes with optional params under it."
+          "text": "Layouts compose by nesting: a request to /blog/my-post renders _app → pages/_layout → pages/blog/_layout → the page, each wrapping the next."
         }
       ]
     },
@@ -69,333 +51,66 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Wrap a segment name in brackets to make it dynamic. Access captured values via ctx.params."
+          "text": "Wrap a path segment in square brackets to capture it. The captured value arrives on the page props as params, and in handlers as ctx.params."
         },
         {
           "type": "code",
-          "lang": "tsx",
-          "text": "// pages/blog/[slug].tsx → /blog/:slug\nexport default function BlogPost(ctx: Context<State>) {\n  const { slug } = ctx.params;\n  return <article>Post: {slug}</article>;\n}"
-        },
-        { "type": "p", "text": "Use [...slug] for catch-all routes that match any depth." },
-        {
-          "type": "p",
-          "text": "Use [[slug]] (double brackets) for an optional segment. The same file matches both the bare path and any single value:"
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// pages/[[name]].tsx — matches both / and /:name\nexport default function Greeting(ctx: Context<State>) {\n  const { name } = ctx.params;\n  return <h1>Hello, {name || \"world\"}!</h1>;\n}"
+          "lang": "text",
+          "text": "pages/blog/[slug].tsx        →  /blog/:slug      props.params.slug\npages/users/[id]/posts.tsx   →  /users/:id/posts props.params.id"
         },
         {
           "type": "tip",
-          "text": "Optional params arrive as an empty string when absent. Treat falsy as the no-arg case (`name || fallback`) rather than checking for undefined."
+          "text": "The same [param] folder convention applies to API routes under apis/ — see the API Routes page."
         }
       ]
     },
     {
-      "id": "layouts",
-      "heading": "Layouts",
+      "id": "render-modes",
+      "heading": "SSR, AOT and SSG",
       "blocks": [
         {
           "type": "p",
-          "text": "A _layout.tsx file wraps all pages in its directory and below. Layouts receive a Component prop that renders the child page."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// pages/_layout.tsx — applies to all pages\nexport default function Layout({ Component }: { Component: () => JSX.Element }) {\n  return (\n    <>\n      <nav class=\"navbar\">\n        <a href=\"/\">Home</a>\n        <a href=\"/docs\">Docs</a>\n      </nav>\n      <main>\n        <Component />\n      </main>\n    </>\n  );\n}"
-        },
-        {
-          "type": "tip",
-          "text": "Layouts nest — pages/docs/_layout.tsx applies only to /docs/* routes and stacks on top of pages/_layout.tsx."
-        },
-        {
-          "type": "p",
-          "text": "Layouts can be async, letting you fetch data for the shell (e.g., navigation items from a database) before the page renders."
-        }
-      ]
-    },
-    {
-      "id": "programmatic-routing",
-      "heading": "Programmatic routes and layouts",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Routes registered programmatically via app.route(), app.get(), app.post(), app.ws() etc. fully participate in the layout tree — including the index route at the layout's path. A layout at /foo applies to both /foo and /foo/bar."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "import { Howl } from \"@hushkey/howl\";\n\nconst app = new Howl();\n\napp.layout(\"/\", ({ Component }) => (\n  <html><body>root<Component /></body></html>\n));\n\napp.layout(\"/foo\", ({ Component }) => (\n  <section>foo-shell<Component /></section>\n));\n\n// /foo gets BOTH the root layout AND the /foo layout wrapped around it.\napp.route(\"/foo\", { component: () => <p>foo-index</p> });\n\n// Verb handlers also see the matching layouts when they call ctx.render().\napp.get(\"/foo\", (ctx) => ctx.render(<p>page</p>));"
-        },
-        {
-          "type": "tip",
-          "text": "If you've been mixing app.layout() with app.route() and noticed the index page rendering without its layout, that bug is fixed. Routes attach to the deepest matching segment so layouts at the same path apply correctly."
-        }
-      ]
-    },
-    {
-      "id": "app-wrapper",
-      "heading": "App wrapper (_app.tsx)",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "_app.tsx provides the outer HTML shell — the <html>, <head>, and <body> tags. Every page is rendered inside it."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// pages/_app.tsx\nimport { Partial } from \"@hushkey/howl/runtime\";\n\nexport default function App({ Component }) {\n  return (\n    <html>\n      <head>\n        <meta charset=\"utf-8\" />\n        <title>My App</title>\n        <link rel=\"stylesheet\" href=\"/style.css\" />\n      </head>\n      <body client-nav>\n        <Partial name=\"main\">\n          <Component />\n        </Partial>\n      </body>\n    </html>\n  );\n}"
-        },
-        {
-          "type": "warning",
-          "text": "The client-nav attribute enables SPA navigation. Without it, every link click triggers a full page reload."
-        }
-      ]
-    },
-    {
-      "id": "spa-navigation",
-      "heading": "SPA navigation",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "When client-nav is set on <body>, Howl intercepts link clicks and fetches only the <Partial> region that changed — no full page reloads."
-        },
-        {
-          "type": "p",
-          "text": "Navigation triggers a GET request with a special header. The server detects this and returns only the partial HTML fragment, which the client swaps into the DOM."
-        },
-        {
-          "type": "p",
-          "text": "Partials are identified by name. Wrap any region you want to update independently:"
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "<Partial name=\"sidebar\">\n  <Sidebar items={items} />\n</Partial>"
-        },
-        {
-          "type": "tip",
-          "text": "Average SPA navigation in Howl takes 5-10ms on a local server. The single-pass SSR render and Link preload headers keep it fast."
-        }
-      ]
-    },
-    {
-      "id": "programmatic-navigation",
-      "heading": "Programmatic navigation",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Link clicks navigate automatically, but you often need to navigate from code — after a form submit, a login, a timeout. The React and Vue engines expose a router from @hushkey/howl-react/router and @hushkey/howl-vue/router (same API on both)."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "import { navigate, useNavigate, useRoute } from \"@hushkey/howl-react/router\";\n\nnavigate(\"/dashboard\");                // push + client-render\nnavigate(\"/login\", { replace: true }); // replace current entry\nnavigate(\"/posts\", { scroll: false }); // keep scroll position\nnavigate(-1);                          // back; navigate(1) = forward\n\nfunction Nav() {\n  const navigate = useNavigate();\n  const { path, params, query } = useRoute(); // reactive — re-renders on nav\n  return <button onClick={() => navigate(\"/next\")}>Next ({path})</button>;\n}"
-        },
-        {
-          "type": "p",
-          "text": "navigate() runs the same AOT/SSR swap path as a link click but bypasses the client-nav boundary check, and falls back to a full document navigation before hydration — so it is always safe to call. useRoute() returns { href, path, query, params, hash, route }, seeded on SSR and re-seeded on every navigation."
-        },
-        {
-          "type": "tip",
-          "text": "In dev each engine ships a route inspector. Vue installs a vue-router-shaped object on app.config.globalProperties.$router so Vue DevTools' built-in Routes tab populates with every Howl route and the current match (no vue-router required). React auto-mounts an in-app floating Howl Routes panel, the React-ecosystem convention since React DevTools has no plugin-tab API. Both are dev-only and add no runtime dependency."
-        }
-      ]
-    },
-    {
-      "id": "link-prefetching",
-      "heading": "Link prefetching",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Add a client-prefetch boundary to prefetch client-nav links inside it on intent. When the pointer hovers a link (after a brief ~65ms dwell so quick pass-overs don't fire), or a touch or keyboard focus signals intent, Howl warms the destination ahead of the click."
-        },
-        {
-          "type": "p",
-          "text": "AOT routes pre-import() their JS chunk; SSR routes pre-fetch their partial response. The eventual click reuses the warmed result, so navigation feels instant — the same idea as Hotwired Turbo or instant.page."
-        },
-        {
-          "type": "p",
-          "text": "Prefetching is opt-in (off by default, matching the Vue/React engines) and respects the user's data-saver preference (Save-Data and prefers-reduced-data). Turn it on for a subtree with client-prefetch, and exclude a single link or region with client-prefetch=\"false\":"
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "<body client-nav client-prefetch>\n  <a href=\"/huge-report\" client-prefetch=\"false\">Report</a>\n  {/* …every other client-nav link is prefetched */}\n</body>"
-        },
-        {
-          "type": "tip",
-          "text": "Prefetch reuses the same partial response a click would request, so warmed navigations also benefit from server-side response caching and request coalescing."
-        }
-      ]
-    },
-    {
-      "id": "aot-ssg",
-      "heading": "AOT pages and SSG",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Two filename prefixes let a page opt into client-side navigation and/or build-time prerendering. Both modes preserve the SSR shell, so direct URL hits and crawlers always see fully rendered HTML."
+          "text": "A file-name prefix opts a page into client-side navigation and/or build-time prerender. The prefix is stripped from the URL, so pages/jobs/__index.vue mounts at /jobs/."
         },
         {
           "type": "table",
-          "headers": ["File", "Mode", "Behaviour"],
+          "headers": ["Prefix", "Mode", "First paint", "Client navigation to this route"],
           "rows": [
-            ["pages/__jobs.tsx", "AOT", "Dynamic SSR + client chunk for instant in-app nav"],
-            [
-              "pages/___about.tsx",
-              "SSG",
-              "Prerendered HTML at build (served instantly) + client chunk"
-            ],
-            ["pages/index.tsx", "—", "Dynamic SSR every request"]
+            ["(none)", "SSR", "Engine renders on every request", "Fetches fresh SSR HTML"],
+            ["__page", "AOT", "Engine renders on every request", "Dynamic-imports a client chunk — no server round-trip"],
+            ["___page", "SSG", "Prerendered HTML served from the build snapshot", "Dynamic-imports a client chunk — no server round-trip"]
           ]
         },
         {
           "type": "p",
-          "text": "AOT (double underscore) marks a route as client-navigable. The build emits an ESM chunk containing exactly what would appear inside the active <Partial> markers on an SSR response: inner layouts (those rendered below the partial) plus the page. Files above the partial — the _app.tsx shell and any outer _layout.tsx — are not bundled. They're already in the DOM on first paint and stay across AOT navs, which is why layout-level islands (navbars, sidebars) keep their state when the user clicks an AOT link. On click, the runtime dynamic-imports the chunk and renders into the active <Partial> outlet — no server round-trip."
-        },
-        {
-          "type": "p",
-          "text": "AOT chunks need a <Partial> in _app.tsx or the layout chain to mount into. The boundary is detected at build time by a static scan of each file's source for the literal Partial identifier in JSX (<Partial …>) or h/jsx-call form (h(Partial, …)). Aliased imports ({ Partial as P }) are not detected — use the literal Partial name. When no <Partial> is found, chunk emission is silently skipped: the page still SSRs (or serves prerendered HTML for SSG), and client navigation falls back to a full document load. Apps that intentionally don't use client-nav can keep AOT/SSG prefixes without adding a <Partial>."
-        },
-        {
-          "type": "p",
-          "text": "AOT navigation honours client-nav. Drop the attribute from <body> (or set it to \"false\") and clicks on AOT links fall through to a full document load — same gate that already governs SSR partial nav. Use client-nav=\"false\" on a nested subtree to opt that region out while keeping the rest of the app on SPA-style routing."
-        },
-        {
-          "type": "p",
-          "text": "SSG (triple underscore) implies AOT and additionally prerenders the route at build time. The handler runs once with an empty ctx, the rendered HTML is baked into the production snapshot, and every subsequent request to that pathname skips the renderer entirely."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// pages/___about.tsx — built once, served forever (per build)\nimport { Head } from \"@hushkey/howl/runtime\";\n\nexport default function About() {\n  return (\n    <>\n      <Head><title>About</title></Head>\n      <p>Static content baked at build time.</p>\n    </>\n  );\n}"
+          "text": "AOT emits a client chunk so navigation is instant and needs no server. SSG also runs the handler at build time and stores the HTML, served straight from the snapshot."
         },
         {
           "type": "warning",
-          "text": "Build-time prerender runs the page handler with an empty ctx — there is no req, no cookies, no per-user state. SSG only fits pages whose output is the same for every visitor. Anything per-user must stay on the regular dynamic SSR path."
-        },
-        {
-          "type": "p",
-          "text": "Dynamic params (e.g. /properties/:id) are not yet prerendered automatically — a getStaticPaths-style API for enumerating param tuples is on the roadmap. Until then, dynamic-param routes flagged with ___ silently fall through to dynamic SSR with a build-time warning."
-        },
-        {
-          "type": "p",
-          "text": "On the wire, every SSR response for an AOT or SSG route injects two globals: window.__HOWL_AOT__ (route pattern → chunk URL) for the client navigator, and window.__HOWL_USER_STATE__ (the request-scoped ctx.state) so client-side hooks and signals can read what SSR rendered with."
-        },
-        {
-          "type": "tip",
-          "text": "Build IDs rotate per build, so AOT chunks are served with Cache-Control: public, max-age=31536000, immutable in production — the URL invalidation is the cache invalidation."
+          "text": "SSG handlers run at build time with an empty context — no req, no cookies, no per-user state. Anything per-user must stay on dynamic SSR. Dynamic params on SSG routes fall through with a warning until getStaticPaths lands."
         }
       ]
     },
     {
-      "id": "partial-forms",
-      "heading": "Forms inside client-nav",
+      "id": "spa-nav",
+      "heading": "SPA navigation",
       "blocks": [
         {
           "type": "p",
-          "text": "Forms inside a client-nav body are only intercepted for partial submission when they explicitly opt in. A form opts in by setting one of: an f-partial attribute, an action attribute, or having a submit button with formaction. Otherwise, the form submits normally with a full page reload — even though the surrounding body has client-nav."
+          "text": "SSR renders first paint, then the page hydrates into an SPA. The boot runtime intercepts <a> clicks and popstate, so ordinary links navigate client-side — SSR routes fetch fresh HTML, AOT/SSG routes mount their prebuilt chunk."
         },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// Intercepted — explicit `action` opts the form into partial submission\n<form action=\"/api/save\" method=\"post\">\n  <input name=\"title\" />\n  <button>Save</button>\n</form>\n\n// Not intercepted — no action/f-partial means the form does a normal submit\n<form method=\"post\">\n  <input name=\"title\" />\n  <button>Save</button>\n</form>"
-        },
-        {
-          "type": "tip",
-          "text": "If you want partial submission without a server endpoint different from the current page, set f-partial=\"\" explicitly: <form f-partial method=\"post\">…</form>."
-        }
-      ]
-    },
-    {
-      "id": "partial-redirects",
-      "heading": "Redirects from partial requests",
-      "blocks": [
         {
           "type": "p",
-          "text": "ctx.redirect() automatically preserves the partial-nav search param when called from a partial request. The redirected page renders in partial mode and the SPA stays in partial-nav flow — no manual threading required."
+          "text": "For programmatic navigation, both engines expose a router module with the same surface — navigate(), back(), forward(), and a useRoute()/useNavigate() hook:"
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "// /sign-in is reached during a partial nav. The Location header becomes\n// /dashboard?howl-partial=true so the redirect target also renders as\n// a partial.\napp.post(\"/sign-in\", (ctx) => ctx.redirect(\"/dashboard\"));\n\n// Existing query/hash are handled correctly:\nctx.redirect(\"/page?tab=home\");   // → /page?tab=home&howl-partial=true\nctx.redirect(\"/page#section\");    // → /page?howl-partial=true#section"
-        },
-        {
-          "type": "warning",
-          "text": "ctx.partialRedirect() has been removed. Earlier releases shipped it as a thin wrapper around ctx.redirect(); ctx.redirect() now does the partial-nav preservation natively, and the alias was deprecated for several releases before removal."
-        }
-      ]
-    },
-    {
-      "id": "non-html-links",
-      "heading": "Links to non-HTML responses",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "When a link inside client-nav points to a resource that returns a non-HTML Content-Type — a file download, an image, a Content-Disposition: attachment response, etc. — the SPA detects the non-HTML response and falls back to a full browser navigation. The browser lands on the raw response, just like a non-SPA page would."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// Linking to a file the browser will download or render natively.\n// Howl detects the non-HTML Content-Type and does a full navigation.\n<a href=\"/static/report.pdf\">Download report</a>"
+          "text": "// React: @hushkey/howl-react/router\n// Vue:   @hushkey/howl-vue/router\nimport { navigate, useRoute, useNavigate } from \"@hushkey/howl-react/router\";\n\nnavigate(\"/blog/hello\");        // push\nnavigate(\"/blog/hello\", { replace: true });\nnavigate(-1);                    // history.back equivalent\n\nconst route = useRoute();        // current { url, params, ... }\nconst go = useNavigate();        // navigate fn for handlers"
         },
         {
           "type": "tip",
-          "text": "API routes are not the intended target for <a href> — use fetch() for those. The same fallback applies if you accidentally link to one, but it should not be part of your design."
-        }
-      ]
-    },
-    {
-      "id": "active-links",
-      "heading": "Active links",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Howl marks active links automatically by stamping data-current / data-ancestor and aria-current attributes during render and partial swaps. Style your nav with the data-* attributes — no extra logic in components."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// Anywhere in your app — Howl detects active state from the URL\n<a href=\"/blog\">Blog</a>\n<a href=\"/blog/post-1\">Post 1</a>\n\n// Visiting /blog/post-1 produces:\n//   <a href=\"/blog\" data-ancestor=\"true\" aria-current=\"true\">Blog</a>\n//   <a href=\"/blog/post-1\" data-current=\"true\" aria-current=\"page\">Post 1</a>"
-        },
-        {
-          "type": "code",
-          "lang": "css",
-          "text": "/* Tailwind / vanilla — both work */\na[data-current] { color: var(--color-primary); font-weight: 600; }\na[data-ancestor] { color: var(--color-primary); opacity: 0.7; }"
-        },
-        {
-          "type": "p",
-          "text": "Query parameters are part of the match. A link with query params is only marked Current when the URL's search string matches exactly — otherwise it's demoted to Ancestor. Links without query params still match any current URL, which is useful for an \"All\" tab."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// Visiting /tabs?sort=name\n<a href=\"/tabs\">All</a>                     // → data-current  (no query, matches anything)\n<a href=\"/tabs?sort=name\">By name</a>      // → data-current  (search matches)\n<a href=\"/tabs?sort=price\">By price</a>    // → data-ancestor (different search)"
-        },
-        {
-          "type": "tip",
-          "text": "Setting your own aria-current is respected. Component libraries like daisyUI tabs that manage active state via aria-current keep working — Howl will not stomp on a user-set value."
-        }
-      ]
-    },
-    {
-      "id": "partial-data-scripts",
-      "heading": "<head> data scripts during partial nav",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Non-executable script tags in the page head — like application/ld+json for SEO structured data — are appended to document.head during partial navigation, with deduplication so they don't accumulate across repeat navigations. Executable script types (module / text/javascript / importmap) are skipped to prevent unintended re-execution."
-        },
-        {
-          "type": "code",
-          "lang": "tsx",
-          "text": "// pages/blog/[slug].tsx — ld+json metadata follows the partial swap\n<script type=\"application/ld+json\" id=\"article-schema\">\n  {JSON.stringify({\n    \"@context\": \"https://schema.org\",\n    \"@type\": \"Article\",\n    headline: post.title,\n    datePublished: post.publishedAt,\n  })}\n</script>"
-        },
-        {
-          "type": "tip",
-          "text": "Give your data scripts an id when possible — Howl uses it to update an existing script in place. Without an id, deduplication falls back to comparing textContent."
+          "text": "Because navigation is plain client routing, there is no islands system to reason about — the entire page is interactive after hydration. Use the IS_SERVER / IS_BROWSER guards from @hushkey/howl for code that must branch per environment."
         }
       ]
     }

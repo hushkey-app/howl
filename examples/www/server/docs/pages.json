@@ -1,0 +1,141 @@
+{
+  "slug": "pages",
+  "title": "Pages & Engines",
+  "description": "Rendering pages with the Vue or React engine: props, head, stores, SPA",
+  "sections": [
+    {
+      "id": "engines",
+      "heading": "Engines are plugins",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The core has no built-in renderer. Pages render through a pluggable engine you register explicitly — @hushkey/howl-vue (Vue 3 SFCs) or @hushkey/howl-react (React 18 .tsx). Pick one."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// React\nimport { reactEngine } from \"@hushkey/howl-react\";\nnew Howl({ engines: { react: reactEngine() } });\n\n// Vue\nimport { vueEngine } from \"@hushkey/howl-vue\";\nnew Howl({ engines: { vue: vueEngine() } });"
+        },
+        {
+          "type": "p",
+          "text": "Each engine has two halves: the render engine (vueEngine()/reactEngine()) on the Howl constructor, and the esbuild plugin (vuePlugin()/reactPlugin()) on HowlBuilder. The model is thick-client — SSR first paint, then full-page hydration into an SPA. Interactive components are ordinary components in hydrated pages; there is no islands system."
+        }
+      ]
+    },
+    {
+      "id": "page-props",
+      "heading": "Page props",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Every page (and layout) receives a typed props object describing the request. Both engines expose the same shape — ReactPageProps<Data, State> and VuePageProps<Data, State>:"
+        },
+        {
+          "type": "table",
+          "headers": ["Prop", "Type", "Meaning"],
+          "rows": [
+            ["url", "URL", "The request URL — a real URL on server and client."],
+            ["params", "Record<string, string>", "Matched route params (e.g. { slug })."],
+            ["query", "Record<string, string>", "Query-string params."],
+            ["state", "State", "Request-scoped ctx.state, serialized into the page."],
+            ["data", "Data", "Data returned by a route handler, if one provided any."],
+            ["route", "string | null", "The matched route pattern."]
+          ]
+        },
+        {
+          "type": "warning",
+          "text": "The whole ctx.state is serialized into the page HTML for hydration — treat it as public. Never put secrets on ctx.state; expose only an allowlisted, client-safe subset (e.g. ctx.state.clientContext)."
+        }
+      ]
+    },
+    {
+      "id": "react-page",
+      "heading": "A React page",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "React pages are .tsx files exporting a default component. Use the useHead hook from @hushkey/howl-react/head for per-page <head> tags."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "filename": "client/pages/blog/[slug].tsx",
+          "text": "import type { ReactPageProps } from \"@hushkey/howl-react\";\nimport { useHead } from \"@hushkey/howl-react/head\";\nimport type { State } from \"@howl/config\";\n\nexport default function Post(props: ReactPageProps<unknown, State>) {\n  const { slug } = props.params;\n\n  useHead({\n    title: `${slug} — Blog`,\n    meta: [{ name: \"description\", content: `The ${slug} post` }],\n  });\n\n  return (\n    <article>\n      <h1>{slug}</h1>\n      <p>Rendered on {props.url.pathname} for {props.state.title}.</p>\n    </article>\n  );\n}"
+        }
+      ]
+    },
+    {
+      "id": "vue-page",
+      "heading": "A Vue page",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Vue pages are .vue single-file components. Type the props with defineProps<VuePageProps<...>>() and pull useHead from @hushkey/howl-vue/head."
+        },
+        {
+          "type": "code",
+          "lang": "vue",
+          "filename": "client/pages/index.vue",
+          "text": "<template>\n  <main>\n    <h1>{{ title }}</h1>\n    <button type=\"button\" @click=\"store.inc()\">clicked {{ store.count }}</button>\n  </main>\n</template>\n\n<script setup lang=\"ts\">\nimport { computed } from \"vue\";\nimport { useHead } from \"@hushkey/howl-vue/head\";\nimport type { VuePageProps } from \"@hushkey/howl-vue\";\nimport type { State } from \"@howl/config\";\nimport { useStore } from \"../store/index.store.ts\";\n\nconst props = defineProps<VuePageProps<unknown, State>>();\nconst store = useStore();\n\nuseHead({ title: \"Home\", meta: [{ name: \"description\", content: \"Welcome\" }] });\n\nconst title = computed(() => props.state?.title ?? \"unknown\");\n</script>"
+        }
+      ]
+    },
+    {
+      "id": "data-fetching",
+      "heading": "Fetching data",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Pages hydrate into a full SPA, so fetch data client-side after first paint — from the typed HTTP client the build generates from apis/ (see Plugins). The server renders the shell for SEO; the client fills in the data."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "import { useEffect, useState } from \"react\";\nimport { http } from \"../../../generated/http-client.ts\"; // generated from apis/\n\nexport default function Items() {\n  const [items, setItems] = useState([]);\n  useEffect(() => {\n    http.api.items.$get().then((res) => setItems(res.data));\n  }, []);\n  return <ul>{items.map((i) => <li key={i.id}>{i.name}</li>)}</ul>;\n}"
+        },
+        {
+          "type": "tip",
+          "text": "The generated client is fully typed end-to-end: request bodies, query params and responses are inferred from the Zod schemas in your defineApi definitions, so a contract change surfaces as a type error in the page."
+        }
+      ]
+    },
+    {
+      "id": "stores",
+      "heading": "State management",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Each engine re-exports its ecosystem's store library, wired into hydration so server state survives the SSR → client handoff."
+        },
+        {
+          "type": "table",
+          "headers": ["Engine", "Import", "Provides"],
+          "rows": [
+            ["Vue", "@hushkey/howl-vue/pinia", "defineStore, storeToRefs, setActivePinia, … (Pinia)"],
+            ["React", "@hushkey/howl-react/store", "atom, useAtom, useAtomValue, useSetAtom, howlAtom (Jotai)"]
+          ]
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "// React store (Jotai)\nimport { atom, useAtom } from \"@hushkey/howl-react/store\";\nexport const countAtom = atom(0);\n\n// Vue store (Pinia)\nimport { defineStore } from \"@hushkey/howl-vue/pinia\";\nexport const useStore = defineStore(\"main\", { state: () => ({ count: 0 }) });"
+        }
+      ]
+    },
+    {
+      "id": "render-to-string",
+      "heading": "Rendering components outside a request",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For emails, notifications, or any markup produced outside the page/layout flow, ctx.renderToString() renders a standalone component to an HTML string with the registered engine — no layouts, app shell, or headers."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "const html = await ctx.renderToString(WelcomeEmail, { name: user.name });\nawait mailer.send({ to: user.email, html });"
+        }
+      ]
+    }
+  ]
+}

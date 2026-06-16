@@ -1,10 +1,11 @@
 import type { ReactPageProps } from "@hushkey/howl-react";
 import type { State } from "../../../howl.config.ts";
-import { readManifest } from "../../../server/docs/reader.ts";
+import { readManifest, readManifestGrouped } from "../../../server/docs/reader.ts";
 
 export default function DocsLayout(props: ReactPageProps<unknown, State>) {
   const { url } = props;
   const Outlet = props.Component!;
+  const groups = readManifestGrouped();
   const manifest = readManifest();
   const segments = url.pathname.replace(/\/$/, "").split("/");
   const currentSlug = segments[segments.length - 1] === "docs" ? "" : segments[segments.length - 1];
@@ -18,25 +19,32 @@ export default function DocsLayout(props: ReactPageProps<unknown, State>) {
             <p className="font-mono text-xs uppercase tracking-widest text-base-content/30 mb-3 px-2">
               Documentation
             </p>
-            <ul className="menu gap-1 p-0">
-              {manifest.map((item) => {
-                const isActive = item.slug === currentSlug;
-                return (
-                  <li key={item.slug}>
-                    <a
-                      href={`/docs/${item.slug}`}
-                      className={`rounded-lg text-base py-2.5 px-3 ${
-                        isActive
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-base-content/70 hover:text-base-content hover:bg-base-200"
-                      }`}
-                    >
-                      {item.title}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
+            {groups.map((group, gi) => (
+              <div key={group.id} className={gi > 0 ? "mt-5 pt-4 border-t border-base-300/70" : ""}>
+                <p className="font-mono text-[11px] uppercase tracking-widest text-base-content/40 mb-1.5 px-2">
+                  {group.label}
+                </p>
+                <ul className="menu gap-1 p-0">
+                  {group.items.map((item) => {
+                    const isActive = item.slug === currentSlug;
+                    return (
+                      <li key={item.slug}>
+                        <a
+                          href={`/docs/${item.slug}`}
+                          className={`rounded-lg text-base py-2.5 px-3 ${
+                            isActive
+                              ? "bg-primary/10 text-primary font-semibold"
+                              : "text-base-content/70 hover:text-base-content hover:bg-base-200"
+                          }`}
+                        >
+                          {item.title}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </div>
         </aside>
 

@@ -2,73 +2,99 @@
   {
     "slug": "getting-started",
     "title": "Getting Started",
-    "description": "Scaffold a Howl project in 30 seconds and run it locally",
+    "description": "Scaffold a Howl project with howl-init and run it locally",
+    "category": "overview",
     "order": 1
+  },
+  {
+    "slug": "configuration",
+    "title": "Configuration",
+    "description": "howl.config.ts, the Howl app, dev.ts and the HowlBuilder pipeline",
+    "category": "overview",
+    "order": 2
   },
   {
     "slug": "routing",
     "title": "Routing",
-    "description": "File-based routing, layouts, SPA navigation, AOT chunks, and SSG prerender",
-    "order": 2
+    "description": "File-system pages, layouts, dynamic params, AOT chunks and SSG prerender",
+    "category": "frontend",
+    "order": 3
+  },
+  {
+    "slug": "pages",
+    "title": "Pages & Engines",
+    "description": "Rendering pages with the Vue or React engine: props, head, stores, SPA",
+    "category": "frontend",
+    "order": 4
   },
   {
     "slug": "context",
     "title": "Context",
-    "description": "Request context, response helpers, cookies and headers",
-    "order": 3
+    "description": "Request context, response helpers, cookies, headers and query params",
+    "category": "backend",
+    "order": 5
   },
   {
     "slug": "api-routes",
     "title": "API Routes",
-    "description": "Type-safe API routes with Zod validation and OpenAPI generation",
-    "order": 4
+    "description": "Type-safe API routes with Zod validation, hooks and OpenAPI generation",
+    "category": "backend",
+    "order": 6
   },
   {
     "slug": "rate-limiting",
     "title": "Rate Limiting",
     "description": "Per-route and global rate limiting with extended lockout support",
-    "order": 5
+    "category": "backend",
+    "order": 7
+  },
+  {
+    "slug": "caching",
+    "title": "Caching",
+    "description": "Response caching and the memory, Redis, Deno KV and tiered adapters",
+    "category": "backend",
+    "order": 8
   },
   {
     "slug": "middlewares",
     "title": "Middlewares",
     "description": "Built-in middleware and writing your own",
-    "order": 6
-  },
-  {
-    "slug": "sse",
-    "title": "Server-Sent Events",
-    "description": "Real-time streaming with ctx.sse()",
-    "order": 8
-  },
-  {
-    "slug": "cache-adapters",
-    "title": "Cache Adapters",
-    "description": "Memory, Redis, Deno KV, and tiered caching",
+    "category": "backend",
     "order": 9
-  },
-  {
-    "slug": "configuration",
-    "title": "Configuration",
-    "description": "HowlOptions, defineConfig, and builder setup",
-    "order": 10
-  },
-  {
-    "slug": "performance",
-    "title": "Performance & View Transitions",
-    "description": "Zero-JS by default, CSP nonces, and animated partial swaps",
-    "order": 11
   },
   {
     "slug": "websockets",
     "title": "WebSockets",
     "description": "Managed WebSocket endpoints with shared middleware and optional port isolation",
+    "category": "backend",
+    "order": 10
+  },
+  {
+    "slug": "sse",
+    "title": "Server-Sent Events",
+    "description": "Real-time streaming with ctx.sse()",
+    "category": "backend",
+    "order": 11
+  },
+  {
+    "slug": "services",
+    "title": "Services & Studio",
+    "description": "The document-store service layer across SQLite, Postgres and Mongo, with the Studio admin UI",
+    "category": "backend",
     "order": 12
   },
   {
     "slug": "plugins",
     "title": "Plugins",
     "description": "Tailwind v4 and typed HTTP client generation via @hushkey/howl/plugins",
+    "category": "backend",
     "order": 13
+  },
+  {
+    "slug": "deployment",
+    "title": "Deployment & Performance",
+    "description": "Production builds, deno compile binaries, asset locking and performance middleware",
+    "category": "backend",
+    "order": 14
   }
 ]

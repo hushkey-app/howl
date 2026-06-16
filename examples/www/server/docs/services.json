@@ -1,0 +1,166 @@
+{
+  "slug": "services",
+  "title": "Services & Studio",
+  "description": "The document-store service layer across SQLite, Postgres and Mongo, with the Studio admin UI",
+  "sections": [
+    {
+      "id": "overview",
+      "heading": "A document store, any backend",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Howl ships an optional service layer: a Mongo-shaped document store with one contract that runs unchanged on SQLite, Postgres, or MongoDB. @hushkey/service-core owns everything non-storage-specific — validation, an audit/soft-delete envelope, optimistic locking, versioned cache invalidation, timeouts, telemetry. Each backend passes a shared conformance suite, so swapping databases changes a connection, not your code."
+        },
+        {
+          "type": "table",
+          "headers": ["Package", "Backend"],
+          "rows": [
+            ["@hushkey/service-core", "The contract: DocumentService, filter grammar, conformance suite."],
+            ["@hushkey/sqlite-service", "SQLite via node:sqlite (docs as JSON1). Zero infra — a file on disk."],
+            ["@hushkey/pg-service", "Postgres (docs as JSONB), with an embedded PGlite fallback for local dev."],
+            ["@hushkey/mongo-service", "MongoDB."]
+          ]
+        },
+        {
+          "type": "tip",
+          "text": "Pick a database in the scaffolder (howl-init) and all of this is wired for you: a connection, a sample items service, and the Studio admin at /studio."
+        }
+      ]
+    },
+    {
+      "id": "schema",
+      "heading": "Define a schema",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "documentSchema() wraps your fields in the full document envelope (id, version, and the audit/soft-delete meta). Define just your domain fields with Zod; the service stamps the rest."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "server/services/items/items.schema.ts",
+          "text": "import { z } from \"zod\";\nimport { documentSchema } from \"@hushkey/service-core\";\n\nexport const itemsSchema = documentSchema({\n  name: z.string().min(1),\n  done: z.boolean().default(false),\n});\n\nexport type Item = z.infer<typeof itemsSchema>;"
+        }
+      ]
+    },
+    {
+      "id": "service",
+      "heading": "Wire a service",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Extend the backend's service class (SqliteService / PgService / MongoService) over one collection — pass the connection, schema, and a collection name. Add domain queries as methods."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "server/services/items/items.service.ts",
+          "text": "import { SqliteService } from \"@hushkey/sqlite-service\";\nimport { sqliteDb } from \"../connections.ts\";\nimport { type Item, itemsSchema } from \"./items.schema.ts\";\n\nexport class ItemsService extends SqliteService<Item> {\n  constructor() {\n    super(sqliteDb, itemsSchema, { collectionName: \"items\" });\n  }\n\n  pending() {\n    return this.find({ query: { done: false } });\n  }\n}\n\nexport const itemsService = new ItemsService();"
+        },
+        {
+          "type": "p",
+          "text": "The connection itself is created once. SQLite uses node:sqlite; Postgres uses a pg pool (or PGlite when PG_URL is unset); Mongo uses a MongoClient db handle."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "server/services/connections.ts",
+          "text": "import { DatabaseSync } from \"node:sqlite\";\nimport type { SqliteDbLike } from \"@hushkey/sqlite-service\";\n\nexport const sqliteDb: SqliteDbLike = new DatabaseSync(\n  \"./data/app.db\",\n) as unknown as SqliteDbLike;"
+        }
+      ]
+    },
+    {
+      "id": "operations",
+      "heading": "Operations",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Every service exposes the same methods regardless of backend. Writes validate against the schema, bump version, and stamp audit fields; deletes are soft by default."
+        },
+        {
+          "type": "table",
+          "headers": ["Method", "Purpose"],
+          "rows": [
+            ["create(fields, { executionerId })", "Validate, stamp audit + version, insert."],
+            ["get(id)", "Fetch one document by id (or null)."],
+            ["mget(ids)", "Fetch many by id, preserving order."],
+            ["find({ query, sort, limit, skip, viewDeleted })", "Query with the neutral filter grammar."],
+            ["count({ query, viewDeleted })", "Count matching documents."],
+            ["patch(id, partial, { executionerId })", "Merge fields, bump version (optimistic lock)."],
+            ["delete(id, { hard, executionerId })", "Soft delete by default; hard: true to remove."],
+            ["restore(id, { executionerId })", "Undo a soft delete."]
+          ]
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "const item = await itemsService.create({ name: \"Buy milk\" }, { executionerId: \"api\" });\nconst open = await itemsService.find({ query: { done: false }, sort: { name: 1 }, limit: 25 });\nawait itemsService.patch(item.id, { done: true }, { executionerId: \"api\" });\nawait itemsService.delete(item.id, { executionerId: \"api\" });        // soft\nawait itemsService.restore(item.id, { executionerId: \"api\" });"
+        }
+      ]
+    },
+    {
+      "id": "filters",
+      "heading": "The filter grammar",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Queries use a neutral, Mongo-style filter grammar that every backend compiles to its native query — JSONB/JSON1 expressions on the SQL backends, a native filter on Mongo. Dot-paths reach into nested fields."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "await blogs.find({\n  query: {\n    published: true,\n    likes: { $gte: 10 },\n    \"author.role\": { $in: [\"author\", \"admin\"] },\n    $or: [{ slug: \"hello\" }, { featured: true }],\n  },\n});"
+        },
+        {
+          "type": "p",
+          "text": "Supported operators: $eq, $ne, $in, $nin, $gt, $gte, $lt, $lte, $or, $and, $exists — plus dot-path field access."
+        }
+      ]
+    },
+    {
+      "id": "studio",
+      "heading": "Studio: the admin UI",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "@hushkey/studio is a Mongo-Compass-style admin UI — one tool across every backend. It speaks the service contract, not the database wire: every write validates, bumps the optimistic-lock version, stamps audit fields, and respects soft delete, like any other caller."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "server/main.ts",
+          "text": "import { studio } from \"@hushkey/studio\";\nimport { itemsService } from \"./services/items/items.service.ts\";\nimport { usersService } from \"./services/users/users.service.ts\";\n\n// Dashboard at /studio, JSON API at /studio/api\napp.use(studio({ services: { items: itemsService, users: usersService } }));"
+        },
+        {
+          "type": "p",
+          "text": "Register any number of services keyed by the name shown in the UI. The dashboard gives you filtered list views, create/edit forms, bulk update and delete, soft-delete and restore, and — on SQL backends — promoted-column introspection with orphan-column cleanup."
+        }
+      ]
+    },
+    {
+      "id": "studio-options",
+      "heading": "Studio options",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": ["Option", "Purpose"],
+          "rows": [
+            ["services", "Map of UI name → service. Null/undefined entries are skipped, so you can register conditionally-connected services without guards."],
+            ["path", "Mount path (default /studio)."],
+            ["mode", "\"standalone\" (default) serves a full page; \"component\" mounts only the JSON API."],
+            ["executionerId", "Audit identity stamped on writes (default \"studio\"). A function receives the context to read your auth state."],
+            ["style", "daisyUI theme + primary/secondary action classes + extra stylesheet URLs."]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "In standalone mode the React UI is bundled on first request and served from memory — no build pipeline needed. In component mode, the middleware mounts only the JSON API and you render <Studio /> from @hushkey/studio/component inside your own dashboard."
+        },
+        {
+          "type": "warning",
+          "text": "Studio is a privileged admin surface. Put it behind your own auth middleware (scoped to /studio) before exposing it in production, and set executionerId from your authenticated user so writes are attributed correctly."
+        }
+      ]
+    }
+  ]
+}

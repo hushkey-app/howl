@@ -1,20 +1,45 @@
 {
   "slug": "context",
   "title": "Context",
-  "description": "Request context, response helpers, cookies and headers",
+  "description": "Request context, response helpers, cookies, headers and query params",
   "sections": [
     {
       "id": "overview",
-      "heading": "Overview",
+      "heading": "One context per request",
       "blocks": [
         {
           "type": "p",
-          "text": "Context is created fresh for every request. It carries the request, matched route, state, and all response helpers. Every middleware, layout, and page handler receives one."
+          "text": "Every middleware and handler receives a Context — one per request. It holds the request, route match, mutable state, and response helpers. There is no separate request/response object; the context is both."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "import type { Context } from \"@hushkey/howl\";\n\n// Key properties\nctx.url        // URL object\nctx.req        // Request\nctx.params     // { [key: string]: string }\nctx.state      // your State type\nctx.headers    // mutable response Headers\nctx.cookies    // CookieManager\nctx.isPartial  // true if SPA nav request\nctx.route      // matched route pattern\nctx.info       // Deno.ServeHandlerInfo (remote addr)"
+          "text": "app.get(\"/hello/:name\", (ctx) => {\n  const { name } = ctx.params;             // route params\n  const greeting = ctx.query(\"greeting\");   // ?greeting=...\n  ctx.headers.set(\"X-Request-Id\", crypto.randomUUID());\n  return ctx.json({ message: `${greeting ?? \"hi\"}, ${name}` });\n});"
+        }
+      ]
+    },
+    {
+      "id": "request-props",
+      "heading": "Request properties",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": ["Property", "Type", "Description"],
+          "rows": [
+            ["ctx.url", "URL", "The parsed request URL."],
+            ["ctx.req", "Request", "The original incoming Request."],
+            ["ctx.params", "Record<string, string>", "Captured route params from the matched pattern."],
+            ["ctx.route", "string | null", "The matched route pattern."],
+            ["ctx.state", "State", "Per-request state shared across middleware and handlers."],
+            ["ctx.data", "unknown", "Mutable per-request slot set by middleware, read by handlers."],
+            ["ctx.error", "unknown | null", "The caught error, set on the _error page render."],
+            ["ctx.info", "Deno.ServeHandlerInfo", "Connection info (local/remote addresses)."],
+            ["ctx.isPartial", "boolean", "Whether this is a partial (SPA fragment) request."]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "ctx.state is how middleware passes data downstream — set ctx.state.userContext in an auth middleware and every later handler reads it typed."
         }
       ]
     },
@@ -24,88 +49,78 @@
       "blocks": [
         {
           "type": "p",
-          "text": "All response helpers automatically merge ctx.headers, so any cookies or headers you set in middleware will be present in the response."
+          "text": "The context builds responses. Every helper merges ctx.headers first, so headers and cookies set earlier ride along automatically."
+        },
+        {
+          "type": "table",
+          "headers": ["Helper", "Returns"],
+          "rows": [
+            ["ctx.json(content, init?)", "JSON Response (Content-Type: application/json)"],
+            ["ctx.text(content, init?)", "Plain-text Response"],
+            ["ctx.html(content, init?)", "HTML Response (Content-Type: text/html)"],
+            ["ctx.redirect(pathOrUrl, status?)", "Redirect Response (default 302), open-redirect-safe"],
+            ["ctx.stream(iterable, init?)", "Streamed Response, encoding text chunks"],
+            ["ctx.sse(stream, init?)", "Server-Sent Events stream — see the SSE page"],
+            ["ctx.renderToString(component, props?)", "HTML string via the registered engine"]
+          ]
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "// JSON response\nreturn ctx.json({ ok: true, data: user });\nreturn ctx.json({ error: \"not found\" }, { status: 404 });\n\n// HTML response\nreturn ctx.html(\"<h1>Hello</h1>\");\n\n// Plain text\nreturn ctx.text(\"OK\");\n\n// Standalone template -> HTML string in the app's engine (emails, notifications);\n// no page shell. Works for Vue and React engines.\nconst html = await ctx.renderToString(WelcomeEmail, { name: user.name });\n\n// Redirect — preserves the SPA partial-nav search param automatically\n// for partial requests, so middleware guards keep the SPA navigation flow.\nreturn ctx.redirect(\"/login\");\nreturn ctx.redirect(\"/dashboard\", 301);"
-        }
-      ]
-    },
-    {
-      "id": "headers-cookies",
-      "heading": "Headers and cookies",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Set response headers via ctx.headers. These are merged into every response the current request produces."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "// Response headers\nctx.headers.set(\"X-Request-Id\", crypto.randomUUID());\nctx.headers.append(\"Vary\", \"Accept-Encoding\");\n\n// Cookies\nctx.cookies.set(\"session\", token, { httpOnly: true, maxAge: 3600 });\nconst session = ctx.cookies.get(\"session\");\nctx.cookies.delete(\"session\");\nconst all = ctx.cookies.all(); // Record<string, string>"
+          "text": "ctx.json({ ok: true }, { status: 201 });\nctx.text(\"pong\");\nctx.redirect(\"/login\");            // 302\nctx.redirect(\"/login\", 301);\nctx.html(\"<h1>Hi</h1>\");"
         },
         {
           "type": "tip",
-          "text": "Default cookie options are httpOnly: true, sameSite: Strict, path: /. Override any of these per cookie."
+          "text": "There is no ctx.render(). Page rendering happens in the segment pipeline via the registered engine, not from a context method. ctx.renderToString() is only for standalone markup (emails, fragments) outside the page flow."
         }
       ]
     },
     {
-      "id": "streaming",
-      "heading": "Streaming",
+      "id": "headers",
+      "heading": "Response headers",
       "blocks": [
         {
           "type": "p",
-          "text": "ctx.stream() returns a raw streaming Response. Use it when you need full control over a byte stream."
+          "text": "ctx.headers is a mutable Headers instance merged into every response the context produces. Set headers anywhere in the request lifecycle and they persist — even across a redirect."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "return ctx.stream(async (write) => {\n  for await (const chunk of fileStream) {\n    await write(chunk);\n  }\n}, { headers: { \"Content-Type\": \"application/octet-stream\" } });"
-        },
-        {
-          "type": "p",
-          "text": "For Server-Sent Events, use ctx.sse() — it handles framing, content-type, and keep-alive automatically. See the SSE section for details."
+          "text": "app.use((ctx) => {\n  ctx.headers.set(\"X-Request-Id\", crypto.randomUUID());\n  ctx.headers.append(\"Vary\", \"Accept-Encoding\");\n  return ctx.next();\n});"
         }
       ]
     },
     {
-      "id": "http-error",
-      "heading": "Throwing HttpError",
+      "id": "cookies",
+      "heading": "Cookies",
       "blocks": [
         {
           "type": "p",
-          "text": "Throwing an HttpError from any handler or middleware short-circuits to a typed error response. The class is also re-exported from @hushkey/howl/runtime, so client code can detect it via instanceof HttpError without pulling server-only imports."
+          "text": "ctx.cookies reads from the request and writes Set-Cookie with correct append semantics. Secure defaults: httpOnly, sameSite: Strict, path: /."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "import { HttpError } from \"@hushkey/howl\";\n\napp.get(\"/secret\", (ctx) => {\n  if (!ctx.state.userContext) throw new HttpError(401);   // → \"Unauthorized\"\n  throw new HttpError(404, \"No such secret\");             // → \"No such secret\"\n});\n\n// With cause for log enrichment\ntry {\n  await db.fetch(id);\n} catch (e) {\n  throw new HttpError(500, \"Database unavailable\", { cause: e });\n}"
-        },
+          "text": "ctx.cookies.set(\"token\", jwt, { httpOnly: true, maxAge: 3600 });\nconst token = ctx.cookies.get(\"token\");\nconst all = ctx.cookies.all();\nctx.cookies.delete(\"session\");"
+        }
+      ]
+    },
+    {
+      "id": "query",
+      "heading": "Query parameters",
+      "blocks": [
         {
           "type": "p",
-          "text": "The message argument is optional. When omitted, the server's default error handler fills in the canonical status text (STATUS_TEXT[status]). Keeping the default off the constructor means client bundles importing HttpError from @hushkey/howl/runtime don't pull in @std/http/status."
+          "text": "ctx.query() reads the URL search params. Call it with a key for a single value (or undefined), or with no argument for the full record."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "const q = ctx.query(\"q\");        // string | undefined\nconst all = ctx.query();          // Record<string, string>"
         },
         {
           "type": "tip",
-          "text": "On the client, import from @hushkey/howl/runtime: `import { HttpError } from \"@hushkey/howl/runtime\";`. The class is the same constructor as the server-side one, so instanceof checks work across the wire."
-        }
-      ]
-    },
-    {
-      "id": "next",
-      "heading": "ctx.next()",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "In middleware, call ctx.next() to invoke the next handler in the chain. Awaiting it lets you run code both before and after the downstream response."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "app.use(async (ctx) => {\n  const start = Date.now();\n  const response = await ctx.next();\n  const ms = Date.now() - start;\n  response.headers.set(\"X-Response-Time\", `${ms}ms`);\n  return response;\n});"
+          "text": "On API routes with a query schema, ctx.query() is typed and validated from the Zod schema rather than returning raw strings — see the API Routes page."
         }
       ]
     }

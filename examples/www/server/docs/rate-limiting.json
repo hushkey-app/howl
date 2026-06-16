@@ -5,140 +5,84 @@
   "sections": [
     {
       "id": "overview",
-      "heading": "Overview",
+      "heading": "Built into the API layer",
       "blocks": [
         {
           "type": "p",
-          "text": "Rate limiting in Howl is built into the API pipeline. Every API route can have its own limit, fall back to a global default, or opt out entirely."
-        },
-        {
-          "type": "p",
-          "text": "Limits are tracked per identifier returned by getRateLimitIdentifier(ctx) on HowlApiConfig (e.g. ctx.state.user?.id). When the hook is unset or returns undefined, the limiter falls back to the client IP."
+          "text": "Rate limiting is part of the API pipeline — no separate middleware. Set a default on your config and override per route in defineApi. Counters live in a cache adapter, so they can be shared across instances."
         }
       ]
     },
     {
-      "id": "identifier",
-      "heading": "Custom identifier",
+      "id": "config",
+      "heading": "Default and per-route",
       "blocks": [
         {
           "type": "p",
-          "text": "Howl makes no assumptions about the shape of your State. Provide getRateLimitIdentifier on HowlApiConfig to key counters on whatever you store — user id, session id, API key, tenant id."
+          "text": "defaultRateLimit applies to every endpoint. A route's rateLimit overrides it for that route; false opts out entirely."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "defineConfig({\n  getRateLimitIdentifier: (ctx) => ctx.state.user?.id,\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n});"
-        },
-        {
-          "type": "p",
-          "text": "Per-user response cache keys use the same hook (falling back to \"anonymous\")."
-        }
-      ]
-    },
-    {
-      "id": "default-limit",
-      "heading": "Global default",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Set defaultRateLimit in defineConfig to apply a limit to every endpoint unless overridden."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "defineConfig({\n  defaultRateLimit: {\n    max: 100,       // 100 requests\n    windowMs: 60_000, // per minute\n  },\n});"
-        }
-      ]
-    },
-    {
-      "id": "per-route",
-      "heading": "Per-route override",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Override the limit on any individual route. A stricter or looser limit replaces the default entirely for that route."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "// Stricter limit for a sensitive endpoint\nexport default defineApi({\n  rateLimit: { max: 10, windowMs: 60_000 },\n  // ...\n});\n\n// Disable rate limiting for this route\nexport default defineApi({\n  rateLimit: false,\n  // ...\n});"
-        }
-      ]
-    },
-    {
-      "id": "block-duration",
-      "heading": "Extended lockout (blockDurationMs)",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "By default, a blocked client is locked out for the remaining window time. For sensitive endpoints like login or OTP verification, use blockDurationMs to extend the lockout beyond the window."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "// Login endpoint: 5 attempts per minute, locked out for 1 hour\nexport default defineApi({\n  rateLimit: {\n    max: 5,\n    windowMs: 60_000,\n    blockDurationMs: 3_600_000, // 1 hour lockout\n  },\n  // ...\n});\n\n// OTP endpoint: 3 attempts per 5 min, locked out for 24 hours\nexport default defineApi({\n  rateLimit: {\n    max: 3,\n    windowMs: 300_000,\n    blockDurationMs: 86_400_000,\n  },\n  // ...\n});"
-        },
-        {
-          "type": "p",
-          "text": "When a client exceeds the limit, responses include Retry-After, X-RateLimit-Limit, and X-RateLimit-Remaining headers."
-        }
-      ]
-    },
-    {
-      "id": "multi-instance",
-      "heading": "Multi-instance deployments",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "With multiple instances behind a load balancer, rate limit counters must be stored in a shared backend — otherwise each instance counts independently and the effective limit is max × N instances."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "import { redisCache, memoryCache } from \"@hushkey/howl/api/cache\";\n\nconst redis = new Redis(Deno.env.get(\"REDIS_URL\"));\n\ndefineConfig({\n  // Response cache — per-instance is fine (responses are idempotent)\n  cache: memoryCache({ maxSize: 1000 }),\n  // Rate limit counters — must be shared across all instances\n  rateLimitCache: redisCache(redis),\n});"
-        },
-        {
-          "type": "warning",
-          "text": "If you only set cache (not rateLimitCache), the same adapter is used for both. With memoryCache(), rate limits are per-instance and not enforced globally."
-        }
-      ]
-    },
-    {
-      "id": "atomicity",
-      "heading": "Atomic counter increments",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Howl writes the counter via cache.incr(key, ttl). On Redis this maps to INCR + EXPIRE (atomic server-side); on Deno KV it uses an atomic().check().set() CAS loop; on the in-memory adapter it is trivially atomic because the runtime is single-threaded. This guarantees the limit is enforced even under concurrent burst traffic."
-        },
-        {
-          "type": "p",
-          "text": "If you supply a custom CacheAdapter that doesn't implement the optional incr method, the rate limiter falls back to a non-atomic read-modify-write path. Don't use that on a shared backend — concurrent requests can punch through the limit."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "// Custom adapter — implement `incr` for safe shared-backend use.\nfunction myAdapter(): CacheAdapter {\n  return {\n    async get(key) { /* … */ },\n    async set(key, value, ttl) { /* … */ },\n    async delete(key) { /* … */ },\n    async incr(key, ttl) {\n      // Atomic counter+TTL primitive on whichever backend you're using.\n      // Must apply ttl on first write; subsequent calls just bump the count.\n      return await myBackend.atomicIncr(key, ttl);\n    },\n  };\n}"
-        }
-      ]
-    },
-    {
-      "id": "headers",
-      "heading": "Response headers",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Howl automatically sets standard rate limit headers on every API response:"
+          "text": "// howl.config.ts — applies to every endpoint\ndefineConfig<State, Role>({\n  roles,\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n});\n\n// a route — override\nrateLimit: { max: 10, windowMs: 60_000 }\n\n// a route — disable\nrateLimit: false"
         },
         {
           "type": "table",
-          "headers": ["Header", "Value"],
+          "headers": ["Field", "Meaning"],
           "rows": [
-            ["X-RateLimit-Limit", "Maximum requests allowed in the window"],
-            ["X-RateLimit-Remaining", "Requests remaining in the current window"],
-            ["Retry-After", "Seconds until the block expires (on 429 only)"]
+            ["max", "Maximum requests allowed within the window."],
+            ["windowMs", "The counting window, in milliseconds."],
+            ["blockDurationMs", "Optional lockout duration after the limit is hit. Defaults to the remaining window."]
           ]
+        }
+      ]
+    },
+    {
+      "id": "lockout",
+      "heading": "Extended lockout",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For sensitive endpoints (login, OTP, password reset), blockDurationMs locks the identifier out for longer than the counting window — so five bad attempts in a minute can mean a one-hour block."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "rateLimit: {\n  max: 5,\n  windowMs: 60_000,        // 5 attempts per minute\n  blockDurationMs: 3_600_000, // then locked out for 1 hour\n}"
+        }
+      ]
+    },
+    {
+      "id": "identity",
+      "heading": "How requests are identified",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Counters are keyed ratelimit:{identifier}:{method}:{pathname}. The identifier comes from getRateLimitIdentifier(ctx) — typically a user id. Unset or undefined, it falls back to the client IP (x-forwarded-for / x-real-ip / remoteAddr)."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "defineConfig<State, Role>({\n  roles,\n  getRateLimitIdentifier: (ctx) => ctx.state.userContext?.id,\n});"
+        }
+      ]
+    },
+    {
+      "id": "shared-counters",
+      "heading": "Sharing counters across instances",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Counters live in rateLimitCache, separate from the response cache. With multiple instances it must be shared (Redis/Deno KV), or each instance counts on its own and the real limit becomes max × instances."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "import { memoryCache, redisCache } from \"@hushkey/howl/api/cache\";\n\ndefineConfig<State, Role>({\n  roles,\n  cache: memoryCache(),         // response cache — per-instance is fine\n  rateLimitCache: redisCache(r), // counters — must be shared\n});"
+        },
+        {
+          "type": "warning",
+          "text": "Atomic increments matter here: shared adapters (Redis, Deno KV) implement an atomic incr so concurrent requests can't punch through the limit. A per-process memoryCache is safe only for single-instance deployments."
         }
       ]
     }

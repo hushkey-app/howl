@@ -1,121 +1,140 @@
 {
   "slug": "configuration",
   "title": "Configuration",
-  "description": "HowlOptions, defineConfig, and builder setup",
+  "description": "howl.config.ts, the Howl app, dev.ts and the HowlBuilder pipeline",
   "sections": [
     {
-      "id": "howl-options",
-      "heading": "Howl app options",
+      "id": "overview",
+      "heading": "Three files, three jobs",
       "blocks": [
         {
-          "type": "code",
-          "lang": "ts",
-          "text": "const app = new Howl({\n  logger: true,   // log requests to stdout\n  debug: true,    // verbose error overlay in dev\n});"
+          "type": "p",
+          "text": "A project is configured by three files, each with one job:"
+        },
+        {
+          "type": "table",
+          "headers": ["File", "Owns"],
+          "rows": [
+            ["howl.config.ts", "State interface, roles, defineConfig → { defineApi, config }"],
+            ["server/main.ts", "new Howl(), engine registration, middleware, fsApiRoutes/fsClientRoutes"],
+            ["dev.ts", "HowlBuilder: esbuild, engine plugin, Tailwind, http-client generation"]
+          ]
         }
       ]
     },
     {
-      "id": "configure",
-      "heading": "app.configure()",
+      "id": "howl-config",
+      "heading": "howl.config.ts",
       "blocks": [
         {
           "type": "p",
-          "text": "app.configure(fn) runs a callback against the app for modular setup. If the callback returns a Promise the call returns Promise<this> so it can be awaited; otherwise it returns this synchronously and stays chainable."
+          "text": "Your State type and role union live here. defineConfig binds them once and returns a pre-typed defineApi (no per-file generics) plus a config for app.fsApiRoutes()."
         },
         {
           "type": "code",
           "lang": "ts",
-          "text": "// Sync — chainable\napp.configure(middleware).configure(routes);\n\n// Async — awaitable\nawait app.configure(async (app) => {\n  await db.connect();\n  app.use(authMiddleware);\n});"
-        }
-      ]
-    },
-    {
-      "id": "define-config",
-      "heading": "defineConfig",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "defineConfig is the central place to configure the API layer — caching, auth, roles, and rate limiting. It returns a typed defineApi helper and a config object to pass to fsApiRoutes."
+          "filename": "howl.config.ts",
+          "text": "import { defineConfig, memoryCache } from \"@hushkey/howl/api\";\n\n/** Per-request state shared across middleware and handlers. */\nexport interface State {\n  title: string;\n  userContext?: { id: string; roles: Role[] };\n}\n\nexport const roles = [\"USER\", \"ADMIN\"] as const;\nexport type Role = typeof roles[number];\n\nexport const { defineApi, config: apiConfig } = defineConfig<State, Role>({\n  roles,\n  cache: memoryCache({ maxSize: 500 }),\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n  getRateLimitIdentifier: (ctx) => ctx.state.userContext?.id,\n  checkPermissionStrategy: (ctx, allowedRoles) => {\n    const user = ctx.state.userContext;\n    if (!user) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    if (!allowedRoles.some((r) => user.roles.includes(r))) {\n      return ctx.json({ error: \"Forbidden\" }, { status: 403 });\n    }\n  },\n});"
         },
         {
-          "type": "code",
-          "lang": "ts",
-          "text": "import { defineConfig, memoryCache } from \"@hushkey/howl/api\";\n\nexport const { defineApi, config: apiConfig } = defineConfig<State, Role>({\n  roles,\n\n  // Global rate limit (per-route can override)\n  defaultRateLimit: { max: 100, windowMs: 60_000 },\n\n  // Cache for API responses\n  cache: memoryCache({ maxSize: 500 }),\n\n  // Separate cache for rate limit counters (shared backend for multi-instance)\n  rateLimitCache: redisCache(redis),\n\n  // Auth strategy — called before every protected endpoint\n  checkPermissionStrategy: async (ctx, allowedRoles) => {\n    const session = ctx.cookies.get(\"session\");\n    if (!session) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    const user = await verifySession(session);\n    if (!user) return ctx.json({ error: \"Unauthorized\" }, { status: 401 });\n    if (!allowedRoles.some(r => user.roles.includes(r))) {\n      return ctx.json({ error: \"Forbidden\" }, { status: 403 });\n    }\n    ctx.state.userContext = user;\n  },\n});"
-        }
-      ]
-    },
-    {
-      "id": "fs-routes",
-      "heading": "Registering routes",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "Pass the config to fsApiRoutes so the builder can crawl and register all .api.ts files."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "// server/main.ts\nimport { apiConfig } from \"../howl.config.ts\";\n\napp.fsApiRoutes(apiConfig);\napp.fsClientRoutes();"
-        },
-        {
-          "type": "p",
-          "text": "app.fsClientRoutes() registers all pages, layouts, and the app wrapper from the file system. app.fsApiRoutes() registers all .api.ts files and the OpenAPI spec."
-        }
-      ]
-    },
-    {
-      "id": "builder",
-      "heading": "HowlBuilder",
-      "blocks": [
-        {
-          "type": "p",
-          "text": "HowlBuilder wraps esbuild to bundle page hydration chunks, apply CSS modules, and run the dev server with live reload."
+          "type": "table",
+          "headers": ["HowlApiConfig field", "Purpose"],
+          "rows": [
+            ["roles", "The valid role union for this app (required)."],
+            ["checkPermissionStrategy", "Auth gate run before every role-protected endpoint. Return a Response to deny, return nothing to allow."],
+            ["defaultRateLimit", "Rate limit applied to every endpoint unless overridden per-route."],
+            ["cache", "Response cache adapter. Defaults to in-memory LRU."],
+            ["rateLimitCache", "Adapter used only for rate-limit counters. Must be shared across instances in multi-instance deploys."],
+            ["getRateLimitIdentifier", "Resolves the per-user key for rate limits and per-user cache entries (e.g. ctx.state.userContext?.id)."]
+          ]
         },
         {
           "type": "warning",
-          "text": "Environment variables stay server-only unless explicitly opted in: variables prefixed howl_PUBLIC_ are inlined into the client bundle at build time. Treat any howl_PUBLIC_* value as public — never put a secret behind that prefix."
-        },
-        {
-          "type": "code",
-          "lang": "ts",
-          "text": "const builder = new HowlBuilder(app, {\n  root: import.meta.dirname ?? \"\",    // project root\n  serverEntry: \"./server/main.ts\",    // server bundle entry\n  clientEntry: \"./client/pages/_app.ts\", // client bundle entry\n  importApp: () => app,               // for dev hot-reload\n  outDir: \"dist\",                     // output directory\n  alias: {                            // esbuild path aliases\n    \"@/\": \"./client/\",\n  },\n  plugins: [],                        // additional esbuild plugins\n});\n\n// Tailwind v4 CSS plugin\ntailwindPlugin(builder.getBuilder(\"default\")!);\n\n// Dev server\nawait builder.listen();\n\n// Production build\nawait builder.build();"
+          "text": "When getRateLimitIdentifier is unset or returns undefined, rate limiting falls back to the client IP and response caching is skipped on role-protected routes — without a per-user key a shared cache entry could leak one user's response to another."
         }
       ]
     },
     {
-      "id": "production",
-      "heading": "Production deployment",
+      "id": "the-app",
+      "heading": "The Howl app",
       "blocks": [
         {
+          "type": "p",
+          "text": "Howl is one class; builder methods return this. Construct with HowlOptions, register an engine, add middleware and routes, export it."
+        },
+        {
           "type": "code",
-          "lang": "sh",
-          "text": "# Build\ndeno run -A dev.ts build\n\n# Run the compiled server\ndeno run -A dist/compiled-entry.js\n\n# Override host/port via env\nDENO_PORT=9000 DENO_HOSTNAME=0.0.0.0 deno run -A dist/compiled-entry.js"
+          "lang": "ts",
+          "filename": "server/main.ts",
+          "text": "import { Howl, staticFiles } from \"@hushkey/howl\";\nimport { compression, coalesceRequests } from \"@hushkey/howl/middleware\";\nimport { vueEngine } from \"@hushkey/howl-vue\";\nimport { apiConfig, type State } from \"../howl.config.ts\";\n\nexport const app = new Howl<State>({\n  logger: true,            // timestamped, PID-tagged console output\n  engines: { vue: vueEngine() },\n});\n\napp.use(coalesceRequests());\napp.use(compression());\napp.use(staticFiles());\n\napp.use((ctx) => {\n  ctx.state.title = \"my-app\";\n  return ctx.next();\n});\n\napp.fsApiRoutes(apiConfig);   // crawl apis/**/*.api.ts\napp.fsClientRoutes();         // crawl pages/**\n\nexport default { app };"
+        },
+        {
+          "type": "table",
+          "headers": ["HowlOptions field", "Default", "Purpose"],
+          "rows": [
+            ["engines", "{}", "Map of registered render engines, e.g. { vue: vueEngine() } or { react: reactEngine() }."],
+            ["mode", "\"production\"", "Run mode. The builder sets this for you (development under dev, production under build)."],
+            ["basePath", "\"\"", "Path prefix every route is mounted under."],
+            ["logger", "false", "Enable the built-in HowlLogger (timestamp + PID on console output)."],
+            ["debug", "false", "Enable debug logging (no-op when false)."]
+          ]
         },
         {
           "type": "tip",
-          "text": "The production build outputs a single compiled-entry.js. No node_modules, no build tools needed at runtime — just Deno."
-        },
-        {
-          "type": "p",
-          "text": "compiled-entry.js coerces DENO_PORT to a number and throws on a non-numeric value, so a typo fails fast at startup instead of silently picking a random port."
-        },
-        {
-          "type": "p",
-          "text": "Production builds fail fast on broken API definitions: a *.api.ts that throws on import, or whose file-system-inferred route contains URLPattern-special characters (like parentheses in a filename), aborts the build naming the offending file. The dev server logs the failure and keeps serving instead."
+          "text": "app.configure(fn) lets you group setup into a callback and may be awaited if the callback is async — handy for opening a DB connection before registering middleware."
         }
       ]
     },
     {
-      "id": "handler-lifecycle",
-      "heading": "Handler lifecycle",
+      "id": "dev-ts",
+      "heading": "dev.ts and the HowlBuilder",
       "blocks": [
         {
           "type": "p",
-          "text": "app.handler() is built lazily on first call and cached per listener. app.listen() spawns the main listener plus one secondary listener per WS port — each gets its own cached handler with the same middleware pipeline."
+          "text": "HowlBuilder wraps esbuild with CSS Modules, automatic apis/ crawling, and per-engine page compilation. One file runs both dev (builder.listen) and build (builder.build) — branch on Deno.args."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "dev.ts",
+          "text": "import { HowlBuilder } from \"@hushkey/howl/dev\";\nimport { vuePlugin } from \"@hushkey/howl-vue/plugin\";\nimport { httpClientGenPlugin, tailwindPlugin } from \"@hushkey/howl/plugins\";\nimport { app } from \"./server/main.ts\";\nimport type { State } from \"./howl.config.ts\";\n\nconst builder = new HowlBuilder<State>(app, {\n  root: import.meta.dirname ?? \"\",\n  importApp: () => app,\n  outDir: \"dist\",\n  serverEntry: \"./server/main.ts\",   // apis/ resolved relative to this\n  clientEntry: \"./client/pages/_app.vue\",\n  plugins: [\n    vuePlugin(),                      // owns .vue files\n    httpClientGenPlugin({\n      apiDir: \"server/apis\",\n      outputFile: \"./generated/http-client.ts\",\n      aliases: { \"@server/\": \"server/\" },\n    }),\n  ],\n});\n\n// Tailwind attaches to a specific builder instance.\ntailwindPlugin(builder.getBuilder(\"default\")!);\n\nif (Deno.args.includes(\"build\")) {\n  await builder.build();\n} else {\n  await builder.listen({ port: 8000 });\n}"
+        },
+        {
+          "type": "table",
+          "headers": ["HowlDevOptions field", "Purpose"],
+          "rows": [
+            ["importApp", "Lazy loader for the app instance. Accepts the Howl instance or a { app } module shape."],
+            ["root", "Project root. Defaults to Deno.cwd()."],
+            ["outDir", "Build output directory. Defaults to _howl; the scaffolder uses dist."],
+            ["serverEntry", "Server entry path; apis/ is resolved relative to its directory."],
+            ["clientEntry", "Client entry (e.g. ./client/pages/_app.tsx); pages crawl from the client root."],
+            ["plugins", "esbuild plugins. Always include the engine plugin (vuePlugin() / reactPlugin())."],
+            ["alias", "Import alias map passed straight to esbuild."]
+          ]
         },
         {
           "type": "warning",
-          "text": "Once handler() has been built, the app is frozen: app.use(...), app.get/post/..., app.fsApiRoutes(...), app.layout(...), app.mountApp(...) all throw with a clear error. Register everything before requesting the handler."
+          "text": "The engine's esbuild plugin must be passed in plugins — it owns the .vue / .tsx page extensions and compiles them. The render engine (vueEngine/reactEngine) goes in the Howl constructor; the build plugin (vuePlugin/reactPlugin) goes in HowlBuilder. They are two halves of the same engine."
+        }
+      ]
+    },
+    {
+      "id": "tasks",
+      "heading": "Project tasks",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Scaffolded deno.json wires four tasks:"
+        },
+        {
+          "type": "table",
+          "headers": ["Task", "Command", "What it does"],
+          "rows": [
+            ["dev", "deno run -A --watch dev.ts", "Watch + serve with live reload"],
+            ["build", "deno run -A dev.ts build", "Production build into dist/"],
+            ["start", "deno run -A dist/compiled-entry.js", "Run the built server"],
+            ["compile", "deno compile -A ... dist/compiled-entry.js", "Produce a self-contained binary"]
+          ]
         }
       ]
     }
