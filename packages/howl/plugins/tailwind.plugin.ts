@@ -1,18 +1,7 @@
-import { createRequire } from "node:module";
 import postcss from "postcss";
 import type { AcceptedPlugin } from "postcss";
 import type { Builder } from "../dev/builder.ts";
 import type { OnTransformOptions } from "../dev/file_transformer.ts";
-
-// `@tailwindcss/postcss` ships an ESM runtime with a real default export, but its
-// package `exports` map points `types` at a CJS `.d.ts` that uses `export =` (no
-// default export). Newer Deno's strict npm type resolution rejects a default
-// import of it (TS1192). Load the identical runtime value via `createRequire` and
-// type it locally, sidestepping the package's mis-pointed type entry.
-const require = createRequire(import.meta.url);
-const twPostcss = require("@tailwindcss/postcss") as (
-  options?: { base?: string; optimize?: boolean | { minify?: boolean } },
-) => AcceptedPlugin;
 
 type PluginOptions = {
   /**
@@ -62,16 +51,30 @@ export function tailwindPlugin(
 ): void {
   const { exclude, ...tailwindOptions } = options;
 
-  const instance = postcss(
-    twPostcss({
-      optimize: builder.config.mode === "production",
-      ...tailwindOptions,
-    }),
-  );
+  // `@tailwindcss/postcss` mis-points its `exports.types` at a CJS `.d.ts`
+  // (`export =`, no default export), which trips strict type-checking on a static
+  // default import (TS1192). Import it dynamically — typed via a cast — so the bad
+  // type entry is never consulted. Its ESM runtime has a real default export and
+  // resolves in every environment, including when `@hushkey/howl` is loaded from a
+  // remote `https://` URL on JSR (where `createRequire` throws). Memoised so the
+  // module and PostCSS processor are built once, lazily.
+  let processor: Promise<ReturnType<typeof postcss>> | null = null;
+  const getProcessor = (): Promise<ReturnType<typeof postcss>> => {
+    processor ??= import("@tailwindcss/postcss").then((mod) => {
+      const tailwind = (mod as unknown as {
+        default: (options?: PluginOptions) => AcceptedPlugin;
+      }).default;
+      return postcss(
+        tailwind({ optimize: builder.config.mode === "production", ...tailwindOptions }),
+      );
+    });
+    return processor;
+  };
 
   builder.onTransformStaticFile(
     { pluginName: "howl-tailwind", filter: /\.css$/, exclude },
     async (args) => {
+      const instance = await getProcessor();
       const res = await instance.process(args.text, {
         from: args.path,
       });
