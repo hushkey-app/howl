@@ -58,6 +58,10 @@ export function denoJson(spec: ProjectSpec): string {
   }
 
   const include = fullstack ? "--include dist/static " : "";
+  // Dirs the dev watcher must ignore, or the build's own output (and the local
+  // SQLite/pglite `data/` dir, written on every query) trigger an endless
+  // restart loop. Mirrors the .gitignore set.
+  const watchExclude = ["dist/", "node_modules/", "data/", "generated/"];
   const compilerOptions: Record<string, unknown> = {
     lib: ["dom", "dom.iterable", "deno.ns", "deno.unstable"],
   };
@@ -73,8 +77,7 @@ export function denoJson(spec: ProjectSpec): string {
   // a name without exports. The compile task embeds the project name directly.
   const obj = {
     tasks: {
-      dev:
-        "deno run -A --watch=. --watch-exclude=_howl/,dist/,node_modules/,generated/,deno.lock dev.ts",
+      dev: `deno run -A --watch=. --watch-exclude=${watchExclude.join(",")} dev.ts`,
       build: "deno run -A dev.ts build",
       start: "deno run -A dist/compiled-entry.js",
       compile: `deno compile -A ${include}--output dist/bin/${spec.name} dist/compiled-entry.js`,

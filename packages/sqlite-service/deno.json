@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/sqlite-service",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
     "exclude": ["tests/"]
   },
   "imports": {
-    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.2",
+    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.3",
     "@std/expect": "jsr:@std/expect@^1.0.18"
   }
 }

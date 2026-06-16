@@ -64,6 +64,7 @@ test-output/
 .env
 .env.*
 !.env.example
+examples/testing
 
 ###################
 # Misc            #

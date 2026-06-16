@@ -43,10 +43,11 @@ function appVue(ui: UiKit): string {
 </template>
 
 <script setup lang="ts">
-import type { VuePageProps } from "@hushkey/howl-vue";
-import type { State } from "@howl/config";
-
-defineProps<VuePageProps<unknown, State>>();
+// Page props are injected by Howl. Declared at runtime (array form) so the SFC
+// compiler needn't resolve the @hushkey/howl-vue type from JSR at build time.
+defineProps([
+  "Component", "url", "params", "query", "route", "isPartial", "state", "data", "error",
+]);
 </script>
 `;
 }
@@ -85,7 +86,11 @@ import { useHead } from "@hushkey/howl-vue/head";
 import type { VuePageProps } from "@hushkey/howl-vue";
 import type { State } from "@howl/config";
 
-const props = defineProps<VuePageProps<unknown, State>>();
+// Runtime prop declaration + cast: keeps full typing without the SFC compiler
+// resolving the @hushkey/howl-vue type from JSR at build time.
+const props = defineProps([
+  "Component", "url", "params", "query", "route", "isPartial", "state", "data", "error",
+]) as unknown as VuePageProps<unknown, State>;
 const count = ref(0);
 const pong = ref<string | null>(null);
 
@@ -117,7 +122,9 @@ function errorVue(ui: UiKit): string {
 <script setup lang="ts">
 import type { VuePageProps } from "@hushkey/howl-vue";
 
-const props = defineProps<VuePageProps>();
+const props = defineProps([
+  "Component", "url", "params", "query", "route", "isPartial", "state", "data", "error",
+]) as unknown as VuePageProps;
 const err = props.error as { status?: number; message?: string } | null;
 const status = err?.status ?? 500;
 const message = err?.message ?? "Something went wrong.";
