@@ -73,7 +73,8 @@ export function denoJson(spec: ProjectSpec): string {
   // a name without exports. The compile task embeds the project name directly.
   const obj = {
     tasks: {
-      dev: "deno run -A --watch=. --watch-exclude=dist/,node_modules/,generated/ dev.ts",
+      dev:
+        "deno run -A --watch=. --watch-exclude=_howl/,dist/,node_modules/,generated/,deno.lock dev.ts",
       build: "deno run -A dev.ts build",
       start: "deno run -A dist/compiled-entry.js",
       compile: `deno compile -A ${include}--output dist/bin/${spec.name} dist/compiled-entry.js`,

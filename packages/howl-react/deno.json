@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/howl-react",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",
@@ -12,7 +12,7 @@
     "./router": "./runtime/router.ts"
   },
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.14.1",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.14.2",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "esbuild": "npm:esbuild@^0.25.0",
