@@ -1275,21 +1275,6 @@
           "npm:zod@4.3.6"
         ]
       },
-      "examples/testing": {
-        "dependencies": [
-          "jsr:@hushkey/howl-vue@~0.14.3",
-          "jsr:@hushkey/howl@~0.14.3",
-          "jsr:@hushkey/service-core@~0.14.3",
-          "jsr:@hushkey/sqlite-service@~0.14.3",
-          "jsr:@hushkey/studio@~0.14.3",
-          "jsr:@std/path@1",
-          "npm:@vue/runtime-dom@^3.5.13",
-          "npm:daisyui@5.5.18",
-          "npm:tailwindcss@4.1.18",
-          "npm:vue@^3.5.13",
-          "npm:zod@4.3.6"
-        ]
-      },
       "examples/www": {
         "dependencies": [
           "jsr:@hushkey/howl-react@~0.14.3",

@@ -17,8 +17,7 @@
     "./examples/_react",
     "./examples/_react-shadcn",
     "./examples/_backend",
-    "./examples/_db",
-    "./examples/testing"
+    "./examples/_db"
   ],
   "tasks": {
     "dev:vuety": "deno run -A --watch examples/vuety/dev.ts",
