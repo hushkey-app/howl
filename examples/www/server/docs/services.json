@@ -15,9 +15,18 @@
           "type": "table",
           "headers": ["Package", "Backend"],
           "rows": [
-            ["@hushkey/service-core", "The contract: DocumentService, filter grammar, conformance suite."],
-            ["@hushkey/sqlite-service", "SQLite via node:sqlite (docs as JSON1). Zero infra — a file on disk."],
-            ["@hushkey/pg-service", "Postgres (docs as JSONB), with an embedded PGlite fallback for local dev."],
+            [
+              "@hushkey/service-core",
+              "The contract: DocumentService, filter grammar, conformance suite."
+            ],
+            [
+              "@hushkey/sqlite-service",
+              "SQLite via node:sqlite (docs as JSON1). Zero infra — a file on disk."
+            ],
+            [
+              "@hushkey/pg-service",
+              "Postgres (docs as JSONB), with an embedded PGlite fallback for local dev."
+            ],
             ["@hushkey/mongo-service", "MongoDB."]
           ]
         },
@@ -84,10 +93,19 @@
             ["create(fields, { executionerId })", "Validate, stamp audit + version, insert."],
             ["get(id)", "Fetch one document by id (or null)."],
             ["mget(ids)", "Fetch many by id, preserving order."],
-            ["find({ query, sort, limit, skip, viewDeleted })", "Query with the neutral filter grammar."],
+            [
+              "find({ query, sort, limit, skip, viewDeleted })",
+              "Query with the neutral filter grammar."
+            ],
             ["count({ query, viewDeleted })", "Count matching documents."],
-            ["patch(id, partial, { executionerId })", "Merge fields, bump version (optimistic lock)."],
-            ["delete(id, { hard, executionerId })", "Soft delete by default; hard: true to remove."],
+            [
+              "patch(id, partial, { executionerId })",
+              "Merge fields, bump version (optimistic lock)."
+            ],
+            [
+              "delete(id, { hard, executionerId })",
+              "Soft delete by default; hard: true to remove."
+            ],
             ["restore(id, { executionerId })", "Undo a soft delete."]
           ]
         },
@@ -145,10 +163,19 @@
           "type": "table",
           "headers": ["Option", "Purpose"],
           "rows": [
-            ["services", "Map of UI name → service. Null/undefined entries are skipped, so you can register conditionally-connected services without guards."],
+            [
+              "services",
+              "Map of UI name → service. Null/undefined entries are skipped, so you can register conditionally-connected services without guards."
+            ],
             ["path", "Mount path (default /studio)."],
-            ["mode", "\"standalone\" (default) serves a full page; \"component\" mounts only the JSON API."],
-            ["executionerId", "Audit identity stamped on writes (default \"studio\"). A function receives the context to read your auth state."],
+            [
+              "mode",
+              "\"standalone\" (default) serves a full page; \"component\" mounts only the JSON API."
+            ],
+            [
+              "executionerId",
+              "Audit identity stamped on writes (default \"studio\"). A function receives the context to read your auth state."
+            ],
             ["style", "daisyUI theme + primary/secondary action classes + extra stylesheet URLs."]
           ]
         },

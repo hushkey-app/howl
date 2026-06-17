@@ -32,13 +32,29 @@
             ["method", "yes", "GET, POST, PUT, PATCH or DELETE."],
             ["roles", "yes", "Roles allowed. Empty array = public."],
             ["responses", "yes", "Map of status code → Zod schema describing the body."],
-            ["handler", "yes", "The request handler. Return value is the response body (see below)."],
-            ["path", "no", "Explicit path override (string or string[]). Otherwise inferred from the file path."],
-            ["requestBody", "no", "Zod schema for the JSON body — validated and typed onto ctx.req.body."],
+            [
+              "handler",
+              "yes",
+              "The request handler. Return value is the response body (see below)."
+            ],
+            [
+              "path",
+              "no",
+              "Explicit path override (string or string[]). Otherwise inferred from the file path."
+            ],
+            [
+              "requestBody",
+              "no",
+              "Zod schema for the JSON body — validated and typed onto ctx.req.body."
+            ],
             ["query", "no", "Zod schema for query params — validated and typed onto ctx.query()."],
             ["params", "no", "Zod schema for path params."],
             ["caching", "no", "{ ttl } in seconds. 0 disables."],
-            ["rateLimit", "no", "Per-route RateLimitConfig, or false to disable. Overrides defaultRateLimit."],
+            [
+              "rateLimit",
+              "no",
+              "Per-route RateLimitConfig, or false to disable. Overrides defaultRateLimit."
+            ],
             ["before / after", "no", "Lifecycle hooks (see below)."]
           ]
         }
@@ -133,7 +149,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "An OpenAPI 3 spec is generated from your schemas at crawl time and held in a singleton. Expose it on any route, behind any guard — Howl does not auto-mount it."
+          "text": "An OpenAPI 3.1 spec is generated from your schemas at crawl time and held in a singleton. Expose it on any route, behind any guard — Howl does not auto-mount it."
         },
         {
           "type": "code",

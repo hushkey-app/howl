@@ -299,6 +299,7 @@ Deno.test("api — before hooks run in order before the handler", async () => {
         order.push("first");
       },
       async () => {
+        await Promise.resolve();
         order.push("second");
       },
     ],

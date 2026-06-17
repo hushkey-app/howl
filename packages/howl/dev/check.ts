@@ -91,9 +91,8 @@ export async function findNearestDenoConfig(
       const filePath = path.join(dir, name);
       try {
         const file = await Deno.readTextFile(filePath);
-        const config = (name.endsWith(".jsonc")
-          ? JSONC.parse(file)
-          : JSON.parse(file)) as DenoConfig;
+        const config =
+          (name.endsWith(".jsonc") ? JSONC.parse(file) : JSON.parse(file)) as DenoConfig;
         if (config.compilerOptions) return { config, filePath };
         fallback ??= { config, filePath };
         break;

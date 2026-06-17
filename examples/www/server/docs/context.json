@@ -28,10 +28,18 @@
           "rows": [
             ["ctx.url", "URL", "The parsed request URL."],
             ["ctx.req", "Request", "The original incoming Request."],
-            ["ctx.params", "Record<string, string>", "Captured route params from the matched pattern."],
+            [
+              "ctx.params",
+              "Record<string, string>",
+              "Captured route params from the matched pattern."
+            ],
             ["ctx.route", "string | null", "The matched route pattern."],
             ["ctx.state", "State", "Per-request state shared across middleware and handlers."],
-            ["ctx.data", "unknown", "Mutable per-request slot set by middleware, read by handlers."],
+            [
+              "ctx.data",
+              "unknown",
+              "Mutable per-request slot set by middleware, read by handlers."
+            ],
             ["ctx.error", "unknown | null", "The caught error, set on the _error page render."],
             ["ctx.info", "Deno.ServeHandlerInfo", "Connection info (local/remote addresses)."],
             ["ctx.isPartial", "boolean", "Whether this is a partial (SPA fragment) request."]
@@ -58,7 +66,10 @@
             ["ctx.json(content, init?)", "JSON Response (Content-Type: application/json)"],
             ["ctx.text(content, init?)", "Plain-text Response"],
             ["ctx.html(content, init?)", "HTML Response (Content-Type: text/html)"],
-            ["ctx.redirect(pathOrUrl, status?)", "Redirect Response (default 302), open-redirect-safe"],
+            [
+              "ctx.redirect(pathOrUrl, status?)",
+              "Redirect Response (default 302), open-redirect-safe"
+            ],
             ["ctx.stream(iterable, init?)", "Streamed Response, encoding text chunks"],
             ["ctx.sse(stream, init?)", "Server-Sent Events stream — see the SSE page"],
             ["ctx.renderToString(component, props?)", "HTML string via the registered engine"]

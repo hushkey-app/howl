@@ -102,7 +102,10 @@
           "lang": "sh",
           "text": "deno add jsr:@hushkey/howl\n# pick an engine for fullstack apps:\ndeno add jsr:@hushkey/howl-react   # or jsr:@hushkey/howl-vue"
         },
-        { "type": "p", "text": "Wire your entry. The core has no built-in renderer — a fullstack app registers an engine explicitly:" },
+        {
+          "type": "p",
+          "text": "Wire your entry. The core has no built-in renderer — a fullstack app registers an engine explicitly:"
+        },
         {
           "type": "code",
           "lang": "ts",

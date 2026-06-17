@@ -94,12 +94,13 @@ import { z } from "zod";
 // Typed query, body, params + responses — validated by Zod.
 export default defineApi({
   name: "ListUsers",
+  directory: "users",                // OpenAPI tag; path inferred from FS
   method: "GET",
   roles: ["ADMIN"],                  // built-in RBAC
   query: z.object({ limit: z.coerce.number().max(100) }),
   responses: { 200: z.object({ users: z.array(User) }) },
   rateLimit: { max: 60, windowMs: 60_000 },
-  handler: (ctx) => listUsers(ctx.query.limit),
+  handler: (ctx) => listUsers(ctx.query().limit),
 });`;
 
 /** A page is just a component; its data comes from the handler. */
@@ -202,7 +203,7 @@ import daisyui from "daisyui";
 
 export default {
   content: [
-    "client/{pages,islands,components,layouts}/**/*.{ts,tsx}",
+    "client/{pages,components,layouts}/**/*.{ts,tsx}",
     "./**/*.{js,jsx,ts,tsx}",
   ],
   plugins: [daisyui],

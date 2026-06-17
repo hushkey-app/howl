@@ -111,8 +111,16 @@
           "type": "table",
           "headers": ["Engine", "Import", "Provides"],
           "rows": [
-            ["Vue", "@hushkey/howl-vue/pinia", "defineStore, storeToRefs, setActivePinia, … (Pinia)"],
-            ["React", "@hushkey/howl-react/store", "atom, useAtom, useAtomValue, useSetAtom, howlAtom (Jotai)"]
+            [
+              "Vue",
+              "@hushkey/howl-vue/pinia",
+              "defineStore, storeToRefs, setActivePinia, … (Pinia)"
+            ],
+            [
+              "React",
+              "@hushkey/howl-react/store",
+              "atom, useAtom, useAtomValue, useSetAtom, howlAtom (Jotai)"
+            ]
           ]
         },
         {

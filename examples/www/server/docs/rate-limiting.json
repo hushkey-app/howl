@@ -32,7 +32,10 @@
           "rows": [
             ["max", "Maximum requests allowed within the window."],
             ["windowMs", "The counting window, in milliseconds."],
-            ["blockDurationMs", "Optional lockout duration after the limit is hit. Defaults to the remaining window."]
+            [
+              "blockDurationMs",
+              "Optional lockout duration after the limit is hit. Defaults to the remaining window."
+            ]
           ]
         }
       ]

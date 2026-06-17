@@ -34,9 +34,18 @@
           "type": "table",
           "headers": ["File", "Role"],
           "rows": [
-            ["_app.{vue,tsx}", "The HTML shell — <head>, scripts, the outermost wrapper. Stays static in the DOM across navigation."],
-            ["_layout.{vue,tsx}", "A layout that wraps every page in its directory and below. Layouts stack root → leaf."],
-            ["_error.{vue,tsx}", "Rendered when a request throws. Receives the serialized error via page props (ctx.error)."]
+            [
+              "_app.{vue,tsx}",
+              "The HTML shell — <head>, scripts, the outermost wrapper. Stays static in the DOM across navigation."
+            ],
+            [
+              "_layout.{vue,tsx}",
+              "A layout that wraps every page in its directory and below. Layouts stack root → leaf."
+            ],
+            [
+              "_error.{vue,tsx}",
+              "Rendered when a request throws. Receives the serialized error via page props (ctx.error)."
+            ]
           ]
         },
         {
@@ -77,8 +86,18 @@
           "headers": ["Prefix", "Mode", "First paint", "Client navigation to this route"],
           "rows": [
             ["(none)", "SSR", "Engine renders on every request", "Fetches fresh SSR HTML"],
-            ["__page", "AOT", "Engine renders on every request", "Dynamic-imports a client chunk — no server round-trip"],
-            ["___page", "SSG", "Prerendered HTML served from the build snapshot", "Dynamic-imports a client chunk — no server round-trip"]
+            [
+              "__page",
+              "AOT",
+              "Engine renders on every request",
+              "Dynamic-imports a client chunk — no server round-trip"
+            ],
+            [
+              "___page",
+              "SSG",
+              "Prerendered HTML served from the build snapshot",
+              "Dynamic-imports a client chunk — no server round-trip"
+            ]
           ]
         },
         {
@@ -97,7 +116,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "SSR renders first paint, then the page hydrates into an SPA. The boot runtime intercepts <a> clicks and popstate, so ordinary links navigate client-side — SSR routes fetch fresh HTML, AOT/SSG routes mount their prebuilt chunk."
+          "text": "SSR renders first paint, then the page hydrates into an SPA. Client-side navigation is opt-in: links inside a client-nav boundary — set it once on <body> in _app — are intercepted and swapped without a full reload, while links outside it do a normal browser navigation. SSR routes fetch fresh HTML; AOT/SSG routes mount their prebuilt chunk with no server round-trip."
         },
         {
           "type": "p",
@@ -110,7 +129,7 @@
         },
         {
           "type": "tip",
-          "text": "Because navigation is plain client routing, there is no islands system to reason about — the entire page is interactive after hydration. Use the IS_SERVER / IS_BROWSER guards from @hushkey/howl for code that must branch per environment."
+          "text": "Add client-prefetch alongside client-nav to warm a destination on hover, touch or focus (off by default; it respects the user's data-saver preference). There is no islands system — the whole page is interactive after hydration; use the IS_SERVER / IS_BROWSER guards from @hushkey/howl to branch per environment."
         }
       ]
     }

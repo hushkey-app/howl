@@ -30,13 +30,21 @@
           "type": "table",
           "headers": ["Middleware", "Signature", "Purpose"],
           "rows": [
-            ["coalesceRequests", "coalesceRequests({ maxBodyBytes? })", "Deduplicates concurrent identical GETs into one handler execution."],
+            [
+              "coalesceRequests",
+              "coalesceRequests({ maxBodyBytes? })",
+              "Deduplicates concurrent identical GETs into one handler execution."
+            ],
             ["compression", "compression()", "Gzip/deflate for text, JSON, JS and SVG responses."],
             ["staticFiles", "staticFiles()", "Serves the static/ directory."],
             ["cors", "cors(options?)", "CORS headers (origin, methods, headers, credentials)."],
             ["csrf", "csrf(options?)", "CSRF origin validation for unsafe methods."],
             ["csp", "csp(options?)", "Content-Security-Policy, with per-request nonce support."],
-            ["trailingSlashes", "trailingSlashes(\"always\" | \"never\")", "Normalises trailing slashes (mode is required)."]
+            [
+              "trailingSlashes",
+              "trailingSlashes(\"always\" | \"never\")",
+              "Normalises trailing slashes (mode is required)."
+            ]
           ]
         },
         {

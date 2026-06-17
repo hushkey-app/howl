@@ -3,7 +3,6 @@ import {
   Howl,
   type ListenOptions,
   parseDirPath,
-  pathToExportName,
   setBuildCache,
   TEST_FILE_PATTERN,
   UniqueNamer,
@@ -722,4 +721,3 @@ async function discoverEngineChain(
   }
   return { app, layouts };
 }
-

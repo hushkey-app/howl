@@ -58,7 +58,10 @@
           "headers": ["Config field", "Purpose"],
           "rows": [
             ["apiDir", "Directory containing *.api.ts files (absolute or relative to cwd)."],
-            ["outputFile", "Where to write the generated client. The scaffolder uses ./generated/http-client.ts."],
+            [
+              "outputFile",
+              "Where to write the generated client. The scaffolder uses ./generated/http-client.ts."
+            ],
             ["aliases", "Import alias map for resolving schema imports referenced by your APIs."]
           ]
         }

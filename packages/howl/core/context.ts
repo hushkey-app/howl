@@ -1,4 +1,4 @@
-import { type AnyComponent, type ComponentType, type FunctionComponent } from "./component.ts";
+import { type AnyComponent, type FunctionComponent } from "./component.ts";
 import type { ResolvedHowlConfig } from "./config.ts";
 import type { BuildCache } from "./build_cache.ts";
 import { PARTIAL_SEARCH_PARAM } from "./constants.ts";

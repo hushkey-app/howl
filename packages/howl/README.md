@@ -250,9 +250,8 @@ export default function Layout({ Component, state }: PageProps<unknown, State>):
 
 Add a `client-prefetch` boundary to **prefetch on intent** — when the pointer hovers (after a brief
 ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals intent. AOT routes
-pre-`import()` their JS chunk; SSR routes pre-fetch their SSR HTML. The eventual click
-reuses the warmed result, so navigation feels instant — the same idea as Hotwired Turbo /
-instant.page.
+pre-`import()` their JS chunk; SSR routes pre-fetch their SSR HTML. The eventual click reuses the
+warmed result, so navigation feels instant — the same idea as Hotwired Turbo / instant.page.
 
 It's **opt-in** (off by default — matching the Vue/React engines), and respects the user's
 data-saver preference (`Save-Data` / `prefers-reduced-data`). Turn it on for a subtree, or exclude
@@ -583,10 +582,10 @@ descriptor is logged server-side only — it is no longer leaked on the wire.
 { "error": "Forbidden", "correlationId": "5b6e1d2c-..." }
 ```
 
-Only deliberate errors expose their message: `HttpError` / `errors.*` throws (any status) and
-errors carrying an explicit sub-500 `status` hint. An unexpected throw (driver error, TypeError)
-returns the generic `"Something went wrong, try again."` — its real message and stack are logged
-server-side under the `correlationId`, so nothing internal reaches the client.
+Only deliberate errors expose their message: `HttpError` / `errors.*` throws (any status) and errors
+carrying an explicit sub-500 `status` hint. An unexpected throw (driver error, TypeError) returns
+the generic `"Something went wrong, try again."` — its real message and stack are logged server-side
+under the `correlationId`, so nothing internal reaches the client.
 
 ### Response redaction is your job
 
@@ -617,9 +616,9 @@ const all = ctx.query();
 
 ## Thick client — no islands
 
-Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as
-a SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside
-your pages, and client navigation never reloads the document.
+Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as a
+SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside your
+pages, and client navigation never reloads the document.
 
 For code that must branch per environment, use the inline guards:
 
@@ -637,13 +636,12 @@ the server. Treat any `howl_PUBLIC_*` value as public — never put a secret beh
 
 ## File-system conventions
 
-> **Pluggable render engines — Vue & React.** Page rendering is a registered engine with
-> **no implicit default**. Three packages: `@hushkey/howl` (engine-agnostic core) ·
-> `@hushkey/howl-vue` · `@hushkey/howl-react`. Select one on the app —
-> `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) — plus the matching
-> builder plugin (`vuePlugin()` /
-> `reactPlugin()`). The shared backend (routing, APIs, middleware, `client-nav` + `client-prefetch`,
-> AOT/SSG, `deno compile`) is reused; only the renderer differs. Each engine also backs
+> **Pluggable render engines — Vue & React.** Page rendering is a registered engine with **no
+> implicit default**. Three packages: `@hushkey/howl` (engine-agnostic core) · `@hushkey/howl-vue` ·
+> `@hushkey/howl-react`. Select one on the app — `new Howl({ engines: { vue: vueEngine() } })` (or
+> `react: reactEngine()`) — plus the matching builder plugin (`vuePlugin()` / `reactPlugin()`). The
+> shared backend (routing, APIs, middleware, `client-nav` + `client-prefetch`, AOT/SSG,
+> `deno compile`) is reused; only the renderer differs. Each engine also backs
 > `ctx.renderToString(component, props?)` — render a standalone template to an HTML string (emails,
 > notifications) in your chosen engine, with no page shell. If a client entry with page routes is
 > configured but no engine is registered, the build throws. Backend-only apps (no client entry) are
@@ -669,8 +667,8 @@ works.
 AOT (double underscore) emits an ESM chunk per route containing the `[layouts, page]` tree — the
 `_app` shell stays static in the DOM, so persistent chrome (navbar, sidebar) keeps its state across
 navigations. The engine emits the AOT manifest (route pattern → chunk URL) into the page; on a
-client-nav click to an AOT route the boot runtime `import()`s the chunk and renders it in place —
-no server round-trip. Routes that aren't AOT fall back to the SSR fetch-and-swap path.
+client-nav click to an AOT route the boot runtime `import()`s the chunk and renders it in place — no
+server round-trip. Routes that aren't AOT fall back to the SSR fetch-and-swap path.
 
 AOT navigation respects `client-nav`. Without a `client-nav` ancestor on the clicked element (or
 with the attribute explicitly set to `"false"`), the AOT navigator stands down and the browser
@@ -723,17 +721,17 @@ middleware before requesting the handler.
 
 ## Conventions
 
-| Convention            | Path                                     |
-| --------------------- | ---------------------------------------- |
-| Root HTML shell       | `client/pages/_app.tsx`                  |
-| Shared UI layout      | `client/pages/_layout.tsx`               |
-| Pages                 | `client/pages/`                          |
-| Endpoint contracts    | `server/apis/**/*.api.ts`                |
-| Middleware            | `server/middleware/`                     |
-| Static files          | `static/`                                |
-| Config                | `howl.config.ts`                         |
-| Build output          | `dist/`                                  |
-| OpenAPI spec          | `getApiSpecs()` from `@hushkey/howl/api` |
+| Convention         | Path                                     |
+| ------------------ | ---------------------------------------- |
+| Root HTML shell    | `client/pages/_app.tsx`                  |
+| Shared UI layout   | `client/pages/_layout.tsx`               |
+| Pages              | `client/pages/`                          |
+| Endpoint contracts | `server/apis/**/*.api.ts`                |
+| Middleware         | `server/middleware/`                     |
+| Static files       | `static/`                                |
+| Config             | `howl.config.ts`                         |
+| Build output       | `dist/`                                  |
+| OpenAPI spec       | `getApiSpecs()` from `@hushkey/howl/api` |
 
 ---
 

@@ -3,7 +3,7 @@ import daisyui from "daisyui";
 
 export default {
   content: [
-    "client/{pages,islands,components,layouts}/**/*.{ts,tsx}",
+    "client/{pages,components,layouts}/**/*.{ts,tsx}",
     "./**/*.{js,jsx,ts,tsx}",
   ],
   plugins: [daisyui],

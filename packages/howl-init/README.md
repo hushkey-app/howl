@@ -69,8 +69,8 @@ const result = await runInit({
 console.log(result.path, result.spec);
 ```
 
-`buildProjectFiles(spec)` (from `src/blueprint/mod.ts`) returns the composed file map directly if you
-want to inspect or post-process output without writing to disk.
+`buildProjectFiles(spec)` (from `src/blueprint/mod.ts`) returns the composed file map directly if
+you want to inspect or post-process output without writing to disk.
 
 ## License
 

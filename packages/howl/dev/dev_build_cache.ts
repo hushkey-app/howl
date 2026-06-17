@@ -284,7 +284,6 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
     });
   }
 
-  // deno-lint-ignore require-await
   async flush(): Promise<void> {
     // Nothing to flush in memory mode — files are served from the in-memory maps.
   }

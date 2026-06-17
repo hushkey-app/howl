@@ -197,19 +197,18 @@ export default function ({ Component }: { Component: FunctionComponent }): JSX.E
 }
 ```
 
-> **Client-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource
-> (a file download, an image, a `Content-Disposition: attachment` response, etc.), the client SPA
+> **Client-nav and non-HTML responses:** when a `client-nav` link points to a non-HTML resource (a
+> file download, an image, a `Content-Disposition: attachment` response, etc.), the client SPA
 > detects the non-HTML `Content-Type` and falls back to a full browser navigation instead of trying
 > to apply the response as a partial. API routes are not the intended target for `<a href>` — use
 > `fetch()` for those — but the same fallback applies if you accidentally link to one.
 
 ### Link prefetching
 
-Links inside an `client-nav` boundary are **prefetched on intent** — when the pointer hovers
-(after a brief ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals
-intent. AOT routes pre-`import()` their JS chunk; SSR routes pre-fetch their SSR HTML. The
-eventual click reuses the warmed result, so navigation feels instant — the same idea as Hotwired
-Turbo / instant.page.
+Links inside an `client-nav` boundary are **prefetched on intent** — when the pointer hovers (after
+a brief ~65 ms dwell so quick pass-overs don't fire) or a touch / keyboard-focus signals intent. AOT
+routes pre-`import()` their JS chunk; SSR routes pre-fetch their SSR HTML. The eventual click reuses
+the warmed result, so navigation feels instant — the same idea as Hotwired Turbo / instant.page.
 
 It's on by default and respects the user's data-saver preference (`Save-Data` /
 `prefers-reduced-data`). Opt a link or whole subtree out with `f-prefetch="false"`:
@@ -403,8 +402,8 @@ a shared backend.
 ### Rate limit identifier
 
 Counters key on whatever `getRateLimitIdentifier(ctx)` returns on `HowlApiConfig` — Howl doesn't
-assume a `State` shape. Falls back to the client IP when unset or `undefined`; in that case
-response caching is skipped on role-protected routes (no safe per-user cache key exists).
+assume a `State` shape. Falls back to the client IP when unset or `undefined`; in that case response
+caching is skipped on role-protected routes (no safe per-user cache key exists).
 
 ```ts
 defineConfig({
@@ -448,9 +447,9 @@ const all = ctx.query();
 
 ## Thick client — no islands
 
-Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as
-a SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside
-your pages, and client navigation never reloads the document.
+Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as a
+SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside your
+pages, and client navigation never reloads the document.
 
 For code that must branch per environment, use the inline guards:
 
@@ -468,17 +467,16 @@ the server. Treat any `howl_PUBLIC_*` value as public — never put a secret beh
 
 ## File-system conventions
 
-> **Pluggable render engines — Vue & React.** Page rendering is a registered engine — there is
-> **no implicit default**. The framework is split into three packages:
-> [`@hushkey/howl`](packages/howl) (engine-agnostic core) ·
-> [`@hushkey/howl-vue`](packages/howl-vue) · [`@hushkey/howl-react`](packages/howl-react). Select an
-> engine on the app — `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) —
-> plus the matching builder plugin (`vuePlugin()` / `reactPlugin()`). The shared backend — routing,
-> APIs, middleware, client-nav + prefetch, AOT/SSG, `deno compile` — is reused unchanged; only the
-> component renderer differs, and both engines
-> use the same `client-nav` / `client-prefetch` attributes. Each engine also backs
-> `ctx.renderToString(component, props?)` — render a standalone template to an HTML string (emails,
-> notifications) in whatever engine you picked, no page shell.
+> **Pluggable render engines — Vue & React.** Page rendering is a registered engine — there is **no
+> implicit default**. The framework is split into three packages: [`@hushkey/howl`](packages/howl)
+> (engine-agnostic core) · [`@hushkey/howl-vue`](packages/howl-vue) ·
+> [`@hushkey/howl-react`](packages/howl-react). Select an engine on the app —
+> `new Howl({ engines: { vue: vueEngine() } })` (or `react: reactEngine()`) — plus the matching
+> builder plugin (`vuePlugin()` / `reactPlugin()`). The shared backend — routing, APIs, middleware,
+> client-nav + prefetch, AOT/SSG, `deno compile` — is reused unchanged; only the component renderer
+> differs, and both engines use the same `client-nav` / `client-prefetch` attributes. Each engine
+> also backs `ctx.renderToString(component, props?)` — render a standalone template to an HTML
+> string (emails, notifications) in whatever engine you picked, no page shell.
 >
 > **Programmatic navigation.** The Vue and React engines expose a router from
 > `@hushkey/howl-{vue,react}/router` — `navigate(to, { replace?, scroll? })`, `navigate(-1)` for
@@ -511,12 +509,12 @@ navigation works.
 | `___page.tsx` | SSG  | Prerendered HTML served from snapshot (no JS run) | Dynamic-imports a client chunk, no server hit |
 
 `__` builds an ESM chunk per page containing the `[layouts, page]` tree (the `_app` shell stays
-static in the DOM, so persistent chrome like navbars keeps its state across navigations). The
-engine emits the AOT manifest (route pattern → chunk URL) into the page; on a client-nav click to
-an AOT route the boot runtime `import()`s the chunk and renders it in place — no server
-round-trip. `___` additionally runs the handler at build time, captures the HTML, and bakes it
-into the production snapshot so request-time renders are skipped entirely. Routes navigated to
-that aren't AOT fall back to the SSR fetch-and-swap path.
+static in the DOM, so persistent chrome like navbars keeps its state across navigations). The engine
+emits the AOT manifest (route pattern → chunk URL) into the page; on a client-nav click to an AOT
+route the boot runtime `import()`s the chunk and renders it in place — no server round-trip. `___`
+additionally runs the handler at build time, captures the HTML, and bakes it into the production
+snapshot so request-time renders are skipped entirely. Routes navigated to that aren't AOT fall back
+to the SSR fetch-and-swap path.
 
 AOT navigation honours `client-nav` the same way SSR partial nav does. Drop the attribute from
 `<body>` (or set it to `"false"`) and clicks on AOT links fall through to full document navigation —
@@ -562,17 +560,17 @@ SSG limits and gotchas:
 
 ## Conventions
 
-| Convention            | Path                                     |
-| --------------------- | ---------------------------------------- |
-| Root HTML shell       | `client/pages/_app.tsx`                  |
-| Shared UI layout      | `client/pages/_layout.tsx`               |
-| Pages                 | `client/pages/`                          |
-| Endpoint contracts    | `server/apis/**/*.api.ts`                |
-| Middleware            | `server/middleware/`                     |
-| Static files          | `static/`                                |
-| Config                | `howl.config.ts`                         |
-| Build output          | `dist/`                                  |
-| OpenAPI spec          | `getApiSpecs()` from `@hushkey/howl/api` |
+| Convention         | Path                                     |
+| ------------------ | ---------------------------------------- |
+| Root HTML shell    | `client/pages/_app.tsx`                  |
+| Shared UI layout   | `client/pages/_layout.tsx`               |
+| Pages              | `client/pages/`                          |
+| Endpoint contracts | `server/apis/**/*.api.ts`                |
+| Middleware         | `server/middleware/`                     |
+| Static files       | `static/`                                |
+| Config             | `howl.config.ts`                         |
+| Build output       | `dist/`                                  |
+| OpenAPI spec       | `getApiSpecs()` from `@hushkey/howl/api` |
 
 ---
 

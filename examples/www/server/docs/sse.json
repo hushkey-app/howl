@@ -31,7 +31,11 @@
           "headers": ["Field", "Type", "Meaning"],
           "rows": [
             ["data", "unknown", "The payload. Objects are JSON-stringified."],
-            ["event", "string?", "Event name (the client's addEventListener type). Defaults to \"message\"."],
+            [
+              "event",
+              "string?",
+              "Event name (the client's addEventListener type). Defaults to \"message\"."
+            ],
             ["id", "string | number?", "Event id used by the client to resume after reconnect."],
             ["retry", "number?", "Reconnection delay hint, in milliseconds."]
           ]

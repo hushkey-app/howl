@@ -2,10 +2,10 @@
 
 ## What this repo is
 
-Howl is a Deno-native, server-first full-stack framework. It powers
-[Hushkey](https://hushkey.app). Fresh 2.x is ancestry, not identity — the codebase has diverged
-substantially. **The core has no built-in view renderer**: Preact was removed entirely; pages render
-through pluggable engines (`@hushkey/howl-vue`, `@hushkey/howl-react`).
+Howl is a Deno-native, server-first full-stack framework. It powers [Hushkey](https://hushkey.app).
+Fresh 2.x is ancestry, not identity — the codebase has diverged substantially. **The core has no
+built-in view renderer**: Preact was removed entirely; pages render through pluggable engines
+(`@hushkey/howl-vue`, `@hushkey/howl-react`).
 
 Root: `~/Private/typescript/howl/`\
 Stack: Deno 2.x · Zod 4 · esbuild 0.25 · engines: Vue 3 / React 18
@@ -16,17 +16,17 @@ Stack: Deno 2.x · Zod 4 · esbuild 0.25 · engines: Vue 3 / React 18
 
 JSR scope `@hushkey`. Every package lives under `packages/`:
 
-| Package           | JSR name                  | Responsibility                                            |
-| ----------------- | ------------------------- | --------------------------------------------------------- |
-| `howl/`           | `@hushkey/howl`           | Core, API layer, dev/build pipeline, plugins (see below)  |
-| `howl-vue/`       | `@hushkey/howl-vue`       | Vue SFC engine: compiler, esbuild plugin, runtime, Pinia  |
-| `howl-react/`     | `@hushkey/howl-react`     | React engine: `reactEngine`, boot, store, router          |
-| `howl-init/`      | `@hushkey/howl-init`      | Project scaffolder                                        |
+| Package           | JSR name                  | Responsibility                                                         |
+| ----------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `howl/`           | `@hushkey/howl`           | Core, API layer, dev/build pipeline, plugins (see below)               |
+| `howl-vue/`       | `@hushkey/howl-vue`       | Vue SFC engine: compiler, esbuild plugin, runtime, Pinia               |
+| `howl-react/`     | `@hushkey/howl-react`     | React engine: `reactEngine`, boot, store, router                       |
+| `howl-init/`      | `@hushkey/howl-init`      | Project scaffolder                                                     |
 | `service-core/`   | `@hushkey/service-core`   | `DocumentService`, filter grammar, `StorageBackend`, conformance suite |
-| `mongo-service/`  | `@hushkey/mongo-service`  | Mongo backend (passes conformance suite)                  |
-| `pg-service/`     | `@hushkey/pg-service`     | Postgres backend (docs as JSONB)                          |
-| `sqlite-service/` | `@hushkey/sqlite-service` | SQLite backend (docs as JSON1)                            |
-| `studio/`         | `@hushkey/studio`         | Admin UI middleware + React component over the service contract |
+| `mongo-service/`  | `@hushkey/mongo-service`  | Mongo backend (passes conformance suite)                               |
+| `pg-service/`     | `@hushkey/pg-service`     | Postgres backend (docs as JSONB)                                       |
+| `sqlite-service/` | `@hushkey/sqlite-service` | SQLite backend (docs as JSON1)                                         |
+| `studio/`         | `@hushkey/studio`         | Admin UI middleware + React component over the service contract        |
 
 `@hushkey/howl` internal layout and export paths:
 
@@ -44,19 +44,19 @@ JSR scope `@hushkey`. Every package lives under `packages/`:
 
 ## File-system conventions (user project)
 
-| Item         | Path pattern                                          |
-| ------------ | ----------------------------------------------------- |
+| Item         | Path pattern                                                    |
+| ------------ | --------------------------------------------------------------- |
 | Pages        | `pages/**/*.vue` (vue engine) · `pages/**/*.tsx` (react engine) |
-| AOT pages    | `pages/**/__name.{vue,tsx}`                           |
-| SSG pages    | `pages/**/___name.{vue,tsx}`                          |
-| Layouts      | `pages/_layout.{vue,tsx}`                             |
-| App wrapper  | `pages/_app.{vue,tsx}`                                |
-| Error page   | `pages/_error.{vue,tsx}`                              |
-| Middleware   | `middleware/**/*.middleware.ts`                       |
-| APIs         | `apis/**/*.api.ts`                                    |
-| Static       | `static/**/*`                                         |
-| Config       | `howl.config.ts`                                      |
-| Build output | `_howl/` (dev) · `dist/` (production)                 |
+| AOT pages    | `pages/**/__name.{vue,tsx}`                                     |
+| SSG pages    | `pages/**/___name.{vue,tsx}`                                    |
+| Layouts      | `pages/_layout.{vue,tsx}`                                       |
+| App wrapper  | `pages/_app.{vue,tsx}`                                          |
+| Error page   | `pages/_error.{vue,tsx}`                                        |
+| Middleware   | `middleware/**/*.middleware.ts`                                 |
+| APIs         | `apis/**/*.api.ts`                                              |
+| Static       | `static/**/*`                                                   |
+| Config       | `howl.config.ts`                                                |
+| Build output | `_howl/` (dev) · `dist/` (production)                           |
 
 ---
 
@@ -68,8 +68,8 @@ Core is view-library-agnostic. An app selects its engine explicitly:
 new Howl<State>({ engines: { vue: vueEngine() } }); // or { react: reactEngine() }
 ```
 
-- The `RenderEngine` contract lives in `howl/core/engine.ts` (`render`, optional
-  `renderToString`, `EngineRouteInfo` for DevTools route maps).
+- The `RenderEngine` contract lives in `howl/core/engine.ts` (`render`, optional `renderToString`,
+  `EngineRouteInfo` for DevTools route maps).
 - Engine **esbuild plugins** (`vuePlugin()` / `reactPlugin()`) declare which file extensions they
   own under the shared `Symbol.for("howl.engine")` — `dev/builder.ts` reads it during FS crawl to
   tag each route with its engine. Registering page routes without an engine throws
@@ -80,8 +80,8 @@ new Howl<State>({ engines: { vue: vueEngine() } }); // or { react: reactEngine()
 - **Vue prod**: `HowlBuilder.build()` precompiles every `.vue` page chain into an importable SSR
   module (`bundleVueSsr`), statically imported by the snapshot — `deno compile` binaries need no
   `.vue` source on disk. Dev compiles per request with an mtime cache.
-- `ctx.renderToString(component, props)` delegates to the first registered engine that implements
-  it (standalone rendering, e.g. emails).
+- `ctx.renderToString(component, props)` delegates to the first registered engine that implements it
+  (standalone rendering, e.g. emails).
 
 The legacy Preact renderer, `<Partial>` AOT system, React→Preact compat aliasing, **and the entire
 islands system** were **removed in June 2026** — don't reference `preactEngine()`,
@@ -183,14 +183,15 @@ one explicitly (`{ status: 200, data: [...] }` → `{ ok: true, data: [...] }`);
 auto-nest.
 
 Pipeline guarantees: only 2xx (non-204) responses are cached, and cached entries replay their
-original status. Unexpected throws return the generic `"Something went wrong, try again."` —
-only `HttpError` / sub-500 `status` hints expose their message; the real error + stack is logged
-under the `correlationId`.
+original status. Unexpected throws return the generic `"Something went wrong, try again."` — only
+`HttpError` / sub-500 `status` hints expose their message; the real error + stack is logged under
+the `correlationId`.
 
 Per-route hooks on the definition: `before: ApiBeforeHook[]` (post-auth/validation, pre-cache;
-returning a `Response` short-circuits the handler) and `after: ApiAfterHook[]` (`(ctx, response,
-app)`, runs on every successful response including cache hits, may replace the response; skipped on
-errors).
+returning a `Response` short-circuits the handler) and `after: ApiAfterHook[]`
+(`(ctx, response,
+app)`, runs on every successful response including cache hits, may replace the
+response; skipped on errors).
 
 Rate limit counters use `rateLimitCache` (separate from the response `cache`) so they can be shared
 across instances via Redis/KV while response caching stays per-instance in memory.
@@ -249,8 +250,8 @@ defineConfig({
 Rate limit keys are `ratelimit:{identifier}:{method}:{pathname}`. The identifier is resolved via
 `getRateLimitIdentifier(ctx)` on `HowlApiConfig` (e.g. `ctx.state.user?.id`). When the hook is unset
 or returns `undefined`, the limiter falls back to the client IP from `x-forwarded-for` / `x-real-ip`
-/ `remoteAddr`. Per-user response cache keys use the same hook; when it's unset, response caching
-is **skipped** on role-protected routes (no safe per-user key).
+/ `remoteAddr`. Per-user response cache keys use the same hook; when it's unset, response caching is
+**skipped** on role-protected routes (no safe per-user key).
 
 ---
 
@@ -267,9 +268,9 @@ per environment: `import { IS_SERVER, IS_BROWSER } from "@hushkey/howl"`.
 Page-file prefix opts a route into client-side navigation and/or build-time prerender. The prefix is
 stripped from the URL pattern, so `pages/jobs/__index.vue` mounts at `/jobs/`.
 
-| Prefix   | Mode | First paint                                       | Client nav to this route                  |
-| -------- | ---- | ------------------------------------------------- | ----------------------------------------- |
-| (none)   | SSR  | Engine renders every request                      | Fetches fresh SSR HTML                    |
+| Prefix    | Mode | First paint                                       | Client nav to this route                  |
+| --------- | ---- | ------------------------------------------------- | ----------------------------------------- |
+| (none)    | SSR  | Engine renders every request                      | Fetches fresh SSR HTML                    |
 | `__page`  | AOT  | Engine renders every request                      | Dynamic-imports a client chunk, no server |
 | `___page` | SSG  | Prerendered HTML served from snapshot (no render) | Dynamic-imports a client chunk, no server |
 
@@ -285,13 +286,13 @@ How it's wired:
   `window.__HOWL_VUE_AOT__` / `window.__HOWL_REACT_AOT__`; each engine's boot runtime intercepts
   `<a>` clicks + popstate and mounts the matching chunk.
 - **SSG prerender** — `HowlBuilder.build()` runs the app handler at build time for each param-less
-  SSG route. Captured HTML is stored in `BuildCache.ssgPages: Map<routePattern, html>`.
-  Request-time short-circuit lives in `core/app.ts handler()` — checks `ssgPages.get(pattern)` for
-  `GET`/`HEAD` non-partial requests before dispatching the middleware/handler chain.
-- **Cache headers** — chunks are served with `Cache-Control: public, max-age=31536000, immutable`
-  in production. `BUILD_ID` rotates per build, so each deploy gets unique chunk URLs → automatic
-  cache invalidation. Build-ID lives in `packages/howl/utils/build-id.ts` (UUID or
-  `DENO_DEPLOYMENT_ID` / `GITHUB_SHA`).
+  SSG route. Captured HTML is stored in `BuildCache.ssgPages: Map<routePattern, html>`. Request-time
+  short-circuit lives in `core/app.ts handler()` — checks `ssgPages.get(pattern)` for `GET`/`HEAD`
+  non-partial requests before dispatching the middleware/handler chain.
+- **Cache headers** — chunks are served with `Cache-Control: public, max-age=31536000, immutable` in
+  production. `BUILD_ID` rotates per build, so each deploy gets unique chunk URLs → automatic cache
+  invalidation. Build-ID lives in `packages/howl/utils/build-id.ts` (UUID or `DENO_DEPLOYMENT_ID` /
+  `GITHUB_SHA`).
 
 Limits / gotchas:
 
@@ -387,14 +388,16 @@ Separate from the HTTP framework: a Mongo-shaped document-store contract.
 
 - `DocumentService` (service-core) owns write-boundary validation, audit/soft-delete meta envelope,
   optimistic locking (`version`), versioned cache invalidation, timeouts, telemetry.
-- Backends implement `StorageBackend` (`insertOne / findOne / findMany / count / updatePaths /
-  deleteOne` + `generateId` + `cachePrefix`); SQL backends store docs as JSONB/JSON1 and compile the
-  neutral filter grammar (`$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists` + dot-paths).
+- Backends implement `StorageBackend`
+  (`insertOne / findOne / findMany / count / updatePaths /
+  deleteOne` + `generateId` +
+  `cachePrefix`); SQL backends store docs as JSONB/JSON1 and compile the neutral filter grammar
+  (`$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists` + dot-paths).
 - Every backend must pass `runConformanceSuite` from `@hushkey/service-core/conformance` — mongo/pg
   suites are env-gated (`MONGO_URL` / `PG_URL`), sqlite runs everywhere.
 - `@hushkey/studio` mounts an admin UI through the service contract (validates, bumps version,
-  stamps audit fields, respects soft delete): `app.use(studio({ services: {...} }))` → `/studio`,
-  or `mode: "component"` + `<Studio endpoint>` inside a host dashboard.
+  stamps audit fields, respects soft delete): `app.use(studio({ services: {...} }))` → `/studio`, or
+  `mode: "component"` + `<Studio endpoint>` inside a host dashboard.
 
 ---
 
@@ -473,8 +476,8 @@ your end-of-turn summary and skip — but the default is to update all three.
 ## What NOT to do
 
 - Don't reference Preact, `preactEngine()`, `<Partial>`, `BuildCache.aotRoutes`, or anything
-  island-related (`*.island.*`, `islandRegistry`, `bootVueIslands`) — removed June 2026. Engines
-  are Vue and React; interactivity is ordinary components in hydrated pages.
+  island-related (`*.island.*`, `islandRegistry`, `bootVueIslands`) — removed June 2026. Engines are
+  Vue and React; interactivity is ordinary components in hydrated pages.
 - Don't call `app.handler()` multiple times — it rebuilds the router each time.
 - Don't store mutable state on the `Howl` instance between requests — use `ctx.state`.
 - Don't add auth middleware inline — use `checkPermissionStrategy` in `defineConfig`.
@@ -483,6 +486,7 @@ your end-of-turn summary and skip — but the default is to update all three.
 - Don't create new `Proxy` objects in hot paths unnecessarily.
 - Don't use `memoryCache()` as `rateLimitCache` in multi-instance deployments — counters are
   per-process.
+
 ---
 
 ## Testing
@@ -490,11 +494,11 @@ your end-of-turn summary and skip — but the default is to update all three.
 Framework tests live under `packages/howl/tests/`; each engine/service package has its own `tests/`
 dir. No co-located `*_test.ts` files in source dirs.
 
-| Layer       | Path                               | What it covers                                                             |
-| ----------- | ---------------------------------- | --------------------------------------------------------------------------- |
+| Layer       | Path                               | What it covers                                                                |
+| ----------- | ---------------------------------- | ----------------------------------------------------------------------------- |
 | Integration | `packages/howl/tests/integration/` | Routing, middleware order, ctx helpers, cookies, SSE, WS, CORS, CSP, coalesce |
-| API         | `packages/howl/tests/api/`         | `defineApi`, auth, Zod validation, rate limit, caching, OpenAPI generation  |
-| Unit        | `packages/howl/tests/unit/`        | `UrlPatternRouter`, `CookieManager`, utils, cache adapters, AOT/SSG crawl   |
+| API         | `packages/howl/tests/api/`         | `defineApi`, auth, Zod validation, rate limit, caching, OpenAPI generation    |
+| Unit        | `packages/howl/tests/unit/`        | `UrlPatternRouter`, `CookieManager`, utils, cache adapters, AOT/SSG crawl     |
 
 Harness: `packages/howl/tests/harness.ts` exports `makeApp(opts)` returning `{ app, fetch }`. Tests
 dispatch through the handler directly — no TCP port. Use `MockBuildCache` from `core/test_utils.ts`

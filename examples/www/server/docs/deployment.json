@@ -80,7 +80,10 @@
           "type": "table",
           "headers": ["Middleware", "Effect"],
           "rows": [
-            ["coalesceRequests()", "Collapses a thundering herd of identical concurrent GETs into one handler execution."],
+            [
+              "coalesceRequests()",
+              "Collapses a thundering herd of identical concurrent GETs into one handler execution."
+            ],
             ["compression()", "Gzip/deflate for text, JSON, JS and SVG responses."],
             ["staticFiles()", "Serves static/, applying immutable caching to locked assets."]
           ]

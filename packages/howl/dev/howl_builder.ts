@@ -11,8 +11,7 @@ import type { ApiEntry } from "./dev_build_cache.ts";
  * Options accepted by {@linkcode HowlBuilder}. Extends {@linkcode BuildOptions}
  * minus the per-client directory fields (resolved per registered client).
  */
-export interface HowlDevOptions<State = any>
-  extends Omit<BuildOptions, "routeDir" | "staticDir"> {
+export interface HowlDevOptions<State = any> extends Omit<BuildOptions, "routeDir" | "staticDir"> {
   /**
    * Lazy app loader — invoked when the dev server starts. Accepts either the
    * {@linkcode Howl} instance directly or a `{ app }` module shape so users can

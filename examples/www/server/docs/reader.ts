@@ -99,9 +99,7 @@ const DOC_REGISTRY: Record<string, DocPage> = {
 export function readManifest(): ManifestItem[] {
   return (manifestJson as ManifestItem[])
     .slice()
-    .sort((a, b) =>
-      CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category] || a.order - b.order
-    );
+    .sort((a, b) => CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category] || a.order - b.order);
 }
 
 export function readDoc(slug: string): DocPage | null {
