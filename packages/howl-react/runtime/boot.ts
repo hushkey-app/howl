@@ -65,6 +65,22 @@ const PREFETCH_TTL_MS = 30_000;
 // so the server marks `ctx.isPartial`. Hardcoded to keep core out of the bundle.
 const PARTIAL_PARAM = "howl-partial";
 
+/** Rebase a (possibly proxy-rewritten) server href onto the current document
+ * origin. `history.pushState` rejects a cross-origin URL — behind TLS
+ * termination the server-rendered `props.url` can carry an `http:` scheme while
+ * the document is on `https:`, which would otherwise throw a `SecurityError`.
+ * Client nav is always same-origin, so the path/search/hash are kept verbatim. */
+function sameOriginHref(href: string): string {
+  try {
+    const u = new URL(href, location.origin);
+    return u.origin === location.origin
+      ? u.href
+      : `${location.origin}${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    return href;
+  }
+}
+
 /** The URL to fetch for a client-nav: destination + partial marker. The cache
  * and history stay keyed on the clean href. */
 function partialFetchUrl(href: string): string {
@@ -314,7 +330,7 @@ async function navigateReactPage(url: URL, intent: NavIntent): Promise<void> {
   // Push the URL the server actually rendered (handles redirects), else the
   // requested URL.
   const landed = typeof nextProps.url === "string" ? nextProps.url : url.href;
-  applyHistory(intent, landed);
+  applyHistory(intent, sameOriginHref(landed));
   if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
 
   browserGlobals.__REACT_PAGE_PROPS__ = nextProps;

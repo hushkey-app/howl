@@ -59,6 +59,22 @@ const PREFETCH_TTL_MS = 30_000;
 // out of the client bundle. The engine strips it back off the page's `url` prop.
 const PARTIAL_PARAM = "howl-partial";
 
+/** Rebase a (possibly proxy-rewritten) server href onto the current document
+ * origin. `history.pushState` rejects a cross-origin URL — behind TLS
+ * termination the server-rendered `props.url` can carry an `http:` scheme while
+ * the document is on `https:`, which would otherwise throw a `SecurityError`.
+ * Client nav is always same-origin, so the path/search/hash are kept verbatim. */
+function sameOriginHref(href: string): string {
+  try {
+    const u = new URL(href, location.origin);
+    return u.origin === location.origin
+      ? u.href
+      : `${location.origin}${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    return href;
+  }
+}
+
 /**
  * The URL to actually fetch for a client-nav: the destination plus the partial
  * marker. The prefetch cache and history entry stay keyed on the clean `href`.
@@ -381,7 +397,7 @@ async function navigateVuePage(url: URL, intent: NavIntent): Promise<void> {
   // during the nav (e.g. `/about` → `/about/1999`) lands the address bar on the
   // final URL, not the clicked one. Falls back to the requested URL.
   const landed = typeof nextProps.url === "string" ? nextProps.url : url.href;
-  applyHistory(intent, landed);
+  applyHistory(intent, sameOriginHref(landed));
   if (intent.scroll) scrollTo({ top: 0, left: 0, behavior: "instant" });
 
   // Stable chunk URL (no cache-bust) so the preload applies and revisits reuse

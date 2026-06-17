@@ -26,7 +26,7 @@
           "type": "table",
           "headers": ["Property", "Type", "Description"],
           "rows": [
-            ["ctx.url", "URL", "The parsed request URL."],
+            ["ctx.url", "URL", "The parsed request URL. Its scheme follows x-forwarded-proto when set, so it stays https behind a TLS-terminating proxy."],
             ["ctx.req", "Request", "The original incoming Request."],
             [
               "ctx.params",

@@ -81,11 +81,11 @@
         {
           "type": "code",
           "lang": "text",
-          "text": "my-app/\n  server/\n    apis/\n      public/\n        ping.api.ts        ← GET /api/public/ping\n    services/             ← present when you pick a database\n      items/\n        items.schema.ts\n        items.service.ts\n      connections.ts\n    main.ts               ← Howl app: engine, middleware, routes\n  client/\n    pages/\n      _app.tsx            ← HTML shell (head, scripts)\n      _layout.tsx         ← shared layout for nested routes\n      index.tsx           ← /\n  static/                 ← served at /static/* (and root)\n  generated/\n    http-client.ts        ← typed client generated from apis/\n  howl.config.ts          ← shared State, roles, defineApi\n  dev.ts                  ← dev/build entry (HowlBuilder)\n  deno.json               ← imports, tasks, compilerOptions"
+          "text": "my-app/\n  server/\n    apis/\n      public/\n        ping.api.ts        ← GET /api/public/ping\n    services/             ← present when you pick a database\n      items/\n        items.schema.ts\n        items.service.ts\n      connections.ts\n    main.ts               ← Howl app: engine, middleware, routes\n  client/\n    pages/\n      _app.tsx            ← HTML shell (head, scripts)\n      _layout.tsx         ← shared layout for nested routes\n      index.tsx           ← /\n  static/                 ← served at /static/* (and root)\n  generated/\n    http-client.ts        ← typed client generated from apis/\n  howl.config.ts          ← shared State, roles, defineApi\n  dev.ts                  ← dev/build entry (HowlBuilder)\n  deno.json               ← imports, tasks, compilerOptions\n  AGENTS.md               ← agent guide: conventions + patterns\n  CLAUDE.md               ← points Claude Code at AGENTS.md"
         },
         {
           "type": "tip",
-          "text": "Backend-only apps drop the client/ folder entirely. You can also run single-folder apps — put apis/, pages/, and main.ts at the project root and point HowlBuilder at them. The framework infers the layout from how you wire serverEntry / clientEntry."
+          "text": "Backend-only apps drop the client/ folder entirely. You can also run single-folder apps — put apis/, pages/, and main.ts at the project root and point HowlBuilder at them. The framework infers the layout from how you wire serverEntry / clientEntry. Every project also ships an AGENTS.md (plus a one-line CLAUDE.md pointing at it) — a per-spec guide so AI coding agents pick up the conventions immediately."
         }
       ]
     },

@@ -67,6 +67,42 @@ Deno.test("ctx.redirect — places partial param before hash fragment", async ()
   );
 });
 
+Deno.test("ctx.url — adopts x-forwarded-proto scheme behind a TLS proxy", async () => {
+  const t = makeApp();
+  t.app.get("/", (ctx) => ctx.text(ctx.url.href));
+
+  const res = await t.fetch("/", { headers: { "x-forwarded-proto": "https" } });
+  expect(await text(res)).toBe("https://localhost/");
+});
+
+Deno.test("ctx.url — uses first proto when x-forwarded-proto is a list", async () => {
+  const t = makeApp();
+  t.app.get("/", (ctx) => ctx.text(ctx.url.protocol));
+
+  const res = await t.fetch("/", {
+    headers: { "x-forwarded-proto": "https, http" },
+  });
+  expect(await text(res)).toBe("https:");
+});
+
+Deno.test("ctx.url — ignores a non-http(s) x-forwarded-proto value", async () => {
+  const t = makeApp();
+  t.app.get("/", (ctx) => ctx.text(ctx.url.protocol));
+
+  const res = await t.fetch("/", {
+    headers: { "x-forwarded-proto": "javascript" },
+  });
+  expect(await text(res)).toBe("http:");
+});
+
+Deno.test("ctx.url — keeps the request scheme when no proxy header is set", async () => {
+  const t = makeApp();
+  t.app.get("/", (ctx) => ctx.text(ctx.url.href));
+
+  const res = await t.fetch("/");
+  expect(await text(res)).toBe("http://localhost/");
+});
+
 Deno.test("ctx.redirect — does not double-append when target already has the param", async () => {
   const t = makeApp();
   t.app.get("/r", (ctx) => ctx.redirect("/page?howl-partial=true"));

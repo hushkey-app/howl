@@ -765,6 +765,15 @@ export class Howl<State = any> {
       conn: Deno.ServeHandlerInfo = DEFAULT_CONN_INFO,
     ) => {
       const url = new URL(req.url);
+      // Behind a TLS-terminating proxy the request arrives over http; trust the
+      // standard `x-forwarded-proto` so `ctx.url` — and everything derived from
+      // it (serialized page props, canonical/og links, absolute redirects) —
+      // reflects the public scheme. Without this the client receives an `http:`
+      // `props.url` and `history.pushState` throws a cross-origin SecurityError.
+      const fwdProto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+      if ((fwdProto === "http" || fwdProto === "https") && url.protocol !== `${fwdProto}:`) {
+        url.protocol = `${fwdProto}:`;
+      }
       // Collapse duplicate slashes; assigning `url.pathname` re-serializes the
       // URL, so skip the write in the common no-double-slash case.
       const collapsed = url.pathname.replace(/\/+/g, "/");

@@ -40,7 +40,9 @@ deno run -Ar jsr:@hushkey/howl-init my-app --type fullstack-react --ui shadcn --
 ## What you get
 
 Every project includes typed API routes (sample `public/ping`), the build/dev/start/compile tasks,
-and a generated typed HTTP client (`httpClientGenPlugin`). On top of that:
+a generated typed HTTP client (`httpClientGenPlugin`), and an **`AGENTS.md`** (plus a one-line
+`CLAUDE.md` pointing at it) — a per-spec guide so AI coding agents pick up the app's conventions
+immediately (how to add an API, add a service, fetch from pages, the gotchas). On top of that:
 
 - **fullstack-react / -vue** — a render engine (SSR → hydrate → SPA), file-system-routed pages, and
   Tailwind v4. With `shadcn`, the `cn` helper plus `Button`/`Card` are vendored into

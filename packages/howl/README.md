@@ -607,6 +607,10 @@ ctx.cookies.delete("session");
 // Response headers — auto-merged into all responses including page renders
 ctx.headers.set("X-Request-Id", crypto.randomUUID());
 
+// Request URL — scheme follows x-forwarded-proto, so it stays https behind a
+// TLS-terminating proxy (and the URL serialised into client page props matches)
+ctx.url.href;
+
 // Query params
 const search = ctx.query("q");
 const all = ctx.query();

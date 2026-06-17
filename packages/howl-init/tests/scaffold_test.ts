@@ -185,3 +185,41 @@ Deno.test("every generated deno.json is valid JSON across the matrix", () => {
     }
   }
 });
+
+Deno.test("buildProjectFiles — AGENTS.md + CLAUDE.md, tailored per spec", () => {
+  // Backend: API guidance only — no pages or service sections.
+  const be = buildProjectFiles(BACKEND);
+  expect(be.has("AGENTS.md")).toBe(true);
+  expect(be.has("CLAUDE.md")).toBe(true);
+  expect(be.get("CLAUDE.md")).toContain("AGENTS.md");
+  const beGuide = be.get("AGENTS.md")!;
+  expect(beGuide).toContain("Add an API route");
+  expect(beGuide).toContain("directory");
+  expect(beGuide).not.toContain("## Pages");
+  expect(beGuide).not.toContain("## Add a service");
+
+  // Vue fullstack + mongo: Vue-flavoured pages section, Mongo service section.
+  const vx = buildProjectFiles({
+    name: "vx",
+    appType: "fullstack-vue",
+    ui: "daisyui",
+    service: "mongo",
+  });
+  const vxGuide = vx.get("AGENTS.md")!;
+  expect(vxGuide).toContain("## Pages");
+  expect(vxGuide).toContain("VuePageProps");
+  expect(vxGuide).toContain("@hushkey/howl-vue/head");
+  expect(vxGuide).toContain("## Add a service");
+  expect(vxGuide).toContain("MongoService");
+
+  // React fullstack + sqlite: React props, Sqlite service.
+  const rx = buildProjectFiles({
+    name: "rx",
+    appType: "fullstack-react",
+    ui: "shadcn",
+    service: "sqlite",
+  });
+  const rxGuide = rx.get("AGENTS.md")!;
+  expect(rxGuide).toContain("ReactPageProps");
+  expect(rxGuide).toContain("SqliteService");
+});

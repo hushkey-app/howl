@@ -4,6 +4,7 @@ import { styleCss, tailwindConfigTs } from "./styles.ts";
 import { reactFiles } from "./react.ts";
 import { vueFiles } from "./vue.ts";
 import { serviceFiles } from "./service.ts";
+import { agentsMd, claudeMd } from "./agents.ts";
 
 /**
  * Compose the full set of project files for a {@link ProjectSpec}. Returns a
@@ -23,6 +24,8 @@ export function buildProjectFiles(spec: ProjectSpec): Map<string, string> {
   files.set(".gitignore", gitignore(spec));
   files.set(".env.example", envExample(spec));
   files.set("README.md", readmeMd(spec));
+  files.set("AGENTS.md", agentsMd(spec));
+  files.set("CLAUDE.md", claudeMd());
 
   // Frontend — fullstack only.
   if (isFullstack(spec)) {
