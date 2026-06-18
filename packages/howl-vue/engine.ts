@@ -21,29 +21,200 @@ const STATE_MOD = new URL("./runtime/state.ts", import.meta.url).href;
  * `useRoute`), rewritten to its `file://` path for the SSR data-URL compile. */
 const ROUTER_MOD = new URL("./runtime/router.ts", import.meta.url).href;
 
-/** Rewrite a compiled page's imports so they resolve from a `data:` URL module:
- * bare framework specifiers → npm, howl-vue runtime → `file://`, and **relative**
- * imports → absolute `file://` (data URLs have no base, so relative/bare
- * specifiers wouldn't resolve). */
-function rewriteForSsr(code: string, fromFile: string): string {
-  const dir = path.dirname(fromFile);
-  const withFileUrls = code.replace(
-    /(\bfrom\s+["'])(\.\.?\/[^"']+)(["'])/g,
-    (_m, pre, spec, post) => `${pre}${path.toFileUrl(path.resolve(dir, spec)).href}${post}`,
-  );
-  return withFileUrls
-    .replaceAll('from "vue/server-renderer"', `from "${NPM_VUE}/server-renderer"`)
-    .replaceAll("from 'vue/server-renderer'", `from "${NPM_VUE}/server-renderer"`)
-    .replaceAll('from "vue"', `from "${NPM_VUE}"`)
-    .replaceAll("from 'vue'", `from "${NPM_VUE}"`)
-    .replaceAll('from "@hushkey/howl-vue/head"', `from "${NPM_UNHEAD}"`)
-    .replaceAll("from '@hushkey/howl-vue/head'", `from "${NPM_UNHEAD}"`)
-    .replaceAll('from "@hushkey/howl-vue/pinia"', `from "${NPM_PINIA}"`)
-    .replaceAll("from '@hushkey/howl-vue/pinia'", `from "${NPM_PINIA}"`)
-    .replaceAll('from "@hushkey/howl-vue/state"', `from "${STATE_MOD}"`)
-    .replaceAll("from '@hushkey/howl-vue/state'", `from "${STATE_MOD}"`)
-    .replaceAll('from "@hushkey/howl-vue/router"', `from "${ROUTER_MOD}"`)
-    .replaceAll("from '@hushkey/howl-vue/router'", `from "${ROUTER_MOD}"`);
+/** A static `import …`/`export … from "spec"` **statement** in compiled SFC
+ * code. Anchored on the `import`/`export` keyword at a statement boundary and
+ * forbidding backticks before `from`, so it matches real imports (including
+ * the `vue/server-renderer` import that template-only components emit *after*
+ * `const __sfc__ = {}`) without ever matching a `from "…"` that appears inside
+ * an HTML template literal in the render function. Group 1 captures everything
+ * up to and including `from `; group 2 is the specifier — the quote characters
+ * are dropped so the rewrite can re-emit double quotes (see
+ * {@linkcode compileVueDataUrl}). */
+const IMPORT_RE = /((?:^|[\n;])\s*(?:import|export)\b[^`]*?\bfrom\s+)["']([^"'\n]+)["']/g;
+
+/** Framework + howl-vue runtime specifiers pinned to fixed targets so the SSR
+ * `data:`-URL module shares the engine's **exact** runtime instances — a
+ * second `vue` instance would mismatch `renderToString`. Takes precedence over
+ * the project import map (which may list a different `vue` version). */
+const FRAMEWORK_SPECIFIERS: Record<string, string> = {
+  "vue": NPM_VUE,
+  "vue/server-renderer": `${NPM_VUE}/server-renderer`,
+  "@hushkey/howl-vue/head": NPM_UNHEAD,
+  "@hushkey/howl-vue/pinia": NPM_PINIA,
+  "@hushkey/howl-vue/state": STATE_MOD,
+  "@hushkey/howl-vue/router": ROUTER_MOD,
+};
+
+/** A specifier that already carries its own scheme — resolvable from a `data:`
+ * URL without an import-map base. */
+const QUALIFIED_SPECIFIER = /^(?:npm:|jsr:|node:|https?:|file:|data:)/;
+
+/** Resolved `imports` for a project, merged from every `deno.json(c)` on the
+ * path from a page's dir up to the filesystem root (nearer config wins).
+ * Relative targets are pre-resolved to `file://` against their own config's
+ * directory, so a lookup yields a directly usable specifier. Cached per dir. */
+const IMPORT_MAP_CACHE = new Map<string, Promise<Record<string, string>>>();
+
+function loadProjectImports(startDir: string): Promise<Record<string, string>> {
+  const cached = IMPORT_MAP_CACHE.get(startDir);
+  if (cached !== undefined) return cached;
+  const promise = (async () => {
+    const { parse: parseJsonc } = await import("@std/jsonc");
+    const merged: Record<string, string> = {};
+    let dir = startDir;
+    for (let depth = 0; depth < 32; depth++) {
+      for (const name of ["deno.json", "deno.jsonc"]) {
+        let text: string;
+        try {
+          text = await Deno.readTextFile(path.join(dir, name));
+        } catch {
+          continue;
+        }
+        let cfg: { imports?: Record<string, string> };
+        try {
+          cfg = parseJsonc(text) as { imports?: Record<string, string> };
+        } catch {
+          continue;
+        }
+        for (const [key, value] of Object.entries(cfg.imports ?? {})) {
+          if (key in merged) continue; // a nearer config already defined it
+          merged[key] = value.startsWith(".") || value.startsWith("/")
+            ? path.toFileUrl(path.resolve(dir, value)).href
+            : value;
+        }
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+    return merged;
+  })();
+  IMPORT_MAP_CACHE.set(startDir, promise);
+  return promise;
+}
+
+/** Resolve a bare specifier against a project import map: exact key, else the
+ * longest trailing-slash prefix key (`@std/` matches `@std/path`). */
+function resolveFromImports(spec: string, imports: Record<string, string>): string | null {
+  const exact = imports[spec];
+  if (exact !== undefined) return exact;
+  let best: string | null = null;
+  for (const key of Object.keys(imports)) {
+    if (key.endsWith("/") && spec.startsWith(key) && (best === null || key.length > best.length)) {
+      best = key;
+    }
+  }
+  return best === null ? null : imports[best] + spec.slice(best.length);
+}
+
+/** A `.vue` file compiled to an importable `data:` URL, plus its transitive
+ * scoped CSS, cached by mtime within the process. */
+interface DataUrlEntry {
+  mtime: number;
+  dataUrl: string;
+  styles: string[];
+}
+const DATA_URL_CACHE = new Map<string, DataUrlEntry>();
+
+/**
+ * Resolve a single import specifier from a compiled `.vue` for the SSR
+ * `data:`-URL module, recursively compiling `.vue` targets and accumulating
+ * their styles into `childStyles`.
+ *
+ * - Relative `.vue` → its own recursive `data:` URL (Deno has no `.vue` loader,
+ *   so a `file://` would fail with "Unknown module"); relative anything-else →
+ *   absolute `file://`.
+ * - Already-qualified (`npm:`/`jsr:`/`file:`/…) → unchanged.
+ * - Framework/runtime specifier → its instance-sharing pin.
+ * - Otherwise resolved against the project import map (honouring the user's own
+ *   remaps); an unknown bare specifier is left as-is so Deno surfaces a clear
+ *   "not in import map" error instead of a silent miss.
+ */
+async function resolveSsrSpecifier(
+  spec: string,
+  dir: string,
+  imports: Record<string, string>,
+  visiting: Set<string>,
+  childStyles: string[],
+): Promise<string> {
+  const resolveLocal = async (abs: string): Promise<string> => {
+    if (!abs.endsWith(".vue")) return path.toFileUrl(abs).href;
+    if (visiting.has(abs)) return path.toFileUrl(abs).href; // cycle guard
+    visiting.add(abs);
+    const child = await compileVueDataUrl(abs, visiting);
+    visiting.delete(abs);
+    childStyles.push(...child.styles);
+    return child.dataUrl;
+  };
+
+  if (spec.startsWith("./") || spec.startsWith("../")) {
+    return await resolveLocal(path.resolve(dir, spec));
+  }
+  if (QUALIFIED_SPECIFIER.test(spec)) return spec;
+  const framework = FRAMEWORK_SPECIFIERS[spec];
+  if (framework !== undefined) return framework;
+  const mapped = resolveFromImports(spec, imports);
+  if (mapped === null) return spec;
+  return mapped.startsWith("file://") && mapped.endsWith(".vue")
+    ? await resolveLocal(path.fromFileUrl(mapped))
+    : mapped;
+}
+
+/**
+ * Compile a `.vue` file — and, recursively, every `.vue` child component it
+ * imports — into an importable `data:` URL for SSR. Returns the transitive
+ * scoped CSS (this file first, then its children) so the engine can inline a
+ * child component's styles into the SSR document.
+ *
+ * Import specifiers are rewritten so the `data:`-URL module (which has no
+ * import-map base) resolves: see {@linkcode resolveSsrSpecifier}. Only genuine
+ * `import`/`export … from` statements are matched (see {@linkcode IMPORT_RE}) —
+ * never a `from "…"` inside an HTML string literal in the render function.
+ * Cached per file by mtime; dev `--watch` restarts the whole process on any
+ * edit, so the in-process cache never goes stale. `visiting` guards against
+ * import cycles.
+ */
+async function compileVueDataUrl(
+  filePath: string,
+  visiting: Set<string>,
+): Promise<{ dataUrl: string; styles: string[] }> {
+  const stat = await Deno.stat(filePath);
+  const mtime = stat.mtime?.getTime() ?? 0;
+  const hit = DATA_URL_CACHE.get(filePath);
+  if (hit !== undefined && hit.mtime === mtime) {
+    return { dataUrl: hit.dataUrl, styles: hit.styles };
+  }
+
+  // The SFC compiler is only needed on this dev path (prod renders from
+  // precompiled SSR modules) — import it lazily so a production server never
+  // loads `@vue/compiler-sfc` at startup.
+  const { compileSfc } = await import("./sfc.ts");
+  const src = await Deno.readTextFile(filePath);
+  const { code, styles } = compileSfc(src, filePath, { ssr: true });
+
+  const dir = path.dirname(filePath);
+  const imports = await loadProjectImports(dir);
+  const childStyles: string[] = [];
+  const replacement = new Map<string, string>();
+  for (const [, , spec] of code.matchAll(IMPORT_RE)) {
+    if (replacement.has(spec)) continue;
+    replacement.set(spec, await resolveSsrSpecifier(spec, dir, imports, visiting, childStyles));
+  }
+  // Always re-emit **double** quotes: a resolved specifier is npm:/jsr:/file://
+  // or a `data:` URL from `encodeURIComponent`, none of which can contain a raw
+  // `"` (encodeURIComponent escapes it to `%22`) — but a nested `data:` URL can
+  // contain a raw `'` (encodeURIComponent leaves `'` intact), which would
+  // terminate a single-quoted specifier early.
+  const rewritten = code.replace(IMPORT_RE, (_m, pre, spec) => `${pre}"${replacement.get(spec)}"`);
+
+  // Import from a `data:` URL rather than a temp file: writing temp files makes
+  // Deno's `--watch` (which watches imported modules) restart in a loop.
+  const dataUrl = `data:text/typescript,${encodeURIComponent(rewritten)}`;
+  // Child styles come after this file's own so a child's scoped CSS can't
+  // shadow the parent's; dedupe identical blocks (a shared child imported twice).
+  const allStyles = [...new Set([...styles, ...childStyles])];
+  DATA_URL_CACHE.set(filePath, { mtime, dataUrl, styles: allStyles });
+  return { dataUrl, styles: allStyles };
 }
 
 interface CacheEntry {
@@ -54,10 +225,10 @@ interface CacheEntry {
 const SSR_CACHE = new Map<string, CacheEntry>();
 
 /**
- * Compile a `.vue` page for SSR and import it (plus its compiled scoped CSS),
+ * Compile a `.vue` page for SSR and import it (plus its transitive scoped CSS),
  * cached by file mtime so dev edits recompile. Deno can't import `.vue`
- * directly, so the compiled JS is written to a temp `.ts` (bare `vue` imports
- * rewritten to npm specifiers) and imported.
+ * directly, so the page (and any `.vue` children) compile to `data:` URLs via
+ * {@linkcode compileVueDataUrl} before importing.
  */
 async function loadSsr(filePath: string): Promise<{ comp: Component; styles: string[] }> {
   const stat = await Deno.stat(filePath);
@@ -67,17 +238,9 @@ async function loadSsr(filePath: string): Promise<{ comp: Component; styles: str
     return { comp: hit.comp, styles: hit.styles };
   }
 
-  // The SFC compiler is only needed on this dev path (prod renders from
-  // precompiled SSR modules) — import it lazily so a production server never
-  // loads `@vue/compiler-sfc` at startup.
-  const { compileSfc, prepareTypeResolution } = await import("./sfc.ts");
+  const { prepareTypeResolution } = await import("./sfc.ts");
   await prepareTypeResolution();
-  const src = await Deno.readTextFile(filePath);
-  const { code, styles } = compileSfc(src, filePath, { ssr: true });
-  // Import from a `data:` URL rather than a temp file: writing temp files makes
-  // Deno's `--watch` (which watches imported modules) restart in a loop. The
-  // `npm:vue` specifiers (rewritten by `toNpm`) resolve fine from a data URL.
-  const dataUrl = `data:text/typescript,${encodeURIComponent(rewriteForSsr(code, filePath))}`;
+  const { dataUrl, styles } = await compileVueDataUrl(filePath, new Set([filePath]));
   const mod = await import(dataUrl);
   const comp = mod.default as Component;
   SSR_CACHE.set(filePath, { mtime, comp, styles });

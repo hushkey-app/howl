@@ -45,7 +45,10 @@ const title = props.state?.client?.title ?? "Howl";
 
 Pages receive `{ url, params, state, data }` as props (server `ctx` → props, JSON-serialised into
 the hydration payload). The engine compiles `.vue` for SSR at request time (Deno can't import
-`.vue`); Howl bundles a per-page hydration chunk that `createSSRApp().mount()`s `#howl-app`.
+`.vue`); Howl bundles a per-page hydration chunk that `createSSRApp().mount()`s `#howl-app`. A page
+or layout may freely import **child `.vue` components** (compiled recursively for SSR) and **npm
+packages** (e.g. `vue-sonner`) — bare imports resolve through your project's `deno.json` import map,
+so a library SSR-renders the same as it does in the client bundle.
 
 **`_app.vue` + `_layout.vue`.** A `_app.vue` at the pages root owns the **whole document** — write
 `<head>` (CSS, meta, fonts, `<script type="module">`, analytics) and `<body>` structure directly,

@@ -15,6 +15,7 @@
             <button class="cta" type="button" @click="store.inc()">
                 clicked {{ store.count }} times
             </button>
+            <Widget label="from index page" />
         </section>
     </main>
 </template>
@@ -25,6 +26,7 @@ import { useHead } from "@hushkey/howl-vue/head";
 import type { VuePageProps } from "@hushkey/howl-vue";
 import type { State } from "@howl/config";
 import { useStore } from "../store/index.store.ts";
+import Widget from "../components/widget.component.vue";
 
 const store = useStore();
 const props = defineProps<VuePageProps<unknown, State>>();
