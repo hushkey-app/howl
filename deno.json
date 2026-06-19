@@ -28,6 +28,7 @@
     "start:reacty": "deno run -A examples/reacty/dist/compiled-entry.js",
     "lint": "deno lint",
     "fmt": "deno fmt",
+    "build:studio": "deno run -A packages/studio/scripts/build_bundle.ts",
     "version": "deno run -A scripts/version.ts",
     "version:status": "deno run -A scripts/version.ts status",
     "version:patch": "deno run -A scripts/version.ts upgrade patch",

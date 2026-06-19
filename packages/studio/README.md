@@ -17,7 +17,7 @@ app.use(studio({ services: { users, blogs, reviews } }));
 // → dashboard at /studio, JSON API at /studio/api
 ```
 
-The dashboard page bundles the component on first request (esbuild, react via an import map) and
+The dashboard page serves a prebuilt component bundle (react via an import map) and
 loads **daisyUI + Tailwind from a CDN** in its `<head>` — no build pipeline, no static assets, and
 no daisyUI install needed in the host app. The UI is styled entirely with daisyUI classes and
 [heroicons](https://heroicons.com), in a flat, rounded look — Inter for chrome and JetBrains Mono

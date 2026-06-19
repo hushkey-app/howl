@@ -81,6 +81,12 @@ jobs:
           deno task test
           deno task test:services
 
+      # Studio ships a prebuilt browser bundle (no esbuild at runtime — it can't
+      # read .tsx from a JSR https URL). Regenerate it here so it can never go
+      # stale relative to the component source; publish runs with --allow-dirty.
+      - name: Build studio bundle
+        run: deno task build:studio
+
       # Each package is published from its own directory so only that member is
       # uploaded (a root `deno publish` would also sweep in the example apps).
       # Packages are skipped if their version is already on JSR, which makes the

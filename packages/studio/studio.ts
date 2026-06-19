@@ -51,8 +51,8 @@ export interface StudioOptions {
   /**
    * `standalone` (default) serves a full dashboard page at the mount path;
    * `component` mounts only the JSON API — pair it with the `<Studio />`
-   * Preact component from `@hushkey/studio/component` inside your own
-   * dashboard island.
+   * React component from `@hushkey/studio/component` inside your own
+   * dashboard page.
    */
   mode?: "standalone" | "component";
   /**
@@ -77,28 +77,21 @@ function err(message: string, status: number): Response {
   return json({ message }, status);
 }
 
-// Bundled once per process on first request, then served from memory.
+// The prebuilt browser bundle (component/bundle.js), read once per process then
+// served from memory. Prebuilt at publish (scripts/build_bundle.ts) rather than
+// esbuilt on first request: consumed from JSR `import.meta.url` is an `https:`
+// URL, which esbuild can neither read a `.tsx` from nor be safely stopped
+// against (its service is a process-global singleton shared with the host's dev
+// pipeline). `fetch` reads both file:// and https://; `fromFileUrl` throws on
+// the latter.
 let bundleCache: string | null = null;
 
-async function buildBundle(): Promise<string> {
-  if (bundleCache) return bundleCache;
-  const esbuild = await import("esbuild");
-  const { fromFileUrl } = await import("@std/path");
-  const entry = fromFileUrl(new URL("./component/entry.tsx", import.meta.url));
-  const result = await esbuild.build({
-    entryPoints: [entry],
-    bundle: true,
-    format: "esm",
-    jsx: "automatic",
-    jsxImportSource: "react",
-    // React stays external — the standalone page maps it to esm.sh via an
-    // import map, so only the studio's own TSX is transpiled here.
-    external: ["react", "react/jsx-runtime", "react-dom/client"],
-    write: false,
-    minify: true,
-  });
-  bundleCache = result.outputFiles![0].text;
-  await esbuild.stop();
+async function loadBundle(): Promise<string> {
+  if (bundleCache !== null) return bundleCache;
+  const url = new URL("./component/bundle.js", import.meta.url);
+  bundleCache = url.protocol === "file:"
+    ? await Deno.readTextFile(url) // local dev / workspace
+    : await (await fetch(url)).text(); // JSR (https)
   return bundleCache;
 }
 
@@ -189,7 +182,7 @@ export function studio(
         });
       }
       if (mode === "standalone" && rest === "bundle.js" && method === "GET") {
-        return new Response(await buildBundle(), {
+        return new Response(await loadBundle(), {
           headers: {
             "Content-Type": "application/javascript; charset=utf-8",
             "Cache-Control": "no-store",

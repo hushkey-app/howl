@@ -181,7 +181,7 @@
         },
         {
           "type": "p",
-          "text": "In standalone mode the React UI is bundled on first request and served from memory — no build pipeline needed. In component mode, the middleware mounts only the JSON API and you render <Studio /> from @hushkey/studio/component inside your own dashboard."
+          "text": "In standalone mode the React UI is served from a prebuilt bundle held in memory — no build pipeline needed. In component mode, the middleware mounts only the JSON API and you render <Studio /> from @hushkey/studio/component inside your own dashboard."
         },
         {
           "type": "warning",
