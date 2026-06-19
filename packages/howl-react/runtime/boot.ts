@@ -95,6 +95,11 @@ function partialFetchUrl(href: string): string {
 let root: Root | null = null;
 let intentTimer: ReturnType<typeof setTimeout> | undefined;
 let intentLink: HTMLAnchorElement | null = null;
+// The eligible anchor captured on `pointerdown`, while it is still attached. An
+// app `onClick` handler can detach the anchor mid-dispatch (e.g. a portal that
+// unmounts on click) before the bubble-phase click listener runs, which would
+// otherwise strip its `[client-nav]` ancestor and force a full reload.
+let pendingNavAnchor: HTMLAnchorElement | null = null;
 const prefetchCache = new Map<string, { job: Promise<string>; ts: number }>();
 
 /** Revive `url` (serialized to its href string) back into a real `URL`. */
@@ -435,12 +440,30 @@ if (typeof document !== "undefined") {
     history.replaceState({ howlReact: true }, "", location.href);
   }
 
+  // Snapshot the eligible anchor on `pointerdown`, while it is still attached and
+  // its `[client-nav]` ancestor is still resolvable. Capture phase so it runs
+  // before any app `pointerdown` handler. The click listener below falls back to
+  // this when the live lookup fails because the anchor was detached mid-dispatch.
+  document.addEventListener("pointerdown", (e) => {
+    pendingNavAnchor = eligibleAnchor(e.target);
+  }, { capture: true });
+
   document.addEventListener("click", (e) => {
+    const snapshot = pendingNavAnchor;
+    pendingNavAnchor = null;
     if (
       e.defaultPrevented || e.button !== 0 ||
       e.ctrlKey || e.metaKey || e.altKey || e.shiftKey
     ) return;
-    const a = eligibleAnchor(e.target);
+    let a = eligibleAnchor(e.target);
+    if (a === null && snapshot !== null) {
+      // The live lookup failed — an app `onClick` handler earlier in this same
+      // dispatch detached the anchor (e.g. a portal closing), so its
+      // `[client-nav]` ancestor is gone. If this click is for the anchor we
+      // snapshotted on `pointerdown`, it was eligible then; honour it.
+      const clicked = e.target instanceof Element ? e.target.closest("a") : null;
+      if (clicked === snapshot) a = snapshot;
+    }
     if (a === null) return;
     e.preventDefault();
     if (a.href !== location.href) {

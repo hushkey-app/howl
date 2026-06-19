@@ -82,3 +82,45 @@ const libValue = LIB_VALUE;
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+/**
+ * `<Teleport to="body">` content must reach the SSR HTML. Vue collects it into
+ * the render context's `teleports` map rather than the main stream; the engine
+ * passes that context and injects `teleports.body` into `<body>`. Regression
+ * test for teleported markup silently missing from server output.
+ */
+Deno.test("vueEngine — <Teleport to=body> content is server-rendered into <body>", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const pageFile = path.join(dir, "page.vue");
+    await Deno.writeTextFile(
+      pageFile,
+      `<template><main><p>in-place</p>` +
+        `<Teleport to="body"><a id="tp" href="/contact">teleported</a></Teleport>` +
+        `</main></template>`,
+    );
+
+    const engine = vueEngine();
+    const res = await engine.render(fakeContext("http://localhost/"), {
+      filePath: pageFile,
+      data: null,
+      headers: new Headers(),
+      status: 200,
+      dev: true,
+    });
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    // In-place placeholder stays in the tree where the <Teleport> was declared.
+    expect(html).toContain("<!--teleport start-->");
+    // The teleported anchor is present in the SSR HTML (was dropped pre-fix).
+    expect(html).toContain(`<a id="tp" href="/contact">teleported</a>`);
+    // …and injected inside <body>, not stranded after </body>.
+    const anchorAt = html.indexOf(`id="tp"`);
+    const bodyCloseAt = html.lastIndexOf("</body>");
+    expect(anchorAt).toBeGreaterThan(-1);
+    expect(anchorAt).toBeLessThan(bodyCloseAt);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

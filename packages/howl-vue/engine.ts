@@ -342,6 +342,44 @@ function injectBefore(html: string, closeTag: string, content: string): string {
   return i === -1 ? html + content : html.slice(0, i) + content + html.slice(i);
 }
 
+/** SSR render context Vue populates — `teleports` maps a target selector to the
+ * teleported markup (with hydration anchors). Without this object the content is
+ * computed and discarded, so `<Teleport>` output never reaches the SSR HTML. */
+interface VueSsrContext {
+  /** Teleported markup keyed by target selector (`"body"`, `"#id"`, …). */
+  teleports?: Record<string, string>;
+}
+
+/**
+ * Resolve the markup to inject into `<body>` from Vue's collected teleports.
+ *
+ * Only `to="body"` can be placed by string injection; an arbitrary CSS-selector
+ * target would need real DOM parsing to locate. Non-`body` targets fall through
+ * to client-only rendering (the pre-fix behaviour) — warn in dev so the gap is
+ * visible while staying silent in prod.
+ */
+function teleportBodyHtml(
+  ctx: VueSsrContext,
+  dev: boolean,
+  filePath: string,
+): string {
+  const teleports = ctx.teleports;
+  if (teleports === undefined) return "";
+  if (dev) {
+    for (const target of Object.keys(teleports)) {
+      if (target !== "body") {
+        // deno-lint-ignore no-console
+        console.warn(
+          `🐺 Vue SSR: <Teleport to="${target}"> in ${filePath} is not ` +
+            `server-rendered (only to="body" is injected). Its content appears ` +
+            `after hydration.`,
+        );
+      }
+    }
+  }
+  return teleports.body ?? "";
+}
+
 /**
  * Append Howl's build-id cache-bust to local **asset** references so the static
  * middleware serves them `immutable`: `href` on `<link>` (stylesheets, icons)
@@ -589,7 +627,9 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
             }
             ssrApp.use(pinia);
           }
-          const doc = await renderToString(ssrApp);
+          const ssrCtx: VueSsrContext = {};
+          const doc = await renderToString(ssrApp, ssrCtx);
+          const teleportBody = teleportBodyHtml(ssrCtx, opts.dev === true, opts.filePath);
           const { headTags, bodyTags } = await resolveHeadTags();
           const piniaScript = pinia === null ? "" : (
             `<script data-howl-pinia>window.__PINIA__=${
@@ -599,7 +639,8 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           html = injectBefore(
             doc,
             "</body>",
-            piniaScript + aotScript + routesScript + hydration + live + bodyTags,
+            teleportBody + piniaScript + aotScript + routesScript + hydration + live +
+              bodyTags,
           );
           html = injectBefore(html, "</head>", preload + styleTag + headTags);
           // `_app.vue` may render a full `<html>` or just `<head>`+`<body>`.
@@ -611,12 +652,14 @@ export function vueEngine(options: VueEngineOptions = {}): RenderEngine<Context<
           const ssrApp = createSSRApp(inner);
           ssrApp.use(head);
           provideRoute(ssrApp, createRoute(props as unknown as Record<string, unknown>));
-          const appHtml = await renderToString(ssrApp);
+          const ssrCtx: VueSsrContext = {};
+          const appHtml = await renderToString(ssrApp, ssrCtx);
+          const teleportBody = teleportBodyHtml(ssrCtx, opts.dev === true, opts.filePath);
           const { headTags, bodyTags } = await resolveHeadTags();
           html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
             `<meta name="viewport" content="width=device-width, initial-scale=1">` +
             `${preload}${styleTag}${headTags}</head>` +
-            `<body><div id="howl-app">${appHtml}</div>${aotScript}${routesScript}${hydration}${live}${bodyTags}</body></html>`;
+            `<body><div id="howl-app">${appHtml}</div>${teleportBody}${aotScript}${routesScript}${hydration}${live}${bodyTags}</body></html>`;
         }
 
         // In prod, cache-bust user-authored local assets so they're served

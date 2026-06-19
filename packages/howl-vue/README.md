@@ -71,6 +71,13 @@ SSR HTML is fetched ahead so the click swap is instant. **Opt-in** (off without 
 respects `Save-Data` / `prefers-reduced-data`; exclude a link or subtree with
 `client-prefetch="false"`.
 
+**`<Teleport>`.** Content teleported with `<Teleport to="body">` is server-rendered into `<body>`
+(Vue collects it separately from the main stream; Howl injects it). Only `to="body"` is
+server-injected — other selector targets render client-side after hydration (a dev warning flags
+them). Links inside teleported content are intercepted normally: the eligible anchor is snapshotted
+on `pointerdown`, so a link that detaches itself mid-click (e.g. a menu/`<Teleport>` that closes on
+`@click`) still client-navigates instead of falling back to a full reload.
+
 Scoped CSS for the whole chain is **inlined** into the document as one `<style data-howl-vue-css>`
 (no extra request, no stale-chunk 404, and it travels with the client-nav swap) — so styling works
 on both dev and prod. In dev, Vue pages also get a small live-reload script (they don't load any
