@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/mongo-service",
-  "version": "0.14.8",
+  "version": "0.14.9",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,8 +17,8 @@
     "exclude": ["tests/", "HANDOFF.md"]
   },
   "imports": {
-    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.8",
-    "mongodb": "npm:mongodb@^6.0.0",
+    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.9",
+    "mongodb": "npm:mongodb@^7.0.0",
     "zod": "npm:zod@^4.3.6",
     "@std/expect": "jsr:@std/expect@^1.0.18"
   }

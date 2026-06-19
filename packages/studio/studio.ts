@@ -120,7 +120,10 @@ ${userCss}
 <script type="importmap">{"imports":{
   "react":"https://esm.sh/react@18.3.1",
   "react/jsx-runtime":"https://esm.sh/react@18.3.1/jsx-runtime",
-  "react-dom/client":"https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1"
+  "react-dom/client":"https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
+  "npm:react@^18.3.1":"https://esm.sh/react@18.3.1",
+  "npm:react@^18.3.1/jsx-runtime":"https://esm.sh/react@18.3.1/jsx-runtime",
+  "npm:react-dom@^18.3.1/client":"https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1"
 }}</script>
 <style>
 :root{--font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;--font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}

@@ -34,6 +34,36 @@ export interface BuildOutput {
 
 let esbuild: null | typeof import("esbuild") = null;
 
+/**
+ * Run an esbuild call, recovering once from a dead service process. Deno
+ * `--watch` keeps this module's `esbuild` singleton alive across restarts when
+ * howl is a cached (JSR) dependency, but the esbuild service child dies with the
+ * previous isolate — so the first build of the new run writes to a closed pipe
+ * and throws `The service was stopped: write EPIPE`. Drop the stale service and
+ * retry with a fresh one. (Local-workspace howl never hits this: the module is
+ * re-evaluated each restart, resetting the singleton so a fresh service spawns.)
+ */
+async function withEsbuildServiceRetry<R>(run: () => Promise<R>): Promise<R> {
+  try {
+    return await run();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/service was stopped|service is no longer running|EPIPE/i.test(message)) {
+      throw err;
+    }
+    try {
+      await esbuild?.stop();
+    } catch {
+      // stop() can itself throw against an already-dead service — ignore it; the
+      // point is only to clear esbuild's cached (dead) service handle.
+    }
+    esbuild = null;
+    initialized = false;
+    await startEsbuild();
+    return await run();
+  }
+}
+
 export async function bundleJs(
   options: HowlBundleOptions,
 ): Promise<BuildOutput> {
@@ -49,7 +79,7 @@ export async function bundleJs(
     }
   }
 
-  const bundle = await esbuild!.build({
+  const bundle = await withEsbuildServiceRetry(() => esbuild!.build({
     entryPoints: options.entryPoints,
 
     platform: "browser",
@@ -95,7 +125,7 @@ export async function bundleJs(
         publicEnvVarPrefix: "howl_PUBLIC_",
       }),
     ],
-  });
+  }));
 
   const files: BuildOutput["files"] = [];
   for (let i = 0; i < bundle.outputFiles.length; i++) {
@@ -192,7 +222,7 @@ export async function bundleVueSsr(
   }
   await Deno.mkdir(options.outDir, { recursive: true });
 
-  await esbuild!.build({
+  await withEsbuildServiceRetry(() => esbuild!.build({
     entryPoints: options.entryPoints,
     platform: "neutral",
     format: "esm",
@@ -218,7 +248,7 @@ export async function bundleVueSsr(
       buildIdPlugin(options.buildId),
       ...(options.plugins ?? []),
     ],
-  });
+  }));
 
   const entryToFile = new Map<string, string>();
   for (const name of Object.keys(options.entryPoints)) {
