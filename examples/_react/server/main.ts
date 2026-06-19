@@ -2,7 +2,7 @@ import { Howl, staticFiles } from "@hushkey/howl";
 import { reactEngine } from "@hushkey/howl-react";
 import type { State } from "../howl.config.ts";
 
-export const app = new Howl<State>({
+export const app: Howl<State> = new Howl<State>({
   logger: true,
   engines: { react: reactEngine() },
 });

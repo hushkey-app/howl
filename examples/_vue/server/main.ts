@@ -3,7 +3,7 @@ import { vueEngine } from "@hushkey/howl-vue";
 import { apiConfig, type State } from "../howl.config.ts";
 // import denoJson from "../deno.json" with { type: "json" }; used for the version
 
-export const app = new Howl<State>({
+export const app: Howl<State> = new Howl<State>({
   logger: true,
   debug: true,
   engines: { vue: vueEngine() },

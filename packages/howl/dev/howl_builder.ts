@@ -261,6 +261,12 @@ export class HowlBuilder<State = any> {
       );
     }
 
+    // Deno --watch keeps cached-JSR module state (incl. the esbuild service
+    // handle) alive across restarts, but the service's pipe dies with the old
+    // isolate. Drop any inherited handle so the first build spawns a fresh
+    // service instead of writing to a dead pipe (EPIPE "service was stopped").
+    await stopEsbuild();
+
     // Crawl apis/ before starting — dev logs failures and keeps serving.
     await this.#crawlApis(false);
 
