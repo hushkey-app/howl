@@ -17,11 +17,11 @@ export function denoJson(spec: ProjectSpec): string {
 
   if (engine === "react") {
     imports["@hushkey/howl-react"] = `jsr:@hushkey/howl-react@^${HOWL_VERSION}`;
-    imports["react"] = "npm:react@^18.3.1";
-    imports["react/jsx-runtime"] = "npm:react@^18.3.1/jsx-runtime";
-    imports["react-dom"] = "npm:react-dom@^18.3.1";
-    imports["react-dom/server"] = "npm:react-dom@^18.3.1/server";
-    imports["react-dom/client"] = "npm:react-dom@^18.3.1/client";
+    imports["react"] = "npm:react@^19.1.0";
+    imports["react/jsx-runtime"] = "npm:react@^19.1.0/jsx-runtime";
+    imports["react-dom"] = "npm:react-dom@^19.1.0";
+    imports["react-dom/server"] = "npm:react-dom@^19.1.0/server";
+    imports["react-dom/client"] = "npm:react-dom@^19.1.0/client";
   } else if (engine === "vue") {
     imports["@hushkey/howl-vue"] = `jsr:@hushkey/howl-vue@^${HOWL_VERSION}`;
     imports["vue"] = "npm:vue@^3.5.13";
@@ -68,7 +68,7 @@ export function denoJson(spec: ProjectSpec): string {
   if (engine !== null) {
     compilerOptions.jsx = "react-jsx";
     compilerOptions.jsxImportSource = engine === "react" ? "react" : "vue";
-    if (engine === "react") compilerOptions.jsxImportSourceTypes = "npm:@types/react@^18.3.0";
+    if (engine === "react") compilerOptions.jsxImportSourceTypes = "npm:@types/react@^19.1.0";
   }
 
   // An app, not a publishable package — no `name`/`version`/`exports`, which

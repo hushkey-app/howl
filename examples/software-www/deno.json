@@ -11,24 +11,24 @@
   "imports": {
     "zod": "npm:zod@4.3.6",
     "@tailwindcss/typography": "npm:@tailwindcss/typography@^0.5.19",
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.14.9",
-    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.14.9/dev",
-    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.14.9/api",
-    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.14.9",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.14.10",
+    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.14.10/dev",
+    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.14.10/api",
+    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.14.10",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@howl/config": "./howl.config.ts",
-    "react": "npm:react@^18.3.1",
-    "react/jsx-runtime": "npm:react@^18.3.1/jsx-runtime",
-    "react-dom": "npm:react-dom@^18.3.1",
-    "react-dom/server": "npm:react-dom@^18.3.1/server",
-    "react-dom/client": "npm:react-dom@^18.3.1/client",
+    "react": "npm:react@^19.1.0",
+    "react/jsx-runtime": "npm:react@^19.1.0/jsx-runtime",
+    "react-dom": "npm:react-dom@^19.1.0",
+    "react-dom/server": "npm:react-dom@^19.1.0/server",
+    "react-dom/client": "npm:react-dom@^19.1.0/client",
     "tailwindcss": "npm:tailwindcss@4.1.18",
     "daisyui": "npm:daisyui@5.5.18"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    "jsxImportSourceTypes": "npm:@types/react@^18.3.0",
+    "jsxImportSourceTypes": "npm:@types/react@^19.1.0",
     "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
   }
 }

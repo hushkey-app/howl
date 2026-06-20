@@ -223,7 +223,7 @@ renders from the embedded modules — the binary is self-contained, no source on
 Deno resolves React's JSX types via `@types/react`. In your app's `deno.json`:
 
 ```jsonc
-"imports": { "@types/react": "npm:@types/react@^18.3.0", /* … react, react-dom … */ },
+"imports": { "@types/react": "npm:@types/react@^19.1.0", /* … react, react-dom … */ },
 "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "react", "jsxImportSourceTypes": "@types/react" }
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/studio",
-  "version": "0.14.9",
+  "version": "0.14.10",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,14 +18,14 @@
     "exclude": ["tests/", "scripts/"]
   },
   "imports": {
-    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.9",
+    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.14.10",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "esbuild": "npm:esbuild@^0.25.0",
-    "react": "npm:react@^18.3.1",
-    "react/jsx-runtime": "npm:react@^18.3.1/jsx-runtime",
-    "react-dom/client": "npm:react-dom@^18.3.1/client",
-    "@types/react": "npm:@types/react@^18.3.0"
+    "react": "npm:react@^19.1.0",
+    "react/jsx-runtime": "npm:react@^19.1.0/jsx-runtime",
+    "react-dom/client": "npm:react-dom@^19.1.0/client",
+    "@types/react": "npm:@types/react@^19.1.0"
   },
   "compilerOptions": {
     "jsx": "react-jsx",

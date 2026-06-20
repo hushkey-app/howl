@@ -9,7 +9,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "The core has no built-in renderer. Pages render through a pluggable engine you register explicitly — @hushkey/howl-vue (Vue 3 SFCs) or @hushkey/howl-react (React 18 .tsx). Pick one."
+          "text": "The core has no built-in renderer. Pages render through a pluggable engine you register explicitly — @hushkey/howl-vue (Vue 3 SFCs) or @hushkey/howl-react (React 19 .tsx). Pick one."
         },
         {
           "type": "code",

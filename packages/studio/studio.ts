@@ -118,12 +118,12 @@ function standaloneHtml(path: string, style?: StudioStyle): string {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 ${userCss}
 <script type="importmap">{"imports":{
-  "react":"https://esm.sh/react@18.3.1",
-  "react/jsx-runtime":"https://esm.sh/react@18.3.1/jsx-runtime",
-  "react-dom/client":"https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
-  "npm:react@^18.3.1":"https://esm.sh/react@18.3.1",
-  "npm:react@^18.3.1/jsx-runtime":"https://esm.sh/react@18.3.1/jsx-runtime",
-  "npm:react-dom@^18.3.1/client":"https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1"
+  "react":"https://esm.sh/react@19.1.0",
+  "react/jsx-runtime":"https://esm.sh/react@19.1.0/jsx-runtime",
+  "react-dom/client":"https://esm.sh/react-dom@19.1.0/client?deps=react@19.1.0",
+  "npm:react@^19.1.0":"https://esm.sh/react@19.1.0",
+  "npm:react@^19.1.0/jsx-runtime":"https://esm.sh/react@19.1.0/jsx-runtime",
+  "npm:react-dom@^19.1.0/client":"https://esm.sh/react-dom@19.1.0/client?deps=react@19.1.0"
 }}</script>
 <style>
 :root{--font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;--font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}

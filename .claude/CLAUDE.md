@@ -8,7 +8,7 @@ built-in view renderer**: Preact was removed entirely; pages render through plug
 (`@hushkey/howl-vue`, `@hushkey/howl-react`).
 
 Root: `~/Private/typescript/howl/`\
-Stack: Deno 2.x · Zod 4 · esbuild 0.25 · engines: Vue 3 / React 18
+Stack: Deno 2.x · Zod 4 · esbuild 0.25 · engines: Vue 3 / React 19
 
 ---
 

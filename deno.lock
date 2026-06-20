@@ -53,11 +53,11 @@
     "jsr:@zip-js/zip-js@^2.7.52": "2.8.26",
     "npm:@electric-sql/pglite@0.2": "0.2.17",
     "npm:@opentelemetry/api@^1.9.0": "1.9.1",
-    "npm:@radix-ui/react-slot@^1.1.2": "1.2.5_@types+react@18.3.28_react@18.3.1",
+    "npm:@radix-ui/react-slot@^1.1.2": "1.2.5_@types+react@19.2.17_react@19.2.7",
     "npm:@tailwindcss/postcss@4": "4.3.0",
     "npm:@tailwindcss/typography@~0.5.19": "0.5.19_tailwindcss@4.3.0",
-    "npm:@types/react@^18.3.0": "18.3.28",
-    "npm:@unhead/react@2": "2.1.15_react@18.3.1",
+    "npm:@types/react@^19.1.0": "19.2.17",
+    "npm:@unhead/react@2": "2.1.15_react@19.2.7",
     "npm:@unhead/vue@2": "2.1.9_vue@3.5.29__typescript@5.9.3_typescript@5.9.3",
     "npm:@vue/compiler-sfc@^3.5.13": "3.5.29",
     "npm:@vue/runtime-dom@^3.5.13": "3.5.29",
@@ -67,17 +67,16 @@
     "npm:esbuild-wasm@~0.27.4": "0.27.7",
     "npm:esbuild@0.25": "0.25.12",
     "npm:esbuild@~0.25.5": "0.25.12",
-    "npm:jotai@2": "2.20.0_@types+react@18.3.28_react@18.3.1",
+    "npm:jotai@2": "2.20.0_@types+react@19.2.17_react@19.2.7",
     "npm:linkedom@~0.18.12": "0.18.12",
-    "npm:lucide-react@0.468": "0.468.0_react@18.3.1",
-    "npm:mongodb@6": "6.21.0",
-    "npm:mongodb@7": "7.3.0",
+    "npm:lucide-react@0.468": "0.468.0_react@19.2.7",
+    "npm:mongodb@^7.3.0": "7.3.0",
     "npm:openapi-types@12.1.3": "12.1.3",
     "npm:pg@^8.13.0": "8.21.0",
     "npm:pinia@^2.2.0": "2.3.1_typescript@5.9.3_vue@3.5.29__typescript@5.9.3",
     "npm:postcss@^8.5.6": "8.5.15",
-    "npm:react-dom@^18.3.1": "18.3.1_react@18.3.1",
-    "npm:react@^18.3.1": "18.3.1",
+    "npm:react-dom@^19.1.0": "19.2.7_react@19.2.7",
+    "npm:react@^19.1.0": "19.2.7",
     "npm:tailwind-merge@^3.3.1": "3.6.0",
     "npm:tailwindcss@4": "4.3.0",
     "npm:tailwindcss@4.1.18": "4.1.18",
@@ -449,7 +448,7 @@
     "@opentelemetry/api@1.9.1": {
       "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="
     },
-    "@radix-ui/react-compose-refs@1.1.3_@types+react@18.3.28_react@18.3.1": {
+    "@radix-ui/react-compose-refs@1.1.3_@types+react@19.2.17_react@19.2.7": {
       "integrity": "sha512-rYOP8OMnuuPMQF1uhPVlGNcCDlkokKqGFE3JcxFViIkAXP7EvFWUliJAstrapypaBLJNHbZL6jGhbVDGTwmVhA==",
       "dependencies": [
         "@types/react",
@@ -459,7 +458,7 @@
         "@types/react"
       ]
     },
-    "@radix-ui/react-slot@1.2.5_@types+react@18.3.28_react@18.3.1": {
+    "@radix-ui/react-slot@1.2.5_@types+react@19.2.17_react@19.2.7": {
       "integrity": "sha512-rCMO3QsIVKv5JTY5CVbo2MvO77SpEqqYc8AvRE7OWqRDOIqAKjsp+DrmnY9uc8NPdxB5E2z47HTYGeE2+NTptg==",
       "dependencies": [
         "@radix-ui/react-compose-refs",
@@ -575,24 +574,14 @@
         "tailwindcss@4.3.0"
       ]
     },
-    "@types/prop-types@15.7.15": {
-      "integrity": "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw=="
-    },
-    "@types/react@18.3.28": {
-      "integrity": "sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw==",
+    "@types/react@19.2.17": {
+      "integrity": "sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==",
       "dependencies": [
-        "@types/prop-types",
         "csstype"
       ]
     },
     "@types/webidl-conversions@7.0.3": {
       "integrity": "sha512-CiJJvcRtIgzadHCYXw7dqEnMNRjhGZlYK05Mj9OyktqV8uVT8fD2BFOB7S1uwBE3Kj2Z+4UyPmFw/Ixgw/LAlA=="
-    },
-    "@types/whatwg-url@11.0.5": {
-      "integrity": "sha512-coYR071JRaHa+xoEvvYqvnIHaVqaYrLPbsufM9BF63HkwI5Lgmy2QR8Q5K/lYDYo5AK82wOvSOS0UsLTpTG7uQ==",
-      "dependencies": [
-        "@types/webidl-conversions"
-      ]
     },
     "@types/whatwg-url@13.0.0": {
       "integrity": "sha512-N8WXpbE6Wgri7KUSvrmQcqrMllKZ9uxkYWMt+mCSGwNc0Hsw9VQTW7ApqI4XNrx6/SaM2QQJCzMPDEXE058s+Q==",
@@ -600,7 +589,7 @@
         "@types/webidl-conversions"
       ]
     },
-    "@unhead/react@2.1.15_react@18.3.1": {
+    "@unhead/react@2.1.15_react@19.2.7": {
       "integrity": "sha512-5hfAaZ3XJq9JkspRzZdSPsMrXXA8v/SKiEOxZcN9L40o44byF/50bcQuOLgSSCAx8802mI5VG32KZXWTtsLu9Q==",
       "dependencies": [
         "react",
@@ -691,9 +680,6 @@
     },
     "boolbase@1.0.0": {
       "integrity": "sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww=="
-    },
-    "bson@6.10.4": {
-      "integrity": "sha512-WIsKqkSC0ABoBJuT1LEX+2HEvNmNKKgnTAyd0fL8qzK4SH2i9NXg+t08YtdZp/V9IZ33cxe3iV4yM0qg8lMQng=="
     },
     "bson@7.3.0": {
       "integrity": "sha512-WmjjMEwFwZHmGnAb7wn90MhkiT+mTm4x/rLj7dvAPWfwnVWDXhLun2e+UM88MJoDGW624yzZglVX/zTBy9ZZMw=="
@@ -836,7 +822,7 @@
       "integrity": "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==",
       "bin": true
     },
-    "jotai@2.20.0_@types+react@18.3.28_react@18.3.1": {
+    "jotai@2.20.0_@types+react@19.2.17_react@19.2.7": {
       "integrity": "sha512-b5GAqgmXmXzB4WPaTH26ppk9Sl7AA9WSQX7yfdM+gJ1rFROiWcVbi97gFuN/yVCojOcbcvop2sfLL+fjxW0JVg==",
       "dependencies": [
         "@types/react",
@@ -846,9 +832,6 @@
         "@types/react",
         "react"
       ]
-    },
-    "js-tokens@4.0.0": {
-      "integrity": "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="
     },
     "lightningcss-android-arm64@1.32.0": {
       "integrity": "sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==",
@@ -934,14 +917,7 @@
         "uhyphen"
       ]
     },
-    "loose-envify@1.4.0": {
-      "integrity": "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==",
-      "dependencies": [
-        "js-tokens"
-      ],
-      "bin": true
-    },
-    "lucide-react@0.468.0_react@18.3.1": {
+    "lucide-react@0.468.0_react@19.2.7": {
       "integrity": "sha512-6koYRhnM2N0GGZIdXzSeiNwguv1gt/FAjZOiPl76roBi3xKEXa4WmfpxgQwTTL4KipXjefrnf3oV4IsYhi4JFA==",
       "dependencies": [
         "react"
@@ -956,34 +932,19 @@
     "memory-pager@1.5.0": {
       "integrity": "sha512-ZS4Bp4r/Zoeq6+NLJpP+0Zzm0pR8whtGPf1XExKLJBAczGMnSi3It14OiNCStjQjM6NU1okjQGSxgEZN8eBYKg=="
     },
-    "mongodb-connection-string-url@3.0.2": {
-      "integrity": "sha512-rMO7CGo/9BFwyZABcKAWL8UJwH/Kc2x0g72uhDWzG48URRax5TCIcJ7Rc3RZqffZzO/Gwff/jyKwCU9TN8gehA==",
-      "dependencies": [
-        "@types/whatwg-url@11.0.5",
-        "whatwg-url"
-      ]
-    },
     "mongodb-connection-string-url@7.0.1": {
       "integrity": "sha512-h0AZ9A7IDVwwHyMxmdMXKy+9oNlF0zFoahHiX3vQ8e3KFcSP3VmsmfvtRSuLPxmyv2vjIDxqty8smTgie/SNRQ==",
       "dependencies": [
-        "@types/whatwg-url@13.0.0",
+        "@types/whatwg-url",
         "whatwg-url"
-      ]
-    },
-    "mongodb@6.21.0": {
-      "integrity": "sha512-URyb/VXMjJ4da46OeSXg+puO39XH9DeQpWCslifrRn9JWugy0D+DvvBvkm2WxmHe61O/H19JM66p1z7RHVkZ6A==",
-      "dependencies": [
-        "@mongodb-js/saslprep",
-        "bson@6.10.4",
-        "mongodb-connection-string-url@3.0.2"
       ]
     },
     "mongodb@7.3.0": {
       "integrity": "sha512-WpCqSx7JAU9vcyjm/SU7ydnHls2YrfU3Y3sx4Ml9D7sPe4mXPlaapndiurDXrQ7/VvJkB4/i7b7WovHb8bd8sg==",
       "dependencies": [
         "@mongodb-js/saslprep",
-        "bson@7.3.0",
-        "mongodb-connection-string-url@7.0.1"
+        "bson",
+        "mongodb-connection-string-url"
       ]
     },
     "nanoid@3.3.12": {
@@ -1094,25 +1055,18 @@
     "punycode@2.3.1": {
       "integrity": "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="
     },
-    "react-dom@18.3.1_react@18.3.1": {
-      "integrity": "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==",
+    "react-dom@19.2.7_react@19.2.7": {
+      "integrity": "sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==",
       "dependencies": [
-        "loose-envify",
         "react",
         "scheduler"
       ]
     },
-    "react@18.3.1": {
-      "integrity": "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==",
-      "dependencies": [
-        "loose-envify"
-      ]
+    "react@19.2.7": {
+      "integrity": "sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ=="
     },
-    "scheduler@0.23.2": {
-      "integrity": "sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==",
-      "dependencies": [
-        "loose-envify"
-      ]
+    "scheduler@0.27.0": {
+      "integrity": "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="
     },
     "source-map-js@1.2.1": {
       "integrity": "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA=="
@@ -1209,26 +1163,26 @@
     "members": {
       "examples/_backend": {
         "dependencies": [
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
           "npm:zod@4.3.6"
         ]
       },
       "examples/_db": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
-          "jsr:@hushkey/mongo-service@~0.14.8",
-          "jsr:@hushkey/pg-service@~0.14.8",
-          "jsr:@hushkey/service-core@~0.14.8",
-          "jsr:@hushkey/sqlite-service@~0.14.8",
-          "jsr:@hushkey/studio@~0.14.8",
+          "jsr:@hushkey/howl-vue@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
+          "jsr:@hushkey/mongo-service@~0.14.9",
+          "jsr:@hushkey/pg-service@~0.14.9",
+          "jsr:@hushkey/service-core@~0.14.9",
+          "jsr:@hushkey/sqlite-service@~0.14.9",
+          "jsr:@hushkey/studio@~0.14.9",
           "jsr:@std/path@1",
           "npm:@electric-sql/pglite@0.2",
           "npm:@unhead/vue@2",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
-          "npm:mongodb@6",
+          "npm:mongodb@^7.3.0",
           "npm:pg@^8.13.0",
           "npm:tailwindcss@4.1.18",
           "npm:vue@^3.5.13",
@@ -1237,36 +1191,36 @@
       },
       "examples/_react": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl-react@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
-          "npm:@types/react@^18.3.0",
+          "npm:@types/react@^19.1.0",
           "npm:daisyui@5.5.18",
-          "npm:react-dom@^18.3.1",
-          "npm:react@^18.3.1",
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0",
           "npm:tailwindcss@4.1.18"
         ]
       },
       "examples/_react-shadcn": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl-react@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
           "npm:@radix-ui/react-slot@^1.1.2",
-          "npm:@types/react@^18.3.0",
+          "npm:@types/react@^19.1.0",
           "npm:class-variance-authority@~0.7.1",
           "npm:clsx@^2.1.1",
           "npm:lucide-react@0.468",
-          "npm:react-dom@^18.3.1",
-          "npm:react@^18.3.1",
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0",
           "npm:tailwind-merge@^3.3.1",
           "npm:tailwindcss@4.1.18"
         ]
       },
       "examples/_vue": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl-vue@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
@@ -1277,8 +1231,8 @@
       },
       "examples/kawaii-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-vue@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl-vue@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
           "npm:@vue/runtime-dom@^3.5.13",
           "npm:daisyui@5.5.18",
@@ -1289,27 +1243,27 @@
       },
       "examples/software-www": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl-react@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
           "npm:@tailwindcss/typography@~0.5.19",
-          "npm:@types/react@^18.3.0",
+          "npm:@types/react@^19.1.0",
           "npm:daisyui@5.5.18",
-          "npm:react-dom@^18.3.1",
-          "npm:react@^18.3.1",
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0",
           "npm:tailwindcss@4.1.18",
           "npm:zod@4.3.6"
         ]
       },
       "examples/www": {
         "dependencies": [
-          "jsr:@hushkey/howl-react@~0.14.8",
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl-react@~0.14.9",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/path@1",
-          "npm:@types/react@^18.3.0",
+          "npm:@types/react@^19.1.0",
           "npm:daisyui@5.5.18",
-          "npm:react-dom@^18.3.1",
-          "npm:react@^18.3.1",
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0",
           "npm:tailwindcss@4.1.18",
           "npm:zod@4.3.6"
         ]
@@ -1351,19 +1305,19 @@
       },
       "packages/howl-react": {
         "dependencies": [
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
           "npm:@unhead/react@2",
           "npm:esbuild@0.25",
           "npm:jotai@2",
-          "npm:react-dom@^18.3.1",
-          "npm:react@^18.3.1"
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0"
         ]
       },
       "packages/howl-vue": {
         "dependencies": [
-          "jsr:@hushkey/howl@~0.14.8",
+          "jsr:@hushkey/howl@~0.14.9",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/jsonc@1",
           "jsr:@std/path@1",
@@ -1378,15 +1332,15 @@
       },
       "packages/mongo-service": {
         "dependencies": [
-          "jsr:@hushkey/service-core@~0.14.8",
+          "jsr:@hushkey/service-core@~0.14.9",
           "jsr:@std/expect@^1.0.18",
-          "npm:mongodb@7",
+          "npm:mongodb@^7.3.0",
           "npm:zod@^4.3.6"
         ]
       },
       "packages/pg-service": {
         "dependencies": [
-          "jsr:@hushkey/service-core@~0.14.8",
+          "jsr:@hushkey/service-core@~0.14.9",
           "jsr:@std/expect@^1.0.18",
           "npm:@electric-sql/pglite@0.2",
           "npm:pg@^8.13.0"
@@ -1400,19 +1354,19 @@
       },
       "packages/sqlite-service": {
         "dependencies": [
-          "jsr:@hushkey/service-core@~0.14.8",
+          "jsr:@hushkey/service-core@~0.14.9",
           "jsr:@std/expect@^1.0.18"
         ]
       },
       "packages/studio": {
         "dependencies": [
-          "jsr:@hushkey/service-core@~0.14.8",
+          "jsr:@hushkey/service-core@~0.14.9",
           "jsr:@std/expect@^1.0.18",
           "jsr:@std/path@1",
-          "npm:@types/react@^18.3.0",
+          "npm:@types/react@^19.1.0",
           "npm:esbuild@0.25",
-          "npm:react-dom@^18.3.1",
-          "npm:react@^18.3.1"
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0"
         ]
       }
     }
