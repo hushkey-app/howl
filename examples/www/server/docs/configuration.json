@@ -136,6 +136,10 @@
             ],
             ["root", "Project root. Defaults to Deno.cwd()."],
             ["outDir", "Build output directory. Defaults to _howl; the scaffolder uses dist."],
+            [
+              "staticDir",
+              "Source directory served by staticFiles(). Defaults to <root>/static; set it anywhere (relative to root, or absolute) to colocate assets, e.g. ./client/static."
+            ],
             ["serverEntry", "Server entry path; apis/ is resolved relative to its directory."],
             [
               "clientEntry",
@@ -151,6 +155,14 @@
         {
           "type": "warning",
           "text": "The engine's esbuild plugin must be passed in plugins — it owns the .vue / .tsx page extensions and compiles them. The render engine (vueEngine/reactEngine) goes in the Howl constructor; the build plugin (vuePlugin/reactPlugin) goes in HowlBuilder. They are two halves of the same engine."
+        },
+        {
+          "type": "warning",
+          "text": "staticDir is the build half; app.use(staticFiles()) is the serve half. Setting (or defaulting) a populated staticDir without registering staticFiles() means the build still processes the assets but nothing serves them at runtime — they 404 silently. HowlBuilder.listen()/build() print a warning when a static dir has files but the middleware is missing, so the mismatch is loud instead of silent."
+        },
+        {
+          "type": "tip",
+          "text": "Client bundles tree-shake npm barrel imports automatically: importing a single named export from a package that declares \"sideEffects\": false (lucide-react/lucide-vue-next, date-fns, radix, …) pulls in only what you use, not the whole library. This works for both engines because it happens in the shared resolver, not the engine plugin. No per-icon deep imports needed."
         }
       ]
     },

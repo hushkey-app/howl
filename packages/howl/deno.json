@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/howl",
-  "version": "0.14.10",
+  "version": "0.15.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/hushkey-app/howl"
@@ -38,7 +38,7 @@
     "@std/semver": "jsr:@std/semver@^1.0.8",
     "@std/uuid": "jsr:@std/uuid@^1.1.0",
     "@std/testing": "jsr:@std/testing@^1.0.0",
-    "@deno/esbuild-plugin": "jsr:@deno/esbuild-plugin@^1.2.1",
+    "@deno/loader": "jsr:@deno/loader@^0.3.14",
     "esbuild": "npm:esbuild@^0.25.0",
     "esbuild-wasm": "npm:esbuild-wasm@^0.27.4",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",

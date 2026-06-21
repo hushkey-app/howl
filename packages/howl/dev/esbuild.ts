@@ -1,4 +1,4 @@
-import { denoPlugin } from "@deno/esbuild-plugin";
+import { denoPlugin } from "./deno_esbuild_plugin.ts";
 import type { BuildOptions, Plugin as EsbuildPlugin } from "esbuild";
 import * as path from "@std/path";
 

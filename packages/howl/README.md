@@ -180,6 +180,11 @@ const builder = new HowlBuilder<State>(app, {
   outDir: "dist",
   serverEntry: "./server/main.ts",
   clientEntry: "./client/pages/_app.ts",
+  // Optional — defaults to "<root>/static". Point it anywhere (relative to
+  // root, or absolute) to colocate assets, e.g. "./client/static". Pair it with
+  // app.use(staticFiles()); the builder warns if the dir has files but the
+  // middleware is missing (assets would 404 silently otherwise).
+  staticDir: "./client/static",
 });
 
 tailwindPlugin(builder.getBuilder("default")!);
@@ -190,6 +195,12 @@ if (Deno.args.includes("build")) {
   await builder.listen();
 }
 ```
+
+> **npm tree-shaking** — Client bundles drop unused exports from npm barrel imports
+> automatically. Importing one named export from a package that declares `"sideEffects": false`
+> (`lucide-react` / `lucide-vue-next`, `date-fns`, radix, …) bundles only what you use instead of
+> the whole library — no per-icon deep imports required. Applies to both engines, since it lives in
+> the shared resolver rather than the engine plugin.
 
 **`client/pages/_app.tsx`** — root HTML shell
 

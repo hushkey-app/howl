@@ -13,7 +13,7 @@ const builder = new HowlBuilder<State>(app, {
   outDir: "dist",
   serverEntry: "./server/main.ts",
   clientEntry: "./client/pages/_app.vue",
-  notifications: "./notifications",
+  staticDir: "./public",
   // The only wiring needed for Vue pages: register the SFC esbuild plugin.
   plugins: [vuePlugin()],
 });

@@ -950,4 +950,21 @@ export class Howl<State = any> {
     this.#clients.push(config);
     return this;
   }
+
+  /**
+   * Whether `staticFiles()` middleware is registered on this app. Detected by
+   * the global-registry brand on the middleware (see `staticFiles`), so it
+   * survives minification and function renaming. Used by the dev builder to
+   * warn when a populated `staticDir` would otherwise go unserved.
+   */
+  hasStaticFilesMiddleware(): boolean {
+    const brand = Symbol.for("howl.staticFilesMiddleware");
+    return this.#commands.some((cmd) =>
+      cmd.type === CommandType.Middleware &&
+      cmd.fns.some((fn) =>
+        // deno-lint-ignore no-explicit-any
+        typeof fn === "function" && (fn as any)[brand] === true
+      )
+    );
+  }
 }

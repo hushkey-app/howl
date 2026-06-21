@@ -14,6 +14,17 @@ import { isTracingActive, tracer } from "../otel.ts";
 import { getBuildCache } from "../context.ts";
 
 /**
+ * Brand applied to the {@linkcode staticFiles} middleware so the dev builder
+ * can detect — minification-safe, by global-registry symbol rather than
+ * function name — whether an app actually serves its static directory. Lets
+ * `HowlBuilder` warn when a populated `staticDir` would otherwise go unserved
+ * because `app.use(staticFiles())` was never called.
+ */
+export const STATIC_FILES_MIDDLEWARE: unique symbol = Symbol.for(
+  "howl.staticFilesMiddleware",
+);
+
+/**
  * Howl middleware to serve static files from the `static/` directory.
  * ```ts
  * // Enable Howl static file serving
@@ -21,7 +32,7 @@ import { getBuildCache } from "../context.ts";
  * ```
  */
 export function staticFiles<T>(): Middleware<T> {
-  return async function howlServeStaticFiles(ctx) {
+  const middleware: Middleware<T> = async function howlServeStaticFiles(ctx) {
     const { req, url, config } = ctx;
 
     const buildCache = getBuildCache(ctx);
@@ -132,4 +143,6 @@ export function staticFiles<T>(): Middleware<T> {
       span?.end();
     }
   };
+  Object.defineProperty(middleware, STATIC_FILES_MIDDLEWARE, { value: true });
+  return middleware;
 }

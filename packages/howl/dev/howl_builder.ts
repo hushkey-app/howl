@@ -11,7 +11,7 @@ import type { ApiEntry } from "./dev_build_cache.ts";
  * Options accepted by {@linkcode HowlBuilder}. Extends {@linkcode BuildOptions}
  * minus the per-client directory fields (resolved per registered client).
  */
-export interface HowlDevOptions<State = any> extends Omit<BuildOptions, "routeDir" | "staticDir"> {
+export interface HowlDevOptions<State = any> extends Omit<BuildOptions, "routeDir"> {
   /**
    * Lazy app loader — invoked when the dev server starts. Accepts either the
    * {@linkcode Howl} instance directly or a `{ app }` module shape so users can
@@ -69,7 +69,7 @@ export class HowlBuilder<State = any> {
         client.name,
         new Builder<State>(this.#makeBuilderOptions({
           routeDir: `${client.dir}/pages`,
-          staticDir: `${client.dir}/static`,
+          staticDir: this.#options.staticDir ?? `${client.dir}/static`,
           outDir: `${this.#options.outDir ?? "_howl"}/${client.name}`,
         })),
       );
@@ -236,6 +236,41 @@ export class HowlBuilder<State = any> {
     return `/api/${converted.join("/")}`;
   }
 
+  /**
+   * Warn when a populated static directory will not be served because the app
+   * never registered `staticFiles()`. The build still copies/processes the
+   * directory, so the mismatch is silent at runtime — assets 404 with no error.
+   * No static files (or no `staticFiles()` middleware *and* no static dir) is a
+   * valid "off everywhere" state and stays quiet.
+   */
+  async #warnIfStaticUnserved(): Promise<void> {
+    if (this.#howl.hasStaticFilesMiddleware()) return;
+
+    const populated: string[] = [];
+    for (const builder of this.#builders.values()) {
+      const dir = builder.config.staticDir;
+      if (populated.includes(dir)) continue;
+      try {
+        for await (const _ of Deno.readDir(dir)) {
+          populated.push(dir);
+          break;
+        }
+      } catch {
+        // Missing static dir — nothing to serve, nothing to warn about.
+      }
+    }
+    if (populated.length === 0) return;
+
+    const root = this.#options.root ?? Deno.cwd();
+    const list = populated.map((d) => `"${path.relative(root, d) || d}"`).join(", ");
+    // deno-lint-ignore no-console
+    console.warn(
+      `_ Howl: static dir ${list} has files but staticFiles() middleware is ` +
+        `not registered — those assets will not be served. Add ` +
+        `app.use(staticFiles()) to your app, or remove the static directory.`,
+    );
+  }
+
   #registerApis(app: Howl<State>): void {
     if (!this.#howl.isApiRoutesEnabled()) return;
     if (this.#apis.length === 0) return;
@@ -263,6 +298,7 @@ export class HowlBuilder<State = any> {
 
     // Crawl apis/ before starting — dev logs failures and keeps serving.
     await this.#crawlApis(false);
+    await this.#warnIfStaticUnserved();
 
     if (this.#builders.size === 1) {
       await this.#builders.values().next().value!.listen(async () => {
@@ -302,6 +338,7 @@ export class HowlBuilder<State = any> {
     // Crawl apis/ before build — a broken .api.ts fails the build loudly
     // instead of shipping a snapshot with the endpoint silently missing.
     await this.#crawlApis(true);
+    await this.#warnIfStaticUnserved();
 
     const app = this.#howl;
     const ssgBuilders: Builder<State>[] = [];
