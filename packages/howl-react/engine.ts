@@ -6,6 +6,7 @@ import { createHead, renderSSRHead, UnheadProvider } from "@unhead/react/server"
 import { createStore, Provider as JotaiProvider } from "jotai";
 import * as path from "@std/path";
 import { composeReactTree } from "./runtime/compose.ts";
+import { renderToString as renderComponentToString } from "./runtime/render.ts";
 import { howlLocationAtom, howlStateAtom } from "./runtime/state.ts";
 import { toHowlRoute } from "./runtime/router.ts";
 import { dumpSerializableAtoms, SERIALIZABLE_ATOMS } from "./runtime/serialize.ts";
@@ -417,8 +418,12 @@ export function reactEngine(options: ReactEngineOptions = {}): RenderEngine<Cont
     },
     renderToString(component, props) {
       // Standalone render (emails / notifications) — a bare React component to
-      // markup, no Howl layouts/app shell. Mirrors `ctx.renderToString`.
-      return renderToString(createElement(component as ComponentType, props ?? undefined));
+      // markup, no Howl layouts/app shell. Shares the exported helper so
+      // `ctx.renderToString` and the standalone import behave identically.
+      return renderComponentToString(
+        component as ComponentType<Record<string, unknown>>,
+        props as Record<string, unknown> | undefined,
+      );
     },
   };
 }

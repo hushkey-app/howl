@@ -72,7 +72,10 @@ inner `#howl-app` holding the `[…Layouts, Page]` tree.
 inside that boundary fetch the destination's SSR HTML and **re-render** the page tree on the
 persistent React root — no full reload, no re-hydration. Everything outside `#howl-app` (the
 `_app.tsx` shell, plus any module-level singleton like the jotai store) stays alive across
-navigations.
+navigations. Inside `#howl-app`, layouts shared between the old and new route also reconcile rather
+than remount — their component state (scroll, collapse, form inputs) survives the navigation; only
+the parts of the tree that actually differ (the page, and any layout segment unique to the new route)
+mount fresh.
 
 **Prefetch on intent.** Add a `client-prefetch` boundary to warm links on hover (after a brief
 dwell), touch, or focus. Opt-in; respects `Save-Data` / `prefers-reduced-data`; exclude a subtree
@@ -239,14 +242,22 @@ enters a Preact-only app's dependency graph (and vice versa); registering `react
 only wiring. Howl forces `react` → `preact/compat` for the _built-in_ engine, but disables that shim
 for apps that register `reactPlugin()` so they resolve real React.
 
-## Standalone rendering — `ctx.renderToString`
+## Standalone rendering — `renderToString` / `ctx.renderToString`
 
-The engine also backs `ctx.renderToString(component, props?)` for templates rendered **outside** the
-page flow (emails, notifications, partial fragments) — a bare React component to an HTML string, no
-`_app`/layout shell:
+The engine renders a bare React component to an HTML string — no `_app`/layout shell, providers, or
+headers — for templates authored **outside** the page flow (emails, notifications, partial
+fragments). Two entry points, identical behaviour:
 
 ```tsx
+// Request-bound — delegates to the registered engine:
 const html = await ctx.renderToString(WelcomeEmail, { name: user.name });
+
+// Standalone — no `ctx` needed (cron jobs, queues, scripts). The React-engine
+// drop-in for Preact's `render` from `preact-render-to-string`:
+import { renderToString } from "@hushkey/howl-react"; // or "@hushkey/howl-react/render"
+
+const a = renderToString(<WelcomeEmail name={user.name} />); // pass an element…
+const b = renderToString(WelcomeEmail, { name: user.name }); // …or component + props
 ```
 
 ## API
@@ -263,6 +274,8 @@ and sets esbuild to automatic React JSX. Registering it is what routes `.tsx` th
 
 ### Lightweight entries
 
+- `@hushkey/howl-react/render` — `renderToString(node)` / `renderToString(component, props?)`, the
+  standalone request-free render helper (also re-exported from the package root).
 - `@hushkey/howl-react/head` — `useHead`, `useSeoMeta` (from `@unhead/react`).
 - `@hushkey/howl-react/store` — `atom`, `useAtom`, `useAtomValue`, `useSetAtom`, `useHydrateAtoms`
   (from `jotai`) plus `howlAtom(key, initial)` (SSR-serialized atoms).

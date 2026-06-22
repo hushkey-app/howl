@@ -5,3 +5,4 @@
  * @module
  */
 export { reactEngine, type ReactEngineOptions, type ReactPageProps } from "./engine.ts";
+export { renderToString } from "./runtime/render.ts";

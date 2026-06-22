@@ -142,6 +142,15 @@
           "type": "code",
           "lang": "ts",
           "text": "const html = await ctx.renderToString(WelcomeEmail, { name: user.name });\nawait mailer.send({ to: user.email, html });"
+        },
+        {
+          "type": "p",
+          "text": "When there is no ctx — a cron job, a queue worker, a script — import renderToString from the engine directly. The React engine's is the drop-in for Preact's render from preact-render-to-string, and accepts either a JSX element or a component plus props."
+        },
+        {
+          "type": "code",
+          "lang": "tsx",
+          "text": "import { renderToString } from \"@hushkey/howl-react\";\n\nconst html = renderToString(<WelcomeEmail name={user.name} />);\n// or: renderToString(WelcomeEmail, { name: user.name })"
         }
       ]
     }

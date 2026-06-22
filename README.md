@@ -464,7 +464,10 @@ const all = ctx.query();
 
 Every page server-renders for first paint (crawlable HTML), then **fully hydrates** and behaves as a
 SPA. There is no islands system — interactive widgets are ordinary Vue/React components inside your
-pages, and client navigation never reloads the document.
+pages, and client navigation never reloads the document. Client-nav re-renders on the live root, so
+layouts shared by the old and new route reconcile instead of remounting — their state (scroll,
+collapse, form inputs) survives the navigation; only the page and any route-specific layout segment
+mount fresh.
 
 For code that must branch per environment, use the inline guards:
 
