@@ -616,6 +616,7 @@ ctx.cookies.get("token");
 ctx.cookies.delete("session");
 
 // Response headers — auto-merged into all responses including page renders
+// and error responses (a thrown HttpError still carries headers set earlier)
 ctx.headers.set("X-Request-Id", crypto.randomUUID());
 
 // Request URL — scheme follows x-forwarded-proto, so it stays https behind a

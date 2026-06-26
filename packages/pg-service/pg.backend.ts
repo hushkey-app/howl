@@ -388,6 +388,16 @@ export class PgBackend<T extends DocumentShape> implements StorageBackend<T>, Sc
     return rows.length > 0 ? this.#toDoc(rows[0]) : null;
   }
 
+  /** Remove a top-level JSON key from every document that has it (jsonb `-`). */
+  async unsetField(field: string, options?: BackendOpOptions): Promise<number> {
+    await this.#ready;
+    const { rows } = await this.#exec(options).query(
+      `UPDATE "${this.#table}" SET doc = doc - $1 WHERE doc ? $1 RETURNING id`,
+      [field],
+    );
+    return rows.length;
+  }
+
   // ============================================================
   // SchemaAdmin — introspection + orphan cleanup
   // ============================================================

@@ -272,4 +272,14 @@ export class MongoBackend<T extends DocumentShape> implements StorageBackend<T> 
     );
     return deleted ? this.normalize(deleted) : null;
   }
+
+  /** Remove a top-level field from every document that has it (`$unset`). */
+  async unsetField(field: string, options?: BackendOpOptions): Promise<number> {
+    const res = await this.collection.updateMany(
+      { [field]: { $exists: true } },
+      { $unset: { [field]: "" } },
+      { session: options?.session as ClientSession | undefined },
+    );
+    return res.modifiedCount;
+  }
 }

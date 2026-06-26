@@ -80,19 +80,39 @@ Compass-style, dark + light themes (toggle persisted):
 - **Query bar with autocompletion**: field names sampled from loaded documents (nested dot-paths
   included) and the exact operator grammar after `$` — ↑↓ navigate, Tab/Enter accept, Esc close.
   Relaxed syntax accepted (`{ rating: { $gte: 4 } }`, unquoted keys, single quotes)
-- **Document cards** with type-colored values (red ids, green strings, blue numbers) and collapsible
-  nested objects
+- **Document cards** with type-colored values (red ids, green strings, blue numbers); nested objects
+  and arrays expand inline into the same type-colored, per-branch-collapsible tree (not a raw JSON
+  dump)
+- **Inline card editing** (✎) — flips a card in place: each value becomes a type-aware control
+  (text/number input, true/false select, JSON textarea for objects/arrays) and SAVE sends a
+  **merge patch of only the changed fields** (version bumps). `id`/`version`/`meta` stay read-only;
+  type changes still go through the JSON editor
 - Filter grammar (`$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists`)
 - Document table with sampled columns, version, active/deleted state, pagination
 - JSON editor: create + patch (merge semantics; schema errors and **409 optimistic-lock conflicts**
   render inline)
-- Soft delete, restore, and guarded hard delete; "deleted" toggle uses `viewDeleted`
-- **Schema view** (⚙) — lists the backend's promoted columns and flags **orphans**: columns left
-  physically present after a `promote` entry was removed from the live config. Orphans render on a
-  yellow row with two actions: `✕` drops the column (and its index) through a yes/no dialog
-  (document data untouched — it lives in `doc`, so a drop only reclaims an unused index), and `→`
-  **migrates** the orphan into a declared field (a rename) before dropping it. Backends with no
-  column concept (Mongo) report "not supported" and the panel hides the controls.
+- **Bulk update** patches every document matching the current query — with a **backfill** toggle that
+  scopes the patch to documents missing the patched keys (`$exists: false`), so you can add a newly
+  declared field across an existing collection without overwriting docs that already have a value.
+  The button and preview show the live count of documents that actually lack the field
+  (`BACKFILL N DOCS`, or "nothing to backfill" when every doc already has it)
+- Delete is **confirmed in a modal** with a soft/hard choice (soft is restorable, hard is permanent);
+  restore and the `viewDeleted` "deleted" toggle round out the lifecycle
+- **Schema view** (⚙) has two parts:
+  - **Document fields** — diffs the live schema against stored documents (works on every backend,
+    Mongo included). It's an **active snapshot**: soft-deleted documents are ignored, so the count and
+    actions reflect your live data. **MISSING** fields (declared in the schema, absent from docs) show
+    their schema default with a one-click **BACKFILL** that sets it on the active docs that lack it,
+    through the contract (validate + version bump + audit). **ORPHAN** fields (present in the JSON but
+    no longer declared) show a **DROP** that removes the key from every document (a yes/no dialog; it
+    deletes that stored data). The zero-migration field-evolution console: add a field to the schema →
+    backfill; remove it → drop.
+  - **Promoted columns** — lists the backend's generated columns and flags **orphans**: columns left
+    physically present after a `promote` entry was removed from the live config. Orphans render on a
+    yellow row with two actions: `✕` drops the column (and its index) through a yes/no dialog
+    (document data untouched — it lives in `doc`, so a drop only reclaims an unused index), and `→`
+    **migrates** the orphan into a declared field (a rename) before dropping it. Backends with no
+    column concept (Mongo) report "not supported" and the panel hides the column controls.
 
 ## Schema introspection & orphan cleanup
 

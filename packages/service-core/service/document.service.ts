@@ -37,6 +37,37 @@ export interface IndexSpec {
   options?: { unique?: boolean; sparse?: boolean; name?: string };
 }
 
+/** One declared field absent from existing documents, with its schema default. */
+export interface MissingField {
+  /** The declared (top-level) field name. */
+  field: string;
+  /** The schema default the service would write when backfilling this field. */
+  default: unknown;
+}
+
+/**
+ * The schema-vs-documents diff produced by {@link DocumentService.fieldReport}.
+ * Drives zero-migration field evolution: backfill the {@link MissingField}s,
+ * drop the orphans.
+ */
+export interface FieldReport {
+  /**
+   * Declared fields missing from the sampled documents, each with the schema
+   * default to backfill — only fields whose absence the schema fills with a
+   * default appear (a required field with no default surfaces as `invalid`).
+   */
+  missing: MissingField[];
+  /**
+   * Top-level fields present in stored documents but no longer declared in the
+   * schema — orphan data, candidates for {@link DocumentService.dropField}.
+   */
+  orphans: string[];
+  /** How many documents were inspected. */
+  sampled: number;
+  /** Sampled documents that failed schema validation and were skipped. */
+  invalid: number;
+}
+
 /** Configuration for a {@link DocumentService}. */
 export interface DocumentServiceOptions {
   /** The collection name — cache-key segment and telemetry label. */
@@ -171,6 +202,102 @@ export class DocumentService<T extends DocumentShape> {
         typeof candidate.dropColumn === "function"
       ? (candidate as SchemaAdmin)
       : null;
+  }
+
+  // ============================================================
+  // Schema ⇄ documents diff (zero-migration field evolution)
+  // ============================================================
+
+  /**
+   * Diff the live schema against stored documents: which declared fields are
+   * **missing** from existing docs (with the schema default to backfill them),
+   * and which stored top-level fields are **orphans** (present in the JSON but
+   * no longer declared). Computed by validating sampled documents against the
+   * schema — keys the schema strips are orphans, keys it fills via defaults are
+   * missing — so it needs no schema introspection beyond the parse the contract
+   * already runs on every write. Envelope fields (`id`, `version`, `meta`) are
+   * never reported. Soft-deleted documents are **ignored** — the report is a
+   * snapshot of the active dataset, so backfilling/dropping clears it.
+   *
+   * @param options `sample` caps how many documents are inspected (default 50).
+   * @returns The {@link FieldReport}.
+   */
+  async fieldReport(options: { sample?: number } = {}): Promise<FieldReport> {
+    const limit = options.sample ?? 50;
+    const docs = await this.backend.findMany(this.withDeletedFilter({} as Filter<T>), { limit });
+    const ENVELOPE = new Set(["id", "version", "meta"]);
+    const topLevel = (o: unknown): string[] =>
+      Object.keys((o ?? {}) as Record<string, unknown>).filter((k) => !ENVELOPE.has(k));
+    const orphans = new Set<string>();
+    const missing = new Map<string, unknown>();
+    let invalid = 0;
+    for (const d of docs) {
+      const parsed = await this.schema.safeParseAsync(d);
+      if (!parsed.success) {
+        invalid++;
+        continue;
+      }
+      const declared = new Set(topLevel(parsed.data));
+      const present = new Set(topLevel(d));
+      for (const k of present) if (!declared.has(k)) orphans.add(k);
+      for (const k of declared) {
+        if (!present.has(k) && !missing.has(k)) {
+          missing.set(k, (parsed.data as Record<string, unknown>)[k]);
+        }
+      }
+    }
+    return {
+      missing: [...missing]
+        .map(([field, value]) => ({ field, default: value }))
+        .sort((a, b) => a.field.localeCompare(b.field)),
+      orphans: [...orphans].sort(),
+      sampled: docs.length,
+      invalid,
+    };
+  }
+
+  /**
+   * Drop an **orphan** document field — a top-level JSON key present in stored
+   * documents but no longer declared in the schema — from every document. A
+   * storage-maintenance op below the contract (no version bump or audit),
+   * mirroring {@link SchemaAdmin.dropColumn} for plain JSON fields and working
+   * on every backend. Refuses to drop an envelope field, or a field still
+   * declared in the schema (remove it from the schema first). Returns the
+   * number of documents the field was removed from.
+   *
+   * @param field The top-level JSON key to remove.
+   * @returns The count of documents the field was removed from.
+   */
+  async dropField(field: string): Promise<number> {
+    if (field === "id" || field === "version" || field === "meta") {
+      throw new Error(
+        `[${this.options.collectionName}] cannot drop the envelope field "${field}"`,
+      );
+    }
+    // Verify it's an orphan: a declared field survives (or is re-added by) the
+    // parse; an orphan is stripped. Check against documents that parse cleanly.
+    const docs = await this.backend.findMany({} as Filter<T>, { limit: 25 });
+    let verified = false;
+    for (const d of docs) {
+      const parsed = await this.schema.safeParseAsync(d);
+      if (!parsed.success) continue;
+      if (field in (parsed.data as Record<string, unknown>)) {
+        throw new Error(
+          `[${this.options.collectionName}] "${field}" is still declared in the schema — ` +
+            `remove it from the schema before dropping`,
+        );
+      }
+      verified = true;
+    }
+    if (!verified) {
+      throw new Error(
+        `[${this.options.collectionName}] could not verify "${field}" is an orphan ` +
+          `(no sampled document passed validation)`,
+      );
+    }
+    const count = await this.backend.unsetField(field);
+    await this.invalidateCache();
+    return count;
   }
 
   // ============================================================

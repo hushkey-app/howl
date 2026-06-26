@@ -11,14 +11,24 @@ The core owns everything that is not storage-specific:
 - **Neutral filter grammar** (`./filter`) — `$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists` +
   dot-paths. Mongo passes it through; SQL backends compile it.
 - **`StorageBackend`** (`./backend`) — the contract backends implement:
-  `insertOne / findOne / findMany / count / updatePaths / deleteOne` + `generateId` + `cachePrefix`.
-  Plus an **optional `SchemaAdmin` capability** (`listColumns` / `dropColumn`) for promoted-column
-  introspection and orphan cleanup, feature-detected via `service.schemaAdmin` (`null` when the
-  backend has no column concept). Drops are refused for columns still declared in the live config —
-  the additive promote config stays the source of truth; this surface only cleans up the orphans it
-  leaves behind. `dropColumn(col, { purgeData: true })` also strips the matching top-level JSON key
-  (used by the studio's rename/migrate flow once the data has been copied to its new field).
-  Consumed by [`@hushkey/studio`](../studio/README.md)'s schema view.
+  `insertOne / findOne / findMany / count / updatePaths / deleteOne / unsetField` + `generateId` +
+  `cachePrefix`. `unsetField(field)` bulk-removes a top-level JSON key from every document that has
+  it (sqlite `json_remove`, pg `doc - key`, mongo `$unset`) — a storage-maintenance primitive below
+  the contract, used to reclaim an **orphan** document field. Plus an **optional `SchemaAdmin`
+  capability** (`listColumns` / `dropColumn`) for promoted-column introspection and orphan cleanup,
+  feature-detected via `service.schemaAdmin` (`null` when the backend has no column concept). Drops
+  are refused for columns still declared in the live config — the additive promote config stays the
+  source of truth; this surface only cleans up the orphans it leaves behind. `dropColumn(col, {
+  purgeData: true })` also strips the matching top-level JSON key (used by the studio's
+  rename/migrate flow once the data has been copied to its new field). Consumed by
+  [`@hushkey/studio`](../studio/README.md)'s schema view.
+- **Schema ⇄ documents diff** — `DocumentService.fieldReport()` samples documents and diffs them
+  against the live schema (by validating each — keys the schema strips are **orphans**, keys it fills
+  by default are **missing**), returning the missing fields with their defaults and the orphan field
+  names. It diffs **active documents only** — soft-deleted docs are ignored, so the report is a live
+  snapshot and backfilling clears it. `dropField(field)` removes an orphan field across every document
+  (via `unsetField`, refusing envelope or still-declared fields). The zero-migration evolution path:
+  backfill the missing fields, drop the orphans — both surfaced one-click in the studio's schema view.
 - **`SchemaLike`** (`./schema`) — structural validator interface; zod object schemas satisfy it
   without a hard zod pin in public types.
 - **`Meta` + `metaSchema` + `documentSchema`** (`./meta`) — the envelope, aligned with the deployed

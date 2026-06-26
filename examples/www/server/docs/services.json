@@ -151,7 +151,11 @@
         },
         {
           "type": "p",
-          "text": "Register any number of services keyed by the name shown in the UI. The dashboard gives you filtered list views, create/edit forms, bulk update and delete, soft-delete and restore, and — on SQL backends — promoted-column introspection with orphan-column cleanup."
+          "text": "Register any number of services keyed by the name shown in the UI. The dashboard gives you filtered list views, inline card editing, create/edit forms, bulk update and delete, soft-delete and restore, and — on SQL backends — promoted-column introspection with orphan-column cleanup."
+        },
+        {
+          "type": "p",
+          "text": "The schema view also carries the zero-migration field console: it diffs the live schema against stored documents and lists MISSING fields (declared but absent from old docs) with a one-click backfill of the schema default, and ORPHAN fields (in the JSON but no longer declared) with a one-click drop. So evolving a schema needs no migration script — add a field and backfill it, or remove it and drop it, right from the UI. Works on every backend, document stores included."
         }
       ]
     },

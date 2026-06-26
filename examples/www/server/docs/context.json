@@ -98,6 +98,10 @@
           "type": "code",
           "lang": "ts",
           "text": "app.use((ctx) => {\n  ctx.headers.set(\"X-Request-Id\", crypto.randomUUID());\n  ctx.headers.append(\"Vary\", \"Accept-Encoding\");\n  return ctx.next();\n});"
+        },
+        {
+          "type": "p",
+          "text": "Headers set before a handler throws still reach the client: ctx.headers is merged onto error responses too, so cookies, CORS and trace headers survive a 4xx/5xx the same way they ride a 2xx."
         }
       ]
     },

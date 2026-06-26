@@ -140,12 +140,29 @@ const DEFAULT_ERROR_HANDLER = async <State>(ctx: Context<State>) => {
     }
     return new Response(error.message || STATUS_TEXT[error.status], {
       status: error.status,
+      headers: errorHeaders(ctx),
     });
   }
   // deno-lint-ignore no-console
   console.error(`[500] ${where}`, error);
-  return new Response("Internal server error", { status: 500 });
+  return new Response("Internal server error", {
+    status: 500,
+    headers: errorHeaders(ctx),
+  });
 };
+
+/**
+ * Build the header set for a default error response: middleware-set response
+ * headers (cookies, CORS, the 405 `Allow` header, …) carried over from
+ * `ctx.headers`, minus any `Content-Type` so the plain-text error body keeps
+ * its own. Mirrors the "ctx.headers persist into the final response" contract
+ * on the success path.
+ */
+function errorHeaders<State>(ctx: Context<State>): Headers {
+  const headers = new Headers(ctx.headers);
+  headers.delete("Content-Type");
+  return headers;
+}
 
 function getNetworkIp(): string | null {
   try {
@@ -850,13 +867,16 @@ export class Howl<State = any> {
         handler = rootHandler;
       }
 
+      // Verbs reachable at this URL, unioned across every pattern overlapping
+      // the slot (patterns sharing a slot under different param names each
+      // contribute). Computed once and reused for both the OPTIONS 204 and the
+      // 405 Allow header. Null unless the path matched but the method didn't.
+      let allowedMethods: string[] | null = null;
       if (matched.pattern !== null && !methodMatch) {
-        if (method === "OPTIONS") {
-          const allowed = router.getAllowedMethods(matched.pattern);
-          next = defaultOptionsHandler(allowed);
-        } else {
-          next = DEFAULT_NOT_ALLOWED_METHOD;
-        }
+        allowedMethods = router.allowedMethodsForUrl(url);
+        next = method === "OPTIONS"
+          ? defaultOptionsHandler(allowedMethods)
+          : DEFAULT_NOT_ALLOWED_METHOD;
       } else {
         next = DEFAULT_NOT_FOUND;
       }
@@ -872,6 +892,14 @@ export class Howl<State = any> {
         buildCache!,
         new Headers(), // response headers instance
       );
+
+      // RFC 9110 §15.5.6: a 405 response must carry an `Allow` header. OPTIONS
+      // emits its own 204 + Allow via `defaultOptionsHandler`; for the 405 path
+      // the throw is rendered downstream (a custom `_error` page or the default
+      // handler), so stage the header on `ctx.headers` to ride through either.
+      if (allowedMethods !== null && method !== "OPTIONS") {
+        ctx.headers.set("Allow", allowedMethods.join(", "));
+      }
 
       try {
         const result = await (handler !== null ? handler(ctx) : next());

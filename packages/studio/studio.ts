@@ -87,11 +87,15 @@ function err(message: string, status: number): Response {
 let bundleCache: string | null = null;
 
 async function loadBundle(): Promise<string> {
-  if (bundleCache !== null) return bundleCache;
   const url = new URL("./component/bundle.js", import.meta.url);
-  bundleCache = url.protocol === "file:"
-    ? await Deno.readTextFile(url) // local dev / workspace
-    : await (await fetch(url)).text(); // JSR (https)
+  // Local/workspace dev (file://): re-read on every request so a rebuilt bundle
+  // (`deno task build:studio`) is served immediately — no server restart, even
+  // though the host's `--watch` won't be watching this package. The read is a
+  // cheap local file. JSR (https://) is immutable per published version, so
+  // fetch once and cache for the process.
+  if (url.protocol === "file:") return await Deno.readTextFile(url);
+  if (bundleCache !== null) return bundleCache;
+  bundleCache = await (await fetch(url)).text();
   return bundleCache;
 }
 
@@ -326,6 +330,47 @@ export function studio(
           if (!column || typeof column !== "string") return err("column required", 400);
           await admin.dropColumn(column);
           return json({ ok: true, dropped: column });
+        }
+        // Document-field diff (schema ⇄ stored docs): GET reports declared
+        // fields missing from docs (with their schema default) and orphan JSON
+        // fields no longer declared. POST either backfills a missing field with
+        // its default (through the contract — validates, bumps version, audits)
+        // or drops an orphan field from every document (below the contract).
+        if (id === "fields" && !action && method === "GET") {
+          return json(await service.fieldReport());
+        }
+        if (id === "fields" && !action && method === "POST") {
+          const body = await ctx.req.json();
+          if (typeof body.drop === "string") {
+            const count = await service.dropField(body.drop);
+            return json({ ok: true, dropped: body.drop, count });
+          }
+          if (typeof body.backfill === "string") {
+            const report = await service.fieldReport();
+            const target = report.missing.find((m) => m.field === body.backfill);
+            if (!target) {
+              return err(`"${body.backfill}" is not a missing field with a default`, 400);
+            }
+            // Active docs only — the field report is a snapshot of the active
+            // dataset (soft-deleted docs are ignored), so backfilling the active
+            // docs is exactly what clears it. Don't write into deleted docs.
+            const matches = await service.find({
+              query: { [body.backfill]: { $exists: false } } as never,
+              limit: 1000,
+            });
+            for (const doc of matches) {
+              await service.patch(doc.id, { [body.backfill]: target.default } as never, {
+                executionerId: who(ctx),
+              });
+            }
+            return json({
+              ok: true,
+              backfilled: matches.length,
+              field: body.backfill,
+              default: target.default,
+            });
+          }
+          return err("expected { drop } or { backfill }", 400);
         }
         if (id && action === "restore" && method === "POST") {
           const doc = await service.restore(id, { executionerId: who(ctx) });

@@ -91,6 +91,21 @@ export interface StorageBackend<T> {
 
   /** Hard-delete one document by id. Returns the deleted document, or null. */
   deleteOne(id: string, options?: BackendOpOptions): Promise<T | null>;
+
+  /**
+   * Remove a top-level field (JSON key) from every document that has it, in a
+   * single bulk operation. A storage-maintenance primitive that sits below the
+   * service contract — no validation, no version bump, no audit — used to
+   * reclaim an **orphan** document field: one still present in stored JSON but
+   * no longer declared in the schema. Unlike {@link SchemaAdmin.dropColumn}
+   * (promoted columns only) this works on every backend, document stores
+   * included.
+   *
+   * @param field The top-level JSON key to remove.
+   * @param options Backend op options (e.g. session).
+   * @returns The number of documents the key was removed from.
+   */
+  unsetField(field: string, options?: BackendOpOptions): Promise<number>;
 }
 
 /**

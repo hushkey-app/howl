@@ -9,8 +9,8 @@
   },
   "exports": "./server/main.ts",
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.15.1",
-    "@hushkey/howl-vue": "jsr:@hushkey/howl-vue@^0.15.1",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.15.2",
+    "@hushkey/howl-vue": "jsr:@hushkey/howl-vue@^0.15.2",
     "zod": "npm:zod@4.3.6",
     "@std/path": "jsr:@std/path@^1.0.0",
     "vue": "npm:vue@^3.5.13",

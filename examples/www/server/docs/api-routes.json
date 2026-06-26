@@ -72,6 +72,10 @@
           "type": "code",
           "lang": "text",
           "text": "apis/public/ping.api.ts            →  GET  /api/public/ping\napis/users/create.api.ts           →  POST /api/users/create\napis/users/[id]/posts.api.ts       →  GET  /api/users/:id/posts\n// path: \"/webhooks/stripe\"  →  overrides inference entirely"
+        },
+        {
+          "type": "tip",
+          "text": "Two routes can share a URL slot under different param names — GET /api/task/:id and POST /api/task/:projectId — and each resolves to its own handler by method; a request never 405s just because another param name was registered first. A genuine method miss returns 405 with an Allow header, and OPTIONS returns 204 with the same; both list the union of verbs across every pattern overlapping the slot."
         }
       ]
     },

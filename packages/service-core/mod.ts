@@ -22,8 +22,10 @@ export type {
   CreateArgs,
   DocumentServiceOptions,
   DocumentShape,
+  FieldReport,
   IndexSpec,
   LogEntry,
+  MissingField,
   PublicDocument,
 } from "./service/document.service.ts";
 export type { Condition, Filter, FilterOperators } from "./filter/filter.ts";

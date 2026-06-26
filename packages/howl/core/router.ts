@@ -48,6 +48,7 @@ export interface Router<T> {
   ): void;
   match(method: Method, url: URL): RouteResult<T>;
   getAllowedMethods(pattern: string): string[];
+  allowedMethodsForUrl(url: URL): string[];
 }
 
 export const IS_PATTERN = /[*:{}+?()]/;
@@ -64,6 +65,45 @@ export class UrlPatternRouter<T> implements Router<T> {
     const allowed = this.#allowed.get(pattern);
     if (allowed === undefined) return EMPTY;
     return Array.from(allowed);
+  }
+
+  /**
+   * Collect every HTTP method reachable at `url`, for building an `Allow`
+   * header on OPTIONS/405 responses. Mirrors `match()`'s resolution: a static
+   * slot shadows dynamics, so when one matches its verbs are returned alone;
+   * otherwise the verbs of every overlapping dynamic pattern are unioned —
+   * slots shared under different param names (`/x/:id` vs `/x/:projectId`) each
+   * contribute their methods, so OPTIONS reports the full set, not just the
+   * first matched pattern's.
+   */
+  allowedMethodsForUrl(url: URL): string[] {
+    let pathname = url.pathname;
+    let staticMatch = this.#statics.get(pathname);
+    if (staticMatch === undefined && pathname !== "/") {
+      const alt = pathname.endsWith("/")
+        ? pathname.slice(0, -1)
+        : pathname + "/";
+      const altMatch = this.#statics.get(alt);
+      if (altMatch !== undefined) {
+        staticMatch = altMatch;
+        pathname = alt;
+      }
+    }
+    if (staticMatch !== undefined) {
+      return this.getAllowedMethods(pathname);
+    }
+
+    const methods = new Set<string>();
+    const pathnameInput = { pathname: url.pathname };
+    for (let i = 0; i < this.#dynamicArr.length; i++) {
+      const route = this.#dynamicArr[i];
+      if (route.pattern.exec(pathnameInput) === null) continue;
+      const allowed = this.#allowed.get(route.pattern.pathname);
+      if (allowed !== undefined) {
+        for (const m of allowed) methods.add(m);
+      }
+    }
+    return Array.from(methods);
   }
 
   add(
@@ -154,13 +194,15 @@ export class UrlPatternRouter<T> implements Router<T> {
     // coerce and match all 8 URL components per pattern, but every pattern
     // here was registered with `{ pathname }` (the rest are wildcards).
     const pathnameInput = { pathname: url.pathname };
+    // The first pattern that matched the path but not the method. Retained so
+    // that, if no overlapping pattern serves the method either, the caller can
+    // still emit 405 / an OPTIONS Allow header (vs a misleading 404).
+    let fallbackPattern: string | null = null;
     for (let i = 0; i < this.#dynamicArr.length; i++) {
       const route = this.#dynamicArr[i];
 
       const match = route.pattern.exec(pathnameInput);
       if (match === null) continue;
-
-      result.pattern = route.pattern.pathname;
 
       let item = route.byMethod[method];
       if (method === "HEAD" && item === null) {
@@ -168,6 +210,8 @@ export class UrlPatternRouter<T> implements Router<T> {
       }
 
       if (item !== null) {
+        // Matches the path AND serves the method — this is the route.
+        result.pattern = route.pattern.pathname;
         result.methodMatch = true;
         result.item = item;
 
@@ -175,9 +219,20 @@ export class UrlPatternRouter<T> implements Router<T> {
         for (const [key, value] of Object.entries(match.pathname.groups)) {
           result.params[key] = value === undefined ? "" : decodeURI(value);
         }
+        return result;
       }
 
-      break;
+      // Path matched but this def doesn't serve the method. Two routes can
+      // share a URL slot under different param names (e.g. `/x/:id` [GET] and
+      // `/x/:projectId` [POST]); a later def may serve the method, so keep
+      // scanning instead of breaking. Remember the first such match for 405.
+      if (fallbackPattern === null) {
+        fallbackPattern = route.pattern.pathname;
+      }
+    }
+
+    if (fallbackPattern !== null) {
+      result.pattern = fallbackPattern; // methodMatch stays false ⇒ caller → 405
     }
 
     return result;

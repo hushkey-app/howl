@@ -61,6 +61,12 @@ interface SchemaColumn {
   type: string;
   declared: boolean;
 }
+interface FieldReport {
+  missing: { field: string; default: unknown }[];
+  orphans: string[];
+  sampled: number;
+  invalid: number;
+}
 
 const OPERATORS = [
   "$eq",
@@ -126,6 +132,29 @@ function fmtValue(v: unknown): string {
   if (v === null || v === undefined) return "null";
   if (typeof v === "string") return `"${v}"`;
   return String(v);
+}
+
+// Inline-edit (Compass-style) value↔text bridge. A field's value becomes the
+// raw text shown in its input — strings unquoted, objects/arrays as JSON — and
+// `fromEditText` parses it back keeping the original type (no type changes in
+// the inline editor; switch types via the JSON editor instead).
+function toEditText(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object") return JSON.stringify(v, null, 2);
+  return String(v);
+}
+
+function fromEditText(text: string, original: unknown): unknown {
+  if (typeof original === "string") return text;
+  if (typeof original === "boolean") return text.trim() === "true";
+  if (typeof original === "number") {
+    const n = Number(text.trim());
+    if (text.trim() === "" || Number.isNaN(n)) throw new Error(`"${text}" is not a number`);
+    return n;
+  }
+  // null / object / array: empty clears to null, otherwise parse as JSON.
+  return text.trim() === "" ? null : looseJsonParse(text);
 }
 
 // ─────────────────────────────────────────────────────────────── query bar ──
@@ -412,26 +441,203 @@ function QueryBar(
 
 // ───────────────────────────────────────────────────────────── doc cards ──
 
+// A nested value rendered as an expandable, type-colored tree — the same field
+// styling as the top-level document (bold keys, type-colored values, chevrons),
+// recursing through objects and arrays so an expanded sub-document reads like
+// the document itself rather than a flat JSON string blob.
+function JsonNode(
+  { name, value, isIndex, depth }: {
+    name: string;
+    value: unknown;
+    isIndex: boolean;
+    depth: number;
+  },
+): ReactElement {
+  const isObj = value !== null && typeof value === "object";
+  // First level opens by default so a field's shape is visible at a glance;
+  // deeper branches start collapsed to keep large documents readable.
+  const [open, setOpen] = useState(depth < 1);
+  return (
+    <div>
+      <span
+        className={isObj ? "cursor-pointer" : ""}
+        onClick={isObj ? () => setOpen((o) => !o) : undefined}
+      >
+        <span className="mr-1 inline-block w-3 text-center align-middle">
+          {isObj && (
+            <Icon.ChevronDown
+              className={`inline size-3 text-base-content/60 ${open ? "" : "-rotate-90"}`}
+            />
+          )}
+        </span>
+        <span className={`font-bold ${isIndex ? "text-base-content/40" : "text-base-content"}`}>
+          {name}
+        </span>
+        <span className="mx-1 text-base-content/60">:</span>
+        {isObj
+          ? (
+            <span className="text-base-content/60">
+              {Array.isArray(value) ? `Array (${value.length})` : "Object"}
+            </span>
+          )
+          : <span className={valueClass(value)}>{fmtValue(value)}</span>}
+      </span>
+      {isObj && open && <JsonChildren value={value as object} depth={depth + 1} />}
+    </div>
+  );
+}
+
+// Renders the entries of an object/array one level down — indented — recursing
+// through {@link JsonNode}. Array entries key on their index.
+function JsonChildren(
+  { value, depth }: { value: object; depth: number },
+): ReactElement {
+  const entries: [string, unknown][] = Array.isArray(value)
+    ? value.map((v, i) => [String(i), v])
+    : Object.entries(value);
+  if (entries.length === 0) {
+    return (
+      <div className="ml-3 text-base-content/40">
+        {Array.isArray(value) ? "empty array" : "empty object"}
+      </div>
+    );
+  }
+  return (
+    <div className="ml-3">
+      {entries.map(([k, v]) => (
+        <JsonNode key={k} name={k} value={v} isIndex={Array.isArray(value)} depth={depth} />
+      ))}
+    </div>
+  );
+}
+
 interface ExpandSignal {
   mode: "expand" | "collapse";
   tick: number;
 }
 
+// The in-place editor for one field's value, picked by the value's type:
+// boolean → a true/false select, object/array → a JSON textarea, everything
+// else → a single-line input. Edits flow back through `onText` as raw text;
+// the card parses it on save via {@link fromEditText}.
+function EditControl(
+  { value, text, onText }: {
+    value: unknown;
+    text: string;
+    onText: (t: string) => void;
+  },
+): ReactElement {
+  if (typeof value === "boolean") {
+    return (
+      <select
+        className="select select-xs select-bordered ml-1 font-mono text-sm"
+        value={text}
+        onChange={(e) => onText((e.target as HTMLSelectElement).value)}
+      >
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
+  }
+  if (value !== null && typeof value === "object") {
+    return (
+      <textarea
+        className="textarea textarea-bordered mt-1 block w-full font-mono text-sm leading-5"
+        rows={Math.min(12, text.split("\n").length + 1)}
+        value={text}
+        onChange={(e) => onText((e.target as HTMLTextAreaElement).value)}
+        onKeyDown={(e) => {
+          const el = e.target as HTMLTextAreaElement;
+          handlePairKey(e, el, (next, s, en) => {
+            onText(next);
+            queueMicrotask(() => {
+              el.focus();
+              el.setSelectionRange(s, en);
+            });
+          });
+        }}
+      />
+    );
+  }
+  return (
+    <input
+      className="input input-xs input-bordered ml-1 w-72 max-w-full font-mono text-sm"
+      value={text}
+      placeholder={value === null ? "null" : ""}
+      inputMode={typeof value === "number" ? "decimal" : undefined}
+      onChange={(e) => onText((e.target as HTMLInputElement).value)}
+    />
+  );
+}
+
 function DocCard(
-  { doc, onEdit, onDuplicate, onDelete, onRestore, onHardDelete, expandSignal }: {
+  { doc, onPatch, onDuplicate, onDelete, onRestore, expandSignal, ui }: {
     doc: Doc;
-    onEdit: () => void;
+    onPatch: (patch: Record<string, unknown>) => Promise<void>;
     onDuplicate: () => void;
-    onDelete: () => void;
+    onDelete: (hard: boolean) => void;
     onRestore: () => void;
-    onHardDelete: () => void;
     expandSignal: ExpandSignal | null;
+    ui: Ui;
   },
 ): ReactElement {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [editing, setEditing] = useState(false);
+  const [buffer, setBuffer] = useState<Record<string, string>>({});
+  const [editErr, setEditErr] = useState("");
+  const [saving, setSaving] = useState(false);
+  // Single-doc delete confirmation; `hard` carries the soft/permanent choice.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hardDelete, setHardDelete] = useState(false);
   const deleted = doc.meta?.deleted_at != null;
   const entries = Object.entries(doc).filter(([k]) => k !== "id");
   const anyExpanded = Object.values(expanded).some(Boolean);
+  // System fields are owned by the contract (version bumps on write, meta is
+  // audit/soft-delete) — shown read-only, never editable inline.
+  const editable = (k: string) => k !== "version" && k !== "meta";
+
+  function startEdit() {
+    const b: Record<string, string> = {};
+    for (const [k, v] of entries) if (editable(k)) b[k] = toEditText(v);
+    setBuffer(b);
+    setEditErr("");
+    setExpanded({});
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setEditErr("");
+  }
+
+  async function saveEdit() {
+    setEditErr("");
+    let patch: Record<string, unknown>;
+    try {
+      patch = {};
+      for (const [k, v] of entries) {
+        if (!editable(k)) continue;
+        const next = fromEditText(buffer[k] ?? "", v);
+        if (JSON.stringify(next) !== JSON.stringify(v)) patch[k] = next;
+      }
+    } catch (e) {
+      setEditErr((e as Error).message);
+      return;
+    }
+    if (Object.keys(patch).length === 0) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onPatch(patch);
+      setEditing(false);
+    } catch (e) {
+      setEditErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function toggleAll() {
     if (anyExpanded) {
@@ -460,27 +666,33 @@ function DocCard(
 
   return (
     <div
-      className={`group relative mb-3 rounded-2xl bg-base-200 py-3 pl-9 pr-4 font-mono text-sm transition-colors hover:bg-base-300/50 ${
-        deleted ? "opacity-55" : ""
-      }`}
+      className={`group relative mb-3 rounded-2xl bg-base-200 py-3 pl-9 pr-4 font-mono text-sm transition-colors ${
+        editing ? "ring-1 ring-primary/40" : "hover:bg-base-300/50"
+      } ${deleted ? "opacity-55" : ""}`}
     >
-      <button
-        type="button"
-        title={anyExpanded ? "collapse all fields" : "expand all fields"}
-        onClick={toggleAll}
-        className={`btn btn-ghost btn-sm btn-circle absolute left-1.5 top-1.5 transition-opacity ${
-          anyExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      {!editing && (
+        <button
+          type="button"
+          title={anyExpanded ? "collapse all fields" : "expand all fields"}
+          onClick={toggleAll}
+          className={`btn btn-ghost btn-sm btn-circle absolute left-1.5 top-1.5 transition-opacity ${
+            anyExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <Icon.ChevronDown className={`size-4 ${anyExpanded ? "" : "-rotate-90"}`} />
+        </button>
+      )}
+      <div
+        className={`absolute right-2.5 top-1.5 flex items-center gap-1 transition-opacity ${
+          editing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         }`}
       >
-        <Icon.ChevronDown className={`size-4 ${anyExpanded ? "" : "-rotate-90"}`} />
-      </button>
-      <div className="absolute right-2.5 top-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         {deleted && <span className="badge badge-error badge-xs">DELETED</span>}
         <button
           type="button"
-          className="btn btn-ghost btn-sm btn-circle"
-          title="edit (patch)"
-          onClick={onEdit}
+          className={`btn btn-ghost btn-sm btn-circle ${editing ? "text-primary" : ""}`}
+          title={editing ? "cancel edit" : "edit fields inline"}
+          onClick={() => (editing ? cancelEdit() : startEdit())}
         >
           <Icon.Pencil className="size-4" />
         </button>
@@ -507,7 +719,10 @@ function DocCard(
                 type="button"
                 className="btn btn-ghost btn-sm btn-circle text-error"
                 title="hard delete"
-                onClick={onHardDelete}
+                onClick={() => {
+                  setHardDelete(true);
+                  setConfirmDelete(true);
+                }}
               >
                 <Icon.Trash className="size-4" />
               </button>
@@ -517,8 +732,11 @@ function DocCard(
             <button
               type="button"
               className="btn btn-ghost btn-sm btn-circle text-error"
-              title="soft delete"
-              onClick={onDelete}
+              title="delete"
+              onClick={() => {
+                setHardDelete(false);
+                setConfirmDelete(true);
+              }}
             >
               <Icon.XMark className="size-4" />
             </button>
@@ -527,28 +745,45 @@ function DocCard(
 
       <div className="leading-7">
         <div>
+          <span className="mr-1 inline-block w-3 align-middle" />
           <span className="font-bold text-base-content">id</span>
           <span className="mx-1 text-base-content/60">:</span>
           <span className="text-error">"{doc.id}"</span>
         </div>
         {entries.map(([k, v]) => {
           const isObj = v !== null && typeof v === "object";
+          const canEdit = editing && editable(k);
+          const expandable = !canEdit && isObj;
           return (
             <div key={k}>
               <span
-                className={isObj ? "cursor-pointer" : ""}
-                onClick={isObj ? () => setExpanded((s) => ({ ...s, [k]: !s[k] })) : undefined}
+                className={expandable ? "cursor-pointer" : ""}
+                onClick={expandable ? () => setExpanded((s) => ({ ...s, [k]: !s[k] })) : undefined}
               >
-                {isObj && (
-                  <Icon.ChevronDown
-                    className={`mr-1 inline size-3 text-base-content/60 ${
-                      expanded[k] ? "" : "-rotate-90"
-                    }`}
-                  />
-                )}
-                <span className="font-bold text-base-content">{k}</span>
+                <span className="mr-1 inline-block w-3 text-center align-middle">
+                  {expandable && (
+                    <Icon.ChevronDown
+                      className={`inline size-3 text-base-content/60 ${
+                        expanded[k] ? "" : "-rotate-90"
+                      }`}
+                    />
+                  )}
+                </span>
+                <span
+                  className={`font-bold ${canEdit ? "text-base-content/50" : "text-base-content"}`}
+                >
+                  {k}
+                </span>
                 <span className="mx-1 text-base-content/60">:</span>
-                {isObj
+                {canEdit
+                  ? (
+                    <EditControl
+                      value={v}
+                      text={buffer[k] ?? ""}
+                      onText={(t) => setBuffer((s) => ({ ...s, [k]: t }))}
+                    />
+                  )
+                  : isObj
                   ? (
                     <span className="text-base-content/60">
                       {Array.isArray(v) ? `Array (${v.length})` : "Object"}
@@ -556,13 +791,89 @@ function DocCard(
                   )
                   : <span className={valueClass(v)}>{fmtValue(v)}</span>}
               </span>
-              {isObj && expanded[k] && (
-                <pre className="my-1 ml-4 overflow-x-auto rounded-xl bg-base-300/50 px-2.5 py-1.5 text-xs">{JSON.stringify(v, null, 2)}</pre>
+              {expandable && expanded[k] && (
+                <div className="my-1 ml-4 overflow-x-auto rounded-xl bg-base-300/50 px-2.5 py-1.5 text-sm">
+                  <JsonChildren value={v as object} depth={0} />
+                </div>
               )}
             </div>
           );
         })}
+        {editing && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={`btn btn-sm rounded-full ${ui.primary}`}
+              disabled={saving}
+              onClick={saveEdit}
+            >
+              {saving ? <span className="loading loading-spinner loading-xs" /> : "SAVE"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost rounded-full"
+              disabled={saving}
+              onClick={cancelEdit}
+            >
+              CANCEL
+            </button>
+            {editErr
+              ? <span className="text-xs text-error">✗ {editErr}</span>
+              : (
+                <span className="ml-auto text-[11px] text-base-content/50">
+                  merge patch — only changed fields, version bumps
+                </span>
+              )}
+          </div>
+        )}
       </div>
+
+      {confirmDelete && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-md border border-error font-mono text-xs">
+            <h3 className="mb-2 text-base font-bold text-error">
+              {hardDelete ? "Permanently delete document?" : "Delete document?"}
+            </h3>
+            <p className="mb-4 leading-relaxed text-base-content/70">
+              {hardDelete ? "Permanently removes" : "Soft-deletes"}{" "}
+              <b className="text-base-content">{doc.id}</b> {hardDelete
+                ? "— its data is gone for good and cannot be restored."
+                : "— it's hidden but restorable from the “deleted” view."}
+            </p>
+            <label className="mb-4 flex items-center gap-2 text-base-content/60">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm"
+                checked={hardDelete}
+                disabled={deleted}
+                onChange={(e) => setHardDelete((e.target as HTMLInputElement).checked)}
+              />
+              hard delete (cannot be undone)
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="btn btn-ghost rounded-full"
+                onClick={() => setConfirmDelete(false)}
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                className="btn btn-error rounded-full"
+                onClick={() => {
+                  const hard = hardDelete;
+                  setConfirmDelete(false);
+                  onDelete(hard);
+                }}
+              >
+                {hardDelete ? "DELETE PERMANENTLY" : "DELETE"}
+              </button>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setConfirmDelete(false)} />
+        </div>
+      )}
     </div>
   );
 }
@@ -589,6 +900,144 @@ function mergePreview(target: any, patch: any): any {
 
 type ViewMode = "cards" | "raw" | "table" | "schema";
 type PanelMode = null | "update" | "delete";
+
+// ───────────────────────────────────────────────────── document fields ──
+
+// The schema ⇄ documents diff: declared fields MISSING from stored docs (with
+// the schema default, one-click backfilled through the contract) and ORPHAN
+// JSON fields present in docs but no longer declared (one-click dropped). The
+// zero-migration evolution console — works on every backend, document stores
+// included (unlike promoted columns below).
+function FieldsPanel(
+  { report, onBackfill, onDrop, ui }: {
+    report: FieldReport | null;
+    onBackfill: (field: string) => void;
+    onDrop: (field: string) => void;
+    ui: Ui;
+  },
+): ReactElement {
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  if (report === null) {
+    return (
+      <div className="mb-4 flex items-center gap-2 p-4 text-sm text-base-content/60">
+        <span className="loading loading-spinner loading-xs" /> diffing schema against documents…
+      </div>
+    );
+  }
+  const inSync = report.missing.length === 0 && report.orphans.length === 0;
+  return (
+    <div className="mb-4 text-sm">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/50">
+        Document fields — schema vs stored
+      </div>
+      {inSync
+        ? (
+          <div className="rounded-2xl bg-base-200 p-4 text-base-content/60">
+            ✓ every declared field is present and no orphan fields remain — schema and documents are
+            in sync
+          </div>
+        )
+        : (
+          <div className="overflow-x-auto rounded-2xl bg-base-200">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>field</th>
+                  <th>state</th>
+                  <th>detail</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {report.missing.map((m) => (
+                  <tr key={`m-${m.field}`} className="bg-info/10">
+                    <td className="font-mono font-bold text-base-content">{m.field}</td>
+                    <td>
+                      <span className="badge badge-info badge-sm">MISSING</span>
+                    </td>
+                    <td className="font-mono text-xs text-base-content/60">
+                      default {JSON.stringify(m.default)}
+                    </td>
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        className={`btn btn-sm rounded-full ${ui.primary}`}
+                        title={`set ${m.field} = ${JSON.stringify(m.default)} on docs missing it`}
+                        onClick={() => onBackfill(m.field)}
+                      >
+                        BACKFILL
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {report.orphans.map((f) => (
+                  <tr key={`o-${f}`} className="bg-warning/10">
+                    <td className="font-mono font-bold text-base-content">{f}</td>
+                    <td>
+                      <span className="badge badge-warning badge-sm">ORPHAN</span>
+                    </td>
+                    <td className="font-mono text-xs text-base-content/60">
+                      in documents, not in schema
+                    </td>
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline btn-warning rounded-full"
+                        title={`remove "${f}" from every document`}
+                        onClick={() => setDropTarget(f)}
+                      >
+                        DROP
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      <div className="mt-1.5 text-[11px] text-base-content/50">
+        sampled {report.sampled} document{report.sampled === 1 ? "" : "s"}
+        {report.invalid > 0 ? ` · ${report.invalid} failed validation (skipped)` : ""}. MISSING
+        backfills the schema default through the contract; DROP removes an orphan key from every
+        document.
+      </div>
+
+      {dropTarget !== null && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-md border border-warning font-mono text-xs">
+            <h3 className="mb-2 text-base font-bold text-warning">Drop orphan field?</h3>
+            <p className="mb-4 leading-relaxed text-base-content/70">
+              Removes <b className="text-base-content">{dropTarget}</b>{" "}
+              from every document in this collection. This deletes the stored data for that key and
+              cannot be undone — re-add it to the schema and backfill if you need it again.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="btn btn-ghost rounded-full"
+                onClick={() => setDropTarget(null)}
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                className="btn btn-warning rounded-full"
+                onClick={() => {
+                  const f = dropTarget;
+                  setDropTarget(null);
+                  onDrop(f);
+                }}
+              >
+                DROP FIELD
+              </button>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setDropTarget(null)} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ───────────────────────────────────────────────────────── schema panel ──
 
@@ -815,9 +1264,12 @@ function CollectionTab(
   const [panel, setPanel] = useState<PanelMode>(null);
   const [patchDraft, setPatchDraft] = useState("{\n  \n}");
   const [hardBulk, setHardBulk] = useState(false);
+  const [backfillMissing, setBackfillMissing] = useState(false);
+  const [backfillInfo, setBackfillInfo] = useState<{ sample: Doc[]; total: number } | null>(null);
   const [expandSignal, setExpandSignal] = useState<ExpandSignal | null>(null);
   const [schemaCols, setSchemaCols] = useState<SchemaColumn[]>([]);
   const [schemaSupported, setSchemaSupported] = useState<boolean | null>(null);
+  const [fieldReport, setFieldReport] = useState<FieldReport | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -959,15 +1411,34 @@ function CollectionTab(
     }
   }
 
+  // Backfill scopes the patch to documents missing each patched key
+  // ($exists: false), AND-ed with the current query, so adding a new config
+  // field to the whole collection never overwrites docs that already carry a
+  // value. Shared by the apply action and the live preview.
+  function backfillFilterFor(patch: Record<string, unknown>): unknown {
+    const conds: unknown[] = [];
+    const base = appliedFilter();
+    if (base && typeof base === "object" && Object.keys(base).length > 0) conds.push(base);
+    for (const k of Object.keys(patch)) conds.push({ [k]: { $exists: false } });
+    if (conds.length === 0) return {};
+    return conds.length === 1 ? conds[0] : { $and: conds };
+  }
+
   async function bulkUpdate() {
     setError("");
     try {
       const patch = looseJsonParse(patchDraft);
+      if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+        throw new Error("patch must be an object, e.g. { field: value }");
+      }
+      const filter = backfillMissing
+        ? backfillFilterFor(patch as Record<string, unknown>)
+        : appliedFilter();
       const res = await post(`/services/${svc.key}/bulk-update`, {
-        filter: appliedFilter(),
+        filter,
         patch,
       }) as { count: number };
-      setNotice(`updated ${res.count} documents`);
+      setNotice(`${backfillMissing ? "backfilled" : "updated"} ${res.count} documents`);
       setPanel(null);
       await load();
     } catch (e) {
@@ -1044,9 +1515,47 @@ function CollectionTab(
     }
   }
 
+  async function loadFieldReport() {
+    setFieldReport(null);
+    try {
+      setFieldReport(await call<FieldReport>(`/services/${svc.key}/fields`));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function backfillField(field: string) {
+    setError("");
+    try {
+      const res = await post(`/services/${svc.key}/fields`, { backfill: field }) as {
+        backfilled: number;
+      };
+      setNotice(`backfilled "${field}" on ${res.backfilled} documents`);
+      await load();
+      await loadFieldReport();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function dropOrphanField(field: string) {
+    setError("");
+    try {
+      const res = await post(`/services/${svc.key}/fields`, { drop: field }) as { count: number };
+      setNotice(`dropped "${field}" from ${res.count} documents`);
+      await load();
+      await loadFieldReport();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   function switchView(m: ViewMode) {
     setView(m);
-    if (m === "schema" && schemaSupported === null) loadSchema();
+    if (m === "schema") {
+      if (schemaSupported === null) loadSchema();
+      loadFieldReport();
+    }
   }
 
   const primaryBtn = `btn rounded-full ${ui.primary}`;
@@ -1058,6 +1567,46 @@ function CollectionTab(
       return null;
     }
   }, [panel, patchDraft]);
+
+  // Backfill preview: the normal preview samples the current page (which often
+  // already has the field, so before == after). Instead query the docs the
+  // backfill would actually touch — those missing the patched keys — and show a
+  // real count + sample. Debounced; re-runs as the patch or query changes.
+  useEffect(() => {
+    if (panel !== "update" || !backfillMissing) {
+      setBackfillInfo(null);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      let patch: unknown;
+      try {
+        patch = looseJsonParse(patchDraft);
+      } catch {
+        return;
+      }
+      if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+        if (!cancelled) setBackfillInfo(null);
+        return;
+      }
+      try {
+        const filter = backfillFilterFor(patch as Record<string, unknown>);
+        const params = new URLSearchParams({
+          limit: "2",
+          skip: "0",
+          filter: JSON.stringify(filter),
+        });
+        const res = await call<{ data: Doc[]; total?: number }>(`/services/${svc.key}?${params}`);
+        if (!cancelled) setBackfillInfo({ sample: res.data, total: res.total ?? res.data.length });
+      } catch {
+        if (!cancelled) setBackfillInfo(null);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [panel, backfillMissing, patchDraft, applied]);
 
   const views: { mode: ViewMode; icon: ReactElement; title: string }[] = [
     { mode: "cards", icon: <Icon.Squares className="size-5" />, title: "cards view" },
@@ -1283,7 +1832,7 @@ function CollectionTab(
               });
             }}
           />
-          {patchPreview !== null && docs.length > 0 && (
+          {!backfillMissing && patchPreview !== null && docs.length > 0 && (
             <div className="mt-2">
               <div className="mb-1 text-[11px] text-base-content/60">
                 preview (first {Math.min(2, docs.length)} of {total}):
@@ -1297,9 +1846,52 @@ function CollectionTab(
               ))}
             </div>
           )}
+          {backfillMissing && patchPreview !== null && backfillInfo !== null && (
+            <div className="mt-2">
+              <div className="mb-1 text-[11px] text-base-content/60">
+                {backfillInfo.total === 0
+                  ? "✓ no documents are missing these fields in storage — nothing to backfill"
+                  : (
+                    <>
+                      backfill targets{" "}
+                      <b className="text-base-content">
+                        {backfillInfo.total} document{backfillInfo.total === 1 ? "" : "s"}
+                      </b>{" "}
+                      missing these fields — preview:
+                    </>
+                  )}
+              </div>
+              {backfillInfo.sample.slice(0, 2).map((d) => (
+                <div key={d.id} className="mb-1.5 flex items-center gap-2">
+                  <pre className="flex-1 overflow-x-auto rounded-xl bg-base-300/40 p-2 text-[11px] text-base-content/60">{JSON.stringify(d, null, 1)}</pre>
+                  <Icon.ArrowRight className="size-5 shrink-0 text-primary" />
+                  <pre className="flex-1 overflow-x-auto rounded-xl bg-primary/10 p-2 text-[11px]">{JSON.stringify(mergePreview(d, patchPreview), null, 1)}</pre>
+                </div>
+              ))}
+            </div>
+          )}
+          <label className="mt-2 flex items-center gap-1.5 text-[11px] text-base-content/60">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={backfillMissing}
+              onChange={(e) => setBackfillMissing((e.target as HTMLInputElement).checked)}
+            />
+            backfill — only set these fields on documents that don't already have them (add a new
+            field without overwriting existing values)
+          </label>
           <div className="mt-2 flex gap-2">
-            <button type="button" className={primaryBtn} onClick={bulkUpdate}>
-              APPLY TO {total} DOCS
+            <button
+              type="button"
+              className={primaryBtn}
+              disabled={backfillMissing && backfillInfo?.total === 0}
+              onClick={bulkUpdate}
+            >
+              {backfillMissing
+                ? backfillInfo
+                  ? `BACKFILL ${backfillInfo.total} DOC${backfillInfo.total === 1 ? "" : "S"}`
+                  : "BACKFILL MISSING FIELDS"
+                : `APPLY TO ${total} DOCS`}
             </button>
             <button
               type="button"
@@ -1388,16 +1980,17 @@ function CollectionTab(
           <DocCard
             key={d.id}
             doc={d}
+            ui={ui}
             expandSignal={expandSignal}
-            onEdit={() => openEditor(d)}
-            onDuplicate={() => duplicateDoc(d)}
-            onDelete={() => act(`/services/${svc.key}/${d.id}`, { method: "DELETE" })}
-            onRestore={() => act(`/services/${svc.key}/${d.id}/restore`, { method: "POST" })}
-            onHardDelete={() => {
-              if (confirm(`HARD delete ${d.id}? This cannot be undone.`)) {
-                act(`/services/${svc.key}/${d.id}?hard=true`, { method: "DELETE" });
-              }
+            onPatch={async (patch) => {
+              await post(`/services/${svc.key}/${d.id}`, patch);
+              setNotice(`patched ${d.id.slice(0, 8)}…`);
+              await load();
             }}
+            onDuplicate={() => duplicateDoc(d)}
+            onDelete={(hard) =>
+              act(`/services/${svc.key}/${d.id}${hard ? "?hard=true" : ""}`, { method: "DELETE" })}
+            onRestore={() => act(`/services/${svc.key}/${d.id}/restore`, { method: "POST" })}
           />
         ))}
 
@@ -1494,13 +2087,21 @@ function CollectionTab(
       )}
 
       {view === "schema" && (
-        <SchemaPanel
-          supported={schemaSupported}
-          columns={schemaCols}
-          onDrop={dropSchemaColumn}
-          onMigrate={migrateSchemaColumn}
-          ui={ui}
-        />
+        <>
+          <FieldsPanel
+            report={fieldReport}
+            onBackfill={backfillField}
+            onDrop={dropOrphanField}
+            ui={ui}
+          />
+          <SchemaPanel
+            supported={schemaSupported}
+            columns={schemaCols}
+            onDrop={dropSchemaColumn}
+            onMigrate={migrateSchemaColumn}
+            ui={ui}
+          />
+        </>
       )}
 
       {view !== "schema" && docs.length === 0 && (

@@ -415,6 +415,16 @@ export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T>
     return Promise.resolve(rows.length > 0 ? this.#toDoc(rows[0]) : null);
   }
 
+  /** Remove a top-level JSON key from every document that has it (`json_remove`). */
+  unsetField(field: string, options?: BackendOpOptions): Promise<number> {
+    const name = assertIdent(field);
+    const res = this.#handle(options).prepare(
+      `UPDATE "${this.#table}" SET doc = json_remove(doc, '$.${name}') ` +
+        `WHERE json_type(doc, '$.${name}') IS NOT NULL`,
+    ).run() as { changes?: number | bigint };
+    return Promise.resolve(Number(res.changes ?? 0));
+  }
+
   // ============================================================
   // SchemaAdmin — introspection + orphan cleanup
   // ============================================================

@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
 import { conformanceSchema } from "@hushkey/service-core/conformance";
+import { documentSchema } from "@hushkey/service-core";
 import { SqliteService } from "../../sqlite-service/mod.ts";
 import type { SqliteDbLike } from "../../sqlite-service/mod.ts";
 import { studio } from "../mod.ts";
@@ -219,6 +221,83 @@ Deno.test("schema route migrates an orphan into a declared column, then drops it
   expect(doc.email).toBeUndefined();
   expect(doc.version).toBe(2);
   expect(doc.meta.updated_by).toBe("migrator");
+});
+
+function dispatcher(middleware: ReturnType<typeof studio>) {
+  return (method: string, path: string, body?: unknown) =>
+    middleware({
+      url: new URL(`http://x${path}`),
+      req: new Request(`http://x${path}`, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+      next: () => new Response("fell through", { status: 599 }),
+    });
+}
+
+Deno.test("fields endpoint diffs schema vs docs, backfills missing, drops orphans", async () => {
+  // Seed under a schema with `legacy`, then serve under one that drops it and
+  // adds `tier` (default) — `legacy` becomes orphan, `tier` becomes missing.
+  const db = new DatabaseSync(":memory:") as unknown as SqliteDbLike;
+  const seed = new SqliteService(
+    db,
+    documentSchema({ name: z.string(), legacy: z.string().optional() }),
+    { collectionName: "docs" },
+  );
+  await seed.create({ name: "a", legacy: "x" } as never);
+  const docs = new SqliteService(
+    db,
+    documentSchema({ name: z.string(), tier: z.string().default("free") }),
+    { collectionName: "docs" },
+  );
+  const dispatch = dispatcher(studio({ services: { docs }, executionerId: "test-admin" }));
+
+  const report = await (await dispatch("GET", "/studio/api/services/docs/fields")).json();
+  expect(report.orphans).toEqual(["legacy"]);
+  expect(report.missing).toEqual([{ field: "tier", default: "free" }]);
+  expect(report.sampled).toBe(1);
+
+  // backfill the missing field with its schema default, through the contract
+  const bf = await (await dispatch("POST", "/studio/api/services/docs/fields", {
+    backfill: "tier",
+  })).json();
+  expect(bf.backfilled).toBe(1);
+  expect(bf.default).toBe("free");
+
+  // drop the orphan field from every document
+  const dr = await (await dispatch("POST", "/studio/api/services/docs/fields", {
+    drop: "legacy",
+  })).json();
+  expect(dr.count).toBe(1);
+
+  const after = await (await dispatch("GET", "/studio/api/services/docs/fields")).json();
+  expect(after.orphans).toEqual([]);
+  expect(after.missing).toEqual([]);
+  const doc = (await (await dispatch("GET", "/studio/api/services/docs")).json()).data[0];
+  expect(doc.tier).toBe("free");
+  expect(doc.legacy).toBeUndefined();
+});
+
+Deno.test("fields report ignores soft-deleted docs (active snapshot)", async () => {
+  const db = new DatabaseSync(":memory:") as unknown as SqliteDbLike;
+  // active doc already carries `tier` (created under the evolved schema)
+  const docs = new SqliteService(
+    db,
+    documentSchema({ name: z.string(), tier: z.string().default("free") }),
+    { collectionName: "docs" },
+  );
+  await docs.create({ name: "live" } as never);
+  // an OLD doc with no `tier`, then soft-deleted — must NOT count as missing
+  const old = new SqliteService(db, documentSchema({ name: z.string() }), { collectionName: "docs" });
+  const goneId = (await old.create({ name: "gone" } as never) as { id: string }).id;
+  await docs.delete(goneId);
+
+  const dispatch = dispatcher(studio({ services: { docs }, executionerId: "test-admin" }));
+  const report = await (await dispatch("GET", "/studio/api/services/docs/fields")).json();
+  expect(report.sampled).toBe(1); // the soft-deleted doc is ignored
+  expect(report.missing).toEqual([]); // the active doc already has tier
+  expect(report.orphans).toEqual([]);
 });
 
 Deno.test("contract violations surface as messages, not crashes", async () => {

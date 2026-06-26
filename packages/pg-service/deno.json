@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/pg-service",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
     "exclude": ["tests/"]
   },
   "imports": {
-    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.15.1",
+    "@hushkey/service-core": "jsr:@hushkey/service-core@^0.15.2",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.2.0",
     "pg": "npm:pg@^8.13.0"
