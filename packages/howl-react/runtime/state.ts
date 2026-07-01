@@ -1,5 +1,8 @@
 import { atom, type PrimitiveAtom, useAtomValue } from "jotai";
-import { EMPTY_ROUTE, type HowlRoute } from "./router.ts";
+// Import from the dependency-free `./route.ts` leaf, NOT `./router.ts`:
+// `router.ts` imports this module, so reading `EMPTY_ROUTE` from it here would
+// re-create the cycle whose TDZ crashes the compiled/production build.
+import { EMPTY_ROUTE, type HowlRoute } from "./route.ts";
 
 /**
  * The atom mirroring the server `ctx.state` — the request-scoped context Howl

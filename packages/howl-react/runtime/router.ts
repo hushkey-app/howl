@@ -1,6 +1,14 @@
 import { useCallback } from "react";
 import { useAtomValue } from "jotai";
 import { howlLocationAtom } from "./state.ts";
+import type { HowlRoute } from "./route.ts";
+
+// The route value/shape primitives live in the dependency-free `./route.ts`
+// leaf so `./state.ts` can read `EMPTY_ROUTE` at eval time without forming a
+// `router.ts` ↔ `state.ts` cycle (see the note in `./route.ts`). Re-exported
+// here to keep the public `@hushkey/howl-react/router` surface unchanged.
+export { EMPTY_ROUTE, toHowlRoute } from "./route.ts";
+export type { HowlRoute } from "./route.ts";
 
 /** Options for an imperative {@linkcode navigate}. */
 export interface NavigateOptions {
@@ -10,63 +18,6 @@ export interface NavigateOptions {
   scroll?: boolean;
   /** Arbitrary value attached to the new `history.state` entry. */
   state?: unknown;
-}
-
-/**
- * The current route. Read reactively with {@linkcode useRoute} — the value
- * updates (and consuming components re-render) on every navigation.
- */
-export interface HowlRoute {
-  /** Full href of the current location. */
-  href: string;
-  /** Pathname (no query / hash). */
-  path: string;
-  /** Query-string params as a flat record. */
-  query: Record<string, string>;
-  /** Matched route params (`/users/:id` → `{ id }`). */
-  params: Record<string, string>;
-  /** URL hash including the leading `#`, or `""` when absent. */
-  hash: string;
-  /** Matched route pattern (e.g. `/users/:id`), or `null`. */
-  route: string | null;
-}
-
-/** The route value before any navigation is recorded (SSR/first-paint default). */
-export const EMPTY_ROUTE: HowlRoute = {
-  href: "",
-  path: "",
-  query: {},
-  params: {},
-  hash: "",
-  route: null,
-};
-
-/** Parse `href` into a `URL`, returning `null` when it isn't a valid URL. */
-function safeUrl(href: string): URL | null {
-  try {
-    return new URL(href);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Derive a {@linkcode HowlRoute} from a page-props bag. Shared by the server
- * engine (to seed the SSR atom) and the client boot (to update it on nav), so
- * both observe an identical route shape.
- */
-export function toHowlRoute(props: Record<string, unknown>): HowlRoute {
-  const raw = props.url;
-  const url = raw instanceof URL ? raw : typeof raw === "string" ? safeUrl(raw) : null;
-  return {
-    href: url?.href ?? "",
-    path: url?.pathname ?? "",
-    query: (props.query as Record<string, string> | undefined) ??
-      (url !== null ? Object.fromEntries(url.searchParams) : {}),
-    params: (props.params as Record<string, string> | undefined) ?? {},
-    hash: url?.hash ?? "",
-    route: (props.route as string | null | undefined) ?? null,
-  };
 }
 
 /**
