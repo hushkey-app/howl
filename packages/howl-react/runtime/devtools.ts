@@ -233,7 +233,7 @@ export function RouteDevtoolsPanel(): ReactNode {
           e.preventDefault();
           attachDrag(e.currentTarget, e.clientX, e.clientY, () => setOpen(true));
         },
-      }, "⚡"),
+      }, "⚡ routes"),
     );
   }
 
