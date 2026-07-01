@@ -56,14 +56,14 @@ const styles: Record<string, CSSProperties> = {
   badge: {
     display: "flex",
     alignItems: "center",
-    gap: "6px",
     background: "#1e1e2e",
     color: "#cdd6f4",
     border: "1px solid #313244",
     borderRadius: "8px",
     padding: "6px 10px",
-    cursor: "pointer",
+    cursor: "grab",
     boxShadow: "0 4px 12px rgba(0,0,0,.3)",
+    userSelect: "none",
   },
   panel: {
     width: "320px",
@@ -84,6 +84,8 @@ const styles: Record<string, CSSProperties> = {
     padding: "8px 10px",
     borderBottom: "1px solid #313244",
     background: "#181825",
+    cursor: "move",
+    userSelect: "none",
   },
   title: { fontWeight: 600 },
   close: {
@@ -175,20 +177,63 @@ function tagStyle(mode: string): CSSProperties {
  * Lists every route with its `ssr`/`aot`/`ssg` mode, highlights the active one,
  * shows the current path, and navigates on click. Param routes (`/users/:id`)
  * expand an inline editor — one field per param — so they're testable too.
+ * The panel is draggable: drag the badge (collapsed) or the header (open).
  */
 export function RouteDevtoolsPanel(): ReactNode {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const route = useRoute();
   const routes = routeMap();
   const active = normPattern(route.route);
 
+  /** Attach pointer-move drag listeners, resolving position from the root element. */
+  function attachDrag(
+    currentTarget: EventTarget | null,
+    clientX: number,
+    clientY: number,
+    onClickThrough?: () => void,
+  ) {
+    const root = (currentTarget as HTMLElement)
+      ?.closest("[data-howl-devtools-root]") as HTMLElement | null;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    const ox = clientX - rect.left;
+    const oy = clientY - rect.top;
+    const sx = clientX;
+    const sy = clientY;
+
+    const move = (ev: PointerEvent) => {
+      setPos({ x: ev.clientX - ox, y: ev.clientY - oy });
+    };
+    const up = (ev: PointerEvent) => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      if (onClickThrough && Math.abs(ev.clientX - sx) <= 4 && Math.abs(ev.clientY - sy) <= 4) {
+        onClickThrough();
+      }
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  }
+
+  const rootStyle: CSSProperties = pos
+    ? { ...styles.root, bottom: "auto", right: "auto", top: pos.y, left: pos.x }
+    : styles.root;
+
   if (!open) {
     return h(
       "div",
-      { style: styles.root },
-      h("button", { style: styles.badge, onClick: () => setOpen(true) }, "⚡ routes"),
+      { style: rootStyle, "data-howl-devtools-root": "" },
+      h("button", {
+        style: styles.badge,
+        onPointerDown: (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          attachDrag(e.currentTarget, e.clientX, e.clientY, () => setOpen(true));
+        },
+      }, "⚡"),
     );
   }
 
@@ -257,11 +302,24 @@ export function RouteDevtoolsPanel(): ReactNode {
     return h("div", { key: r.pattern, style: styles.routeWrap }, [rowBtn, editor]);
   });
 
-  return h("div", { style: styles.root }, [
+  return h("div", { style: rootStyle, "data-howl-devtools-root": "" }, [
     h("div", { key: "panel", style: styles.panel }, [
-      h("div", { key: "h", style: styles.header }, [
+      h("div", {
+        key: "h",
+        style: styles.header,
+        onPointerDown: (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          attachDrag(e.currentTarget, e.clientX, e.clientY);
+        },
+      }, [
         h("span", { key: "t", style: styles.title }, "Howl Routes"),
-        h("button", { key: "x", style: styles.close, onClick: () => setOpen(false) }, "×"),
+        h("button", {
+          key: "x",
+          style: styles.close,
+          onClick: () => setOpen(false),
+          onPointerDown: (e) => e.stopPropagation(),
+        }, "×"),
       ]),
       h("div", { key: "c", style: styles.current }, `→ ${route.path || "/"}`),
       h("div", { key: "l", style: styles.list }, rows),
