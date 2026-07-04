@@ -20,7 +20,11 @@ export function denoJson(spec: ProjectSpec): string {
     imports["react"] = "npm:react@^19.1.0";
     imports["react/jsx-runtime"] = "npm:react@^19.1.0/jsx-runtime";
     imports["react-dom"] = "npm:react-dom@^19.1.0";
-    imports["react-dom/server"] = "npm:react-dom@^19.1.0/server";
+    // Web-standard `server.edge` build — the default `react-dom/server` resolves
+    // (via Deno's `deno` condition) to `server.browser`, whose scheduler opens a
+    // top-level MessageChannel at import that keeps the event loop alive, so
+    // `deno task build` never exits. `server.edge` has the same `renderToString`.
+    imports["react-dom/server"] = "npm:react-dom@^19.1.0/server.edge";
     imports["react-dom/client"] = "npm:react-dom@^19.1.0/client";
   } else if (engine === "vue") {
     imports["@hushkey/howl-vue"] = `jsr:@hushkey/howl-vue@^${HOWL_VERSION}`;
@@ -77,7 +81,7 @@ export function denoJson(spec: ProjectSpec): string {
   // a name without exports. The compile task embeds the project name directly.
   const obj = {
     tasks: {
-      dev: `deno run -A --watch=. --watch-exclude=${watchExclude.join(",")} dev.ts`,
+      dev: `deno run -A --watch --watch-exclude=${watchExclude.join(",")} dev.ts`,
       build: "deno run -A dev.ts build",
       start: "deno run -A dist/compiled-entry.js",
       compile: `deno compile -A ${include}--output dist/bin/${spec.name} dist/compiled-entry.js`,

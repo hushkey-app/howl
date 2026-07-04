@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/howl-react",
-  "version": "0.15.4",
+  "version": "0.15.5",
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",
@@ -13,14 +13,14 @@
     "./router": "./runtime/router.ts"
   },
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.15.4",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.15.5",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "esbuild": "npm:esbuild@^0.25.0",
     "react": "npm:react@^19.1.0",
     "react/jsx-runtime": "npm:react@^19.1.0/jsx-runtime",
     "react-dom": "npm:react-dom@^19.1.0",
-    "react-dom/server": "npm:react-dom@^19.1.0/server",
+    "react-dom/server": "npm:react-dom@^19.1.0/server.edge",
     "react-dom/client": "npm:react-dom@^19.1.0/client",
     "@unhead/react": "npm:@unhead/react@^2.0.0",
     "@unhead/react/server": "npm:@unhead/react@^2.0.0/server",

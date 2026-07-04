@@ -365,7 +365,6 @@ export class HowlBuilder<State = any> {
     if (ssgBuilders.length > 0) {
       await this.#prerenderSsg(app, ssgBuilders);
     }
-
     // All clients bundled (and SSG prerendered) — release the esbuild service
     // process instead of leaving it running until the Deno process exits.
     await stopEsbuild();

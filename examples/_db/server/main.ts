@@ -6,7 +6,7 @@ import { usersService } from "./services/users/users.service.ts";
 import { blogsService } from "./services/blogs/blogs.service.ts";
 import { reviewsService } from "./services/reviews/reviews.service.ts";
 
-export const app = new Howl<State>({
+export const app: Howl<State> = new Howl<State>({
   logger: true,
   debug: true,
   engines: { vue: vueEngine() },

@@ -114,7 +114,7 @@
         },
         {
           "type": "warning",
-          "text": "For the React engine, set compilerOptions.jsx to \"react-jsx\" and jsxImportSource to \"react\" in deno.json. For Vue, jsxImportSource is \"vue\". The scaffolder writes the correct compilerOptions for the engine you pick."
+          "text": "For the React engine, set compilerOptions.jsx to \"react-jsx\" and jsxImportSource to \"react\" in deno.json, and map react-dom/server to npm:react-dom@^19.1.0/server.edge. That last mapping matters: Deno's `deno` export condition otherwise resolves react-dom/server to the browser build, whose streaming scheduler opens a MessageChannel at import that keeps the event loop alive — so `deno task build` renders everything but never exits. server.edge exposes the same renderToString. For Vue, jsxImportSource is \"vue\". The scaffolder writes the correct config for the engine you pick."
         }
       ]
     },

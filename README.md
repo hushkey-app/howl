@@ -154,11 +154,18 @@ if (Deno.args.includes("build")) {
 }
 ```
 
-> **npm tree-shaking** — Client bundles drop unused exports from npm barrel imports
-> automatically. Importing one named export from a package that declares `"sideEffects": false`
-> (`lucide-react` / `lucide-vue-next`, `date-fns`, radix, …) bundles only what you use instead of
-> the whole library — no per-icon deep imports required. Applies to both engines, since it lives in
-> the shared resolver rather than the engine plugin.
+> **npm tree-shaking** — Client bundles drop unused exports from npm barrel imports automatically.
+> Importing one named export from a package that declares `"sideEffects": false` (`lucide-react` /
+> `lucide-vue-next`, `date-fns`, radix, …) bundles only what you use instead of the whole library —
+> no per-icon deep imports required. Applies to both engines, since it lives in the shared resolver
+> rather than the engine plugin.
+
+> **React engine — map `react-dom/server` to `server.edge`** in `deno.json`
+> (`"react-dom/server": "npm:react-dom@^19.1.0/server.edge"`; `howl init` does this for you). Deno's
+> `deno` export condition otherwise resolves it to the browser build, whose streaming scheduler
+> opens a top-level `MessageChannel` at import — a live event-loop handle that leaves
+> `deno task build` rendered-but-hung, never exiting. `server.edge` exposes the same synchronous
+> `renderToString`.
 
 **`client/pages/_app.tsx`** — root HTML shell
 

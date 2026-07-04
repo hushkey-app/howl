@@ -74,8 +74,8 @@ persistent React root — no full reload, no re-hydration. Everything outside `#
 `_app.tsx` shell, plus any module-level singleton like the jotai store) stays alive across
 navigations. Inside `#howl-app`, layouts shared between the old and new route also reconcile rather
 than remount — their component state (scroll, collapse, form inputs) survives the navigation; only
-the parts of the tree that actually differ (the page, and any layout segment unique to the new route)
-mount fresh.
+the parts of the tree that actually differ (the page, and any layout segment unique to the new
+route) mount fresh.
 
 **Prefetch on intent.** Add a `client-prefetch` boundary to warm links on hover (after a brief
 dwell), touch, or focus. Opt-in; respects `Save-Data` / `prefers-reduced-data`; exclude a subtree
@@ -220,6 +220,19 @@ renders from the embedded modules — the binary is self-contained, no source on
 // deno.json
 "compile": "deno compile -A --include dist/static --output dist/bin/app dist/compiled-entry.js"
 ```
+
+**Map `react-dom/server` to the Web-standard `server.edge` build:**
+
+```jsonc
+// deno.json — `howl init` scaffolds this for you
+"imports": { "react-dom/server": "npm:react-dom@^19.1.0/server.edge" }
+```
+
+Deno's `deno` export condition otherwise resolves `react-dom/server` to `server.browser`, whose
+streaming scheduler opens a top-level `MessageChannel` (with a live `port1.onmessage`) at import
+time. That's a ref'd handle that keeps the event loop alive, so `deno task build` renders every
+client + prerenders SSG but the process **never exits**. `server.edge` exposes the same synchronous
+`renderToString` with no `MessageChannel` and no `node:stream` dependency.
 
 ## TypeScript / JSX types
 

@@ -79,53 +79,55 @@ export async function bundleJs(
     }
   }
 
-  const bundle = await withEsbuildServiceRetry(() => esbuild!.build({
-    entryPoints: options.entryPoints,
+  const bundle = await withEsbuildServiceRetry(() =>
+    esbuild!.build({
+      entryPoints: options.entryPoints,
 
-    platform: "browser",
-    target: options.target,
+      platform: "browser",
+      target: options.target,
 
-    format: "esm",
-    bundle: true,
-    splitting: true,
-    treeShaking: true,
-    sourcemap: options.dev ? "linked" : options.sourceMap?.kind,
-    sourceRoot: options.dev ? undefined : options.sourceMap?.sourceRoot,
-    sourcesContent: options.dev ? undefined : options.sourceMap?.sourcesContent,
-    minify: !options.dev,
-    logOverride: {
-      "suspicious-nullish-coalescing": "silent",
-      "unsupported-jsx-comment": "silent",
-    },
+      format: "esm",
+      bundle: true,
+      splitting: true,
+      treeShaking: true,
+      sourcemap: options.dev ? "linked" : options.sourceMap?.kind,
+      sourceRoot: options.dev ? undefined : options.sourceMap?.sourceRoot,
+      sourcesContent: options.dev ? undefined : options.sourceMap?.sourcesContent,
+      minify: !options.dev,
+      logOverride: {
+        "suspicious-nullish-coalescing": "silent",
+        "unsupported-jsx-comment": "silent",
+      },
 
-    jsxDev: options.dev,
-    jsx: "automatic",
-    jsxImportSource: options.jsxImportSource,
+      jsxDev: options.dev,
+      jsx: "automatic",
+      jsxImportSource: options.jsxImportSource,
 
-    absWorkingDir: options.cwd,
-    outdir: ".",
-    write: false,
-    metafile: true,
+      absWorkingDir: options.cwd,
+      outdir: ".",
+      write: false,
+      metafile: true,
 
-    alias: options.alias,
+      alias: options.alias,
 
-    define: {
-      "process.env.NODE_ENV": JSON.stringify(
-        options.dev ? "development" : "production",
-      ),
-    },
+      define: {
+        "process.env.NODE_ENV": JSON.stringify(
+          options.dev ? "development" : "production",
+        ),
+      },
 
-    plugins: [
-      buildIdPlugin(options.buildId),
-      windowsPathFixer(),
-      ...(options.plugins ?? []),
-      denoPlugin({
-        preserveJsx: true,
-        debug: false,
-        publicEnvVarPrefix: "howl_PUBLIC_",
-      }),
-    ],
-  }));
+      plugins: [
+        buildIdPlugin(options.buildId),
+        windowsPathFixer(),
+        ...(options.plugins ?? []),
+        denoPlugin({
+          preserveJsx: true,
+          debug: false,
+          publicEnvVarPrefix: "howl_PUBLIC_",
+        }),
+      ],
+    })
+  );
 
   const files: BuildOutput["files"] = [];
   for (let i = 0; i < bundle.outputFiles.length; i++) {
@@ -222,33 +224,35 @@ export async function bundleVueSsr(
   }
   await Deno.mkdir(options.outDir, { recursive: true });
 
-  await withEsbuildServiceRetry(() => esbuild!.build({
-    entryPoints: options.entryPoints,
-    platform: "neutral",
-    format: "esm",
-    bundle: true,
-    splitting: false,
-    treeShaking: true,
-    // Bare deps stay external so the precompiled component shares the engine's
-    // runtime instances. `@hushkey/howl-vue/*` must be external too (not bundled
-    // via node_modules) so its `pinia` / `@unhead/vue` deps resolve through
-    // howl-vue's own import map — and the user need not declare them.
-    packages: "external",
-    external: ["@hushkey/howl-vue/*"],
-    minify: !options.dev,
-    absWorkingDir: options.cwd,
-    outdir: options.outDir,
-    entryNames: "[name]",
-    write: true,
-    logOverride: {
-      "suspicious-nullish-coalescing": "silent",
-      "unsupported-jsx-comment": "silent",
-    },
-    plugins: [
-      buildIdPlugin(options.buildId),
-      ...(options.plugins ?? []),
-    ],
-  }));
+  await withEsbuildServiceRetry(() =>
+    esbuild!.build({
+      entryPoints: options.entryPoints,
+      platform: "neutral",
+      format: "esm",
+      bundle: true,
+      splitting: false,
+      treeShaking: true,
+      // Bare deps stay external so the precompiled component shares the engine's
+      // runtime instances. `@hushkey/howl-vue/*` must be external too (not bundled
+      // via node_modules) so its `pinia` / `@unhead/vue` deps resolve through
+      // howl-vue's own import map — and the user need not declare them.
+      packages: "external",
+      external: ["@hushkey/howl-vue/*"],
+      minify: !options.dev,
+      absWorkingDir: options.cwd,
+      outdir: options.outDir,
+      entryNames: "[name]",
+      write: true,
+      logOverride: {
+        "suspicious-nullish-coalescing": "silent",
+        "unsupported-jsx-comment": "silent",
+      },
+      plugins: [
+        buildIdPlugin(options.buildId),
+        ...(options.plugins ?? []),
+      ],
+    })
+  );
 
   const entryToFile = new Map<string, string>();
   for (const name of Object.keys(options.entryPoints)) {
