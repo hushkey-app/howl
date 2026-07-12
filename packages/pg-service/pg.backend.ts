@@ -25,8 +25,20 @@ import {
  * No driver dependency, same posture as the Redis adapter.
  */
 export interface PgClientLike {
-  /** Execute parametrized SQL, returning at least the result rows. */
-  query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
+  /**
+   * Execute parametrized SQL, returning the result rows and — for writes — the
+   * affected-row count from the command tag: `rowCount` on `pg`/Neon,
+   * `affectedRows` on PGlite. Both optional so a minimal client need not supply
+   * either (bulk writes then fall back to 0).
+   */
+  query(
+    text: string,
+    params?: unknown[],
+  ): Promise<{
+    rows: Record<string, unknown>[];
+    rowCount?: number | null;
+    affectedRows?: number | null;
+  }>;
 }
 
 /** A document path promoted to a typed generated column. */
@@ -411,11 +423,15 @@ export class PgBackend<T extends DocumentShape>
       this.#promoted,
       params.length + 1,
     );
-    const { rows } = await this.#exec(options).query(
-      `UPDATE "${this.#table}" SET doc = ${expr} WHERE ${where.text} RETURNING id`,
+    // Count via the command tag's `rowCount` — no `RETURNING id` + materializing
+    // every updated id over the wire just to take `.length`.
+    const result = await this.#exec(options).query(
+      `UPDATE "${this.#table}" SET doc = ${expr} WHERE ${where.text}`,
       [...params, ...where.params],
     );
-    return rows.length;
+    // `rowCount` on pg/Neon, `affectedRows` on PGlite — the command tag's
+    // affected-row count for a RETURNING-less UPDATE.
+    return result.rowCount ?? result.affectedRows ?? 0;
   }
 
   /** Hard-delete one document by id. Returns the deleted document, or null. */

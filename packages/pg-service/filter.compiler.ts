@@ -67,12 +67,28 @@ class Compiler {
   // A field resolves either to a typed column (promoted / id) or a JSONB
   // expression. Columns take raw parameter values; JSONB expressions take
   // JSON-encoded parameters cast with ::jsonb.
-  private target(path: string): { expr: string; column: boolean; segments: string[] } {
-    if (path === "id") return { expr: `id`, column: true, segments: ["id"] };
+  private target(
+    path: string,
+  ): {
+    expr: string;
+    column: boolean;
+    segments: string[];
+    type: PromotedType | null;
+  } {
+    if (path === "id") {
+      return { expr: `id`, column: true, segments: ["id"], type: "text" };
+    }
     const promoted = this.promoted.get(path);
     const segments = path.split(".").map(assertIdent);
-    if (promoted) return { expr: `"${assertIdent(promoted.column)}"`, column: true, segments };
-    return { expr: jsonbExpr(segments), column: false, segments };
+    if (promoted) {
+      return {
+        expr: `"${assertIdent(promoted.column)}"`,
+        column: true,
+        segments,
+        type: promoted.type,
+      };
+    }
+    return { expr: jsonbExpr(segments), column: false, segments, type: null };
   }
 
   private value(t: { column: boolean }, v: unknown): string {
@@ -107,7 +123,12 @@ class Compiler {
   }
 
   private operator(
-    t: { expr: string; column: boolean; segments: string[] },
+    t: {
+      expr: string;
+      column: boolean;
+      segments: string[];
+      type: PromotedType | null;
+    },
     op: string,
     v: unknown,
   ): string {
@@ -125,7 +146,16 @@ class Compiler {
         const hadNull = arr.length !== nonNull.length;
         const pieces: string[] = [];
         if (nonNull.length > 0) {
-          pieces.push(`${t.expr} IN (${nonNull.map((x) => this.value(t, x)).join(", ")})`);
+          if (t.column && t.type) {
+            // A single array bind (`= ANY($n::type[])`) instead of one param per
+            // element — avoids Postgres's 65535 bind-parameter cap on large `$in`
+            // lists and plans better than a long `IN (...)`.
+            pieces.push(`${t.expr} = ANY(${this.push(nonNull)}::${t.type}[])`);
+          } else {
+            pieces.push(
+              `${t.expr} IN (${nonNull.map((x) => this.value(t, x)).join(", ")})`,
+            );
+          }
         }
         if (hadNull) pieces.push(this.nullMatch(t));
         if (pieces.length === 0) return "FALSE";

@@ -220,6 +220,43 @@ const CASES: [string, (ctx: Ctx) => Promise<void>][] = [
     expect(await service.count()).toBe(1);
     expect(await service.count({ viewDeleted: true })).toBe(2);
   }],
+
+  ["deleteMany soft-deletes the given ids, preserving meta", async ({ service }) => {
+    const a = await service.create({ name: "A", email: "a@b.com" });
+    const b = await service.create({ name: "B", email: "b@b.com" });
+    const c = await service.create({ name: "C", email: "c@b.com" });
+    expect(await service.deleteMany([a.id, b.id])).toBe(2);
+    expect(await service.count()).toBe(1);
+    expect(await service.get(a.id)).toBe(null);
+    expect((await service.get(c.id))?.name).toBe("C");
+    // Soft (not hard): viewDeleted reveals it, and the rest of meta survives.
+    const viewed = await service.get(a.id, { viewDeleted: true });
+    expect(typeof viewed?.meta.deleted_at).toBe("number");
+    expect(viewed?.meta.created_at).toBe(a.meta.created_at);
+  }],
+
+  ["patchMany applies the partial to every id + bumps version", async ({ service }) => {
+    const a = await service.create({ name: "A", email: "a@b.com", score: 1 });
+    const b = await service.create({ name: "B", email: "b@b.com", score: 2 });
+    expect(await service.patchMany([a.id, b.id], { score: 9 })).toBe(2);
+    const got = await service.get(a.id);
+    expect(got?.score).toBe(9);
+    expect(got?.version).toBe(a.version + 1);
+  }],
+
+  [
+    "deleteWhere/patchWhere by filter; empty ids no-op; empty filter refused",
+    async ({ service }) => {
+      await service.create({ name: "keep", email: "k@b.com", score: 5 });
+      await service.create({ name: "x", email: "x1@b.com", score: 10 });
+      await service.create({ name: "x", email: "x2@b.com", score: 10 });
+      expect(await service.patchWhere({ score: 10 }, { name: "y" })).toBe(2);
+      expect(await service.deleteWhere({ score: 10 })).toBe(2);
+      expect(await service.count()).toBe(1);
+      expect(await service.deleteMany([])).toBe(0);
+      await expect(service.deleteWhere({})).rejects.toThrow();
+    },
+  ],
 ];
 
 /**

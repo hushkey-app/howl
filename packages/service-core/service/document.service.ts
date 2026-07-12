@@ -102,6 +102,30 @@ export interface LogEntry {
 
 const DEFAULT_QUERY_TIMEOUT = 30_000;
 
+// Max concurrent single-doc ops in the bulk fallback path (backends without a
+// native bulk-write capability). Bounds connection-pool pressure so a bulk over
+// thousands of matches can't fire thousands of concurrent backend operations.
+const BULK_FALLBACK_CONCURRENCY = 16;
+
+// Bulk ops touch many rows, so they get a larger timeout budget than a single-
+// doc write (a set-wide UPDATE on a large table legitimately runs longer).
+const BULK_TIMEOUT_MULTIPLIER = 10;
+
+/**
+ * Run `fn` over `items` with at most `limit` promises in flight at once.
+ * Sequential batches of `limit` — enough to cap concurrency without the weight
+ * of a full scheduler.
+ */
+async function runChunked<I>(
+  items: I[],
+  limit: number,
+  fn: (item: I) => Promise<unknown>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += limit) {
+    await Promise.all(items.slice(i, i + limit).map(fn));
+  }
+}
+
 /**
  * Backend-independent document-store service for a single collection.
  *
@@ -379,6 +403,7 @@ export class DocumentService<T extends DocumentShape> {
   protected async executeWithTimeout<R>(
     operation: string,
     promise: Promise<R>,
+    timeoutMs: number = this.queryTimeout,
   ): Promise<R> {
     const start = Date.now();
     this.log({
@@ -393,10 +418,10 @@ export class DocumentService<T extends DocumentShape> {
           () =>
             reject(
               new Error(
-                `[${this.options.collectionName}] [${operation}] Timeout after ${this.queryTimeout}ms`,
+                `[${this.options.collectionName}] [${operation}] Timeout after ${timeoutMs}ms`,
               ),
             ),
-          this.queryTimeout,
+          timeoutMs,
         );
       });
       const result = await Promise.race([promise, timeout]);
@@ -1601,18 +1626,24 @@ export class DocumentService<T extends DocumentShape> {
           bumpVersion: false,
           session: options.session,
         }),
+        this.queryTimeout * BULK_TIMEOUT_MULTIPLIER,
       );
     } else {
+      // No native bulk write on this backend: soft-delete each match, but
+      // bounded — an id-only read and capped concurrency so a large match set
+      // can't exhaust the connection pool.
       const docs = await this.backend.findMany(activeFilter, {
+        select: ["id"],
         session: options.session,
       });
-      await Promise.all(
-        docs.map((d) =>
+      await runChunked(
+        docs,
+        BULK_FALLBACK_CONCURRENCY,
+        (d) =>
           this.delete((d as { id: string }).id, {
             executionerId: options.executionerId,
             session: options.session,
-          })
-        ),
+          }),
       );
       count = docs.length;
     }
@@ -1694,18 +1725,24 @@ export class DocumentService<T extends DocumentShape> {
           bumpVersion: true,
           session: options.session,
         }),
+        this.queryTimeout * BULK_TIMEOUT_MULTIPLIER,
       );
     } else {
+      // No native bulk write on this backend: patch each match, but bounded —
+      // an id-only read and capped concurrency so a large match set can't
+      // exhaust the connection pool.
       const docs = await this.backend.findMany(activeFilter, {
+        select: ["id"],
         session: options.session,
       });
-      await Promise.all(
-        docs.map((d) =>
+      await runChunked(
+        docs,
+        BULK_FALLBACK_CONCURRENCY,
+        (d) =>
           this.patch((d as { id: string }).id, args, {
             executionerId: options.executionerId,
             session: options.session,
-          })
-        ),
+          }),
       );
       count = docs.length;
     }
