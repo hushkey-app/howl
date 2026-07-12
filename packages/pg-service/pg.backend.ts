@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import {
   type BackendOpOptions,
+  type BulkWriteBackend,
   type DocumentShape,
   type Filter,
   type FindManyOptions,
@@ -24,8 +25,20 @@ import {
  * No driver dependency, same posture as the Redis adapter.
  */
 export interface PgClientLike {
-  /** Execute parametrized SQL, returning at least the result rows. */
-  query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
+  /**
+   * Execute parametrized SQL, returning the result rows and — for writes — the
+   * affected-row count from the command tag: `rowCount` on `pg`/Neon,
+   * `affectedRows` on PGlite. Both optional so a minimal client need not supply
+   * either (bulk writes then fall back to 0).
+   */
+  query(
+    text: string,
+    params?: unknown[],
+  ): Promise<{
+    rows: Record<string, unknown>[];
+    rowCount?: number | null;
+    affectedRows?: number | null;
+  }>;
 }
 
 /** A document path promoted to a typed generated column. */
@@ -93,7 +106,8 @@ $$ LANGUAGE plpgsql IMMUTABLE;
  *
  * @typeParam T The public document shape.
  */
-export class PgBackend<T extends DocumentShape> implements StorageBackend<T>, SchemaAdmin {
+export class PgBackend<T extends DocumentShape>
+  implements StorageBackend<T>, SchemaAdmin, BulkWriteBackend<T> {
   /** Cache-key namespace for SQL-backed services. */
   readonly cachePrefix = "sql";
 
@@ -376,6 +390,48 @@ export class PgBackend<T extends DocumentShape> implements StorageBackend<T>, Sc
       params,
     );
     return rows.length > 0 ? this.#toDoc(rows[0]) : null;
+  }
+
+  /**
+   * Bulk variant of {@link updatePaths}: deep-set `paths` on EVERY document
+   * matching `filter`, in one UPDATE — no per-row read, no optimistic lock.
+   * Implements {@link BulkWriteBackend.updatePathsWhere}; the service uses it for
+   * bulk soft-delete and bulk patch. Returns the number of rows updated.
+   */
+  async updatePathsWhere(
+    filter: Filter<T>,
+    paths: Record<string, unknown>,
+    options: UpdatePathsOptions = {},
+  ): Promise<number> {
+    await this.#ready;
+    const params: unknown[] = [];
+    let expr = "doc";
+    for (const [path, value] of Object.entries(paths)) {
+      if (value === undefined) continue;
+      const segments = path.split(".").map(assertIdent);
+      params.push(JSON.stringify(value ?? null));
+      expr = `howl_jsonb_deep_set(${expr}, '{${segments.join(",")}}', $${params.length}::jsonb)`;
+    }
+    if (options.bumpVersion !== false) {
+      // RHS `doc` is the pre-update row value — the increment is atomic per row.
+      expr = `jsonb_set(${expr}, '{version}', to_jsonb(((doc->>'version'))::bigint + 1), true)`;
+    }
+    // The WHERE clause's parameters follow the SET parameters, so the filter
+    // compiler starts numbering after them.
+    const where = compileWhere(
+      filter as Record<string, unknown>,
+      this.#promoted,
+      params.length + 1,
+    );
+    // Count via the command tag's `rowCount` — no `RETURNING id` + materializing
+    // every updated id over the wire just to take `.length`.
+    const result = await this.#exec(options).query(
+      `UPDATE "${this.#table}" SET doc = ${expr} WHERE ${where.text}`,
+      [...params, ...where.params],
+    );
+    // `rowCount` on pg/Neon, `affectedRows` on PGlite — the command tag's
+    // affected-row count for a RETURNING-less UPDATE.
+    return result.rowCount ?? result.affectedRows ?? 0;
   }
 
   /** Hard-delete one document by id. Returns the deleted document, or null. */

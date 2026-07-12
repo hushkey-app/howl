@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import {
   type BackendOpOptions,
+  type BulkWriteBackend,
   type DocumentShape,
   type Filter,
   type FindManyOptions,
@@ -91,7 +92,8 @@ const AFFINITY: Record<PromotedType, string> = {
  *
  * @typeParam T The public document shape.
  */
-export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T>, SchemaAdmin {
+export class SqliteBackend<T extends DocumentShape>
+  implements StorageBackend<T>, SchemaAdmin, BulkWriteBackend<T> {
   /** Cache-key namespace for SQLite-backed services. */
   readonly cachePrefix = "sqlite";
 
@@ -405,6 +407,47 @@ export class SqliteBackend<T extends DocumentShape> implements StorageBackend<T>
       `UPDATE "${this.#table}" SET doc = ${expr} WHERE ${where} RETURNING id, doc`,
     ).all(...params) as Record<string, unknown>[];
     return Promise.resolve(rows.length > 0 ? this.#toDoc(rows[0]) : null);
+  }
+
+  /**
+   * Bulk variant of {@link updatePaths}: apply `paths` to every document matching
+   * `filter` in one UPDATE — no per-row read, no lock. Implements
+   * {@link BulkWriteBackend.updatePathsWhere}; returns the number of rows updated.
+   * The SET params (`json_patch`/null paths) precede the WHERE params, matching
+   * SQLite's positional `?` order.
+   */
+  updatePathsWhere(
+    filter: Filter<T>,
+    paths: Record<string, unknown>,
+    options: UpdatePathsOptions = {},
+  ): Promise<number> {
+    const params: unknown[] = [];
+    const nonNull: Record<string, unknown> = {};
+    const nullPaths: string[] = [];
+    for (const [path, value] of Object.entries(paths)) {
+      if (value === undefined) continue;
+      if (value === null) nullPaths.push(path);
+      else nonNull[path] = value;
+    }
+
+    let expr = `json_patch(doc, json(?))`;
+    params.push(JSON.stringify(this.#denest(nonNull)));
+    for (const path of nullPaths) {
+      const segments = path.split(".").map(assertIdent);
+      expr = `json_set(${expr}, ${jsonPath(segments)}, null)`;
+    }
+    if (options.bumpVersion !== false) {
+      expr = `json_set(${expr}, '$.version', (doc->>'$.version') + 1)`;
+    }
+
+    const where = compileWhere(
+      filter as Record<string, unknown>,
+      this.#promoted,
+    );
+    const res = this.#handle(options).prepare(
+      `UPDATE "${this.#table}" SET doc = ${expr} WHERE ${where.text}`,
+    ).run(...params, ...where.params) as { changes?: number | bigint };
+    return Promise.resolve(Number(res.changes ?? 0));
   }
 
   /** Hard-delete one document by id. Returns the deleted document, or null. */

@@ -2,6 +2,7 @@
 import { type ClientSession, type Collection, type Db, ObjectId } from "mongodb";
 import type {
   BackendOpOptions,
+  BulkWriteBackend,
   DocumentShape,
   Filter,
   FindManyOptions,
@@ -35,7 +36,8 @@ export interface MongoBackendOptions {
  *
  * @typeParam T The public document shape.
  */
-export class MongoBackend<T extends DocumentShape> implements StorageBackend<T> {
+export class MongoBackend<T extends DocumentShape>
+  implements StorageBackend<T>, BulkWriteBackend<T> {
   /** Cache-key namespace for Mongo-backed services. */
   readonly cachePrefix = "mongo";
 
@@ -262,6 +264,27 @@ export class MongoBackend<T extends DocumentShape> implements StorageBackend<T> 
       },
     );
     return updated ? this.normalize(updated) : null;
+  }
+
+  /**
+   * Bulk variant of {@link updatePaths}: `$set` `paths` on every document
+   * matching `filter`, with an atomic `$inc` on `version` unless
+   * `bumpVersion: false`. Implements {@link BulkWriteBackend.updatePathsWhere}
+   * via Mongo's native `updateMany`. Returns the number of documents modified.
+   */
+  async updatePathsWhere(
+    filter: Filter<T>,
+    paths: Record<string, unknown>,
+    options: UpdatePathsOptions = {},
+  ): Promise<number> {
+    const update: Record<string, any> = { $set: paths };
+    if (options.bumpVersion !== false) update.$inc = { version: 1 };
+    const res = await this.collection.updateMany(
+      this.normalizeQueryIds(filter as Record<string, any>),
+      update,
+      { session: options.session as ClientSession | undefined },
+    );
+    return res.modifiedCount;
   }
 
   /** Hard-delete one document by id. Returns the deleted document or null. */

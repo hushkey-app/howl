@@ -5,7 +5,11 @@ import { InMemoryLRUCache } from "../cache/in-memory-cache.adapter.ts";
 import type { TelemetryAdapter, TelemetryOptions } from "../telemetry/telemetry.interface.ts";
 import type { SchemaError, SchemaLike } from "../schema/schema.interface.ts";
 import type { Filter } from "../filter/filter.ts";
-import type { SchemaAdmin, StorageBackend } from "../backend/backend.interface.ts";
+import type {
+  BulkWriteBackend,
+  SchemaAdmin,
+  StorageBackend,
+} from "../backend/backend.interface.ts";
 
 /**
  * Minimal structural constraint on stored document shapes: every document has
@@ -97,6 +101,30 @@ export interface LogEntry {
 }
 
 const DEFAULT_QUERY_TIMEOUT = 30_000;
+
+// Max concurrent single-doc ops in the bulk fallback path (backends without a
+// native bulk-write capability). Bounds connection-pool pressure so a bulk over
+// thousands of matches can't fire thousands of concurrent backend operations.
+const BULK_FALLBACK_CONCURRENCY = 16;
+
+// Bulk ops touch many rows, so they get a larger timeout budget than a single-
+// doc write (a set-wide UPDATE on a large table legitimately runs longer).
+const BULK_TIMEOUT_MULTIPLIER = 10;
+
+/**
+ * Run `fn` over `items` with at most `limit` promises in flight at once.
+ * Sequential batches of `limit` — enough to cap concurrency without the weight
+ * of a full scheduler.
+ */
+async function runChunked<I>(
+  items: I[],
+  limit: number,
+  fn: (item: I) => Promise<unknown>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += limit) {
+    await Promise.all(items.slice(i, i + limit).map(fn));
+  }
+}
 
 /**
  * Backend-independent document-store service for a single collection.
@@ -201,6 +229,19 @@ export class DocumentService<T extends DocumentShape> {
     return typeof candidate.listColumns === "function" &&
         typeof candidate.dropColumn === "function"
       ? (candidate as SchemaAdmin)
+      : null;
+  }
+
+  /**
+   * The backend's {@link BulkWriteBackend} capability (set-wide single-statement
+   * writes), or `null` when unsupported — the bulk methods below then fall back
+   * to a concurrent per-document loop. Feature-detected structurally so the core
+   * stays decoupled from any backend.
+   */
+  get bulkWrite(): BulkWriteBackend<T> | null {
+    const candidate = this.backend as unknown as Partial<BulkWriteBackend<T>>;
+    return typeof candidate.updatePathsWhere === "function"
+      ? (candidate as BulkWriteBackend<T>)
       : null;
   }
 
@@ -362,6 +403,7 @@ export class DocumentService<T extends DocumentShape> {
   protected async executeWithTimeout<R>(
     operation: string,
     promise: Promise<R>,
+    timeoutMs: number = this.queryTimeout,
   ): Promise<R> {
     const start = Date.now();
     this.log({
@@ -376,10 +418,10 @@ export class DocumentService<T extends DocumentShape> {
           () =>
             reject(
               new Error(
-                `[${this.options.collectionName}] [${operation}] Timeout after ${this.queryTimeout}ms`,
+                `[${this.options.collectionName}] [${operation}] Timeout after ${timeoutMs}ms`,
               ),
             ),
-          this.queryTimeout,
+          timeoutMs,
         );
       });
       const result = await Promise.race([promise, timeout]);
@@ -1540,5 +1582,194 @@ export class DocumentService<T extends DocumentShape> {
       );
       throw error;
     }
+  }
+
+  // ============================================================
+  // BULK WRITE (set-wide delete / patch)
+  // ============================================================
+
+  /**
+   * Soft-delete every ACTIVE document matching `filter` — one statement when the
+   * backend implements {@link BulkWriteBackend}, else a concurrent per-document
+   * fallback. Stamps `meta.deleted_at`/`deleted_by` (no version bump), like the
+   * single-document {@link delete} with `hard:false`; a hard bulk delete has no
+   * primitive, so callers needing one loop `delete`. Returns the number deleted.
+   *
+   * Refuses an empty filter (which would delete every active document) as a
+   * footgun — pass an explicit predicate.
+   */
+  async deleteWhere(
+    filter: Filter<T>,
+    options: { executionerId?: string; session?: unknown } = {},
+  ): Promise<number> {
+    if (!filter || Object.keys(filter as object).length === 0) {
+      throw new Error(
+        `[${this.options.collectionName}] [DELETE_WHERE] refusing an empty filter`,
+      );
+    }
+    const activeFilter = this.withDeletedFilter(filter);
+    const bulk = this.bulkWrite;
+
+    let count: number;
+    if (bulk) {
+      // Only meta.deleted_at/by are set; the backend's deep-set preserves the
+      // rest of each doc's meta (created_at, etc.).
+      const paths = this.flattenObject({
+        meta: {
+          deleted_at: Date.now(),
+          deleted_by: options.executionerId ?? "system",
+        },
+      });
+      count = await this.executeWithTimeout(
+        "DELETE_WHERE",
+        bulk.updatePathsWhere(activeFilter, paths, {
+          bumpVersion: false,
+          session: options.session,
+        }),
+        this.queryTimeout * BULK_TIMEOUT_MULTIPLIER,
+      );
+    } else {
+      // No native bulk write on this backend: soft-delete each match, but
+      // bounded — an id-only read and capped concurrency so a large match set
+      // can't exhaust the connection pool.
+      const docs = await this.backend.findMany(activeFilter, {
+        select: ["id"],
+        session: options.session,
+      });
+      await runChunked(
+        docs,
+        BULK_FALLBACK_CONCURRENCY,
+        (d) =>
+          this.delete((d as { id: string }).id, {
+            executionerId: options.executionerId,
+            session: options.session,
+          }),
+      );
+      count = docs.length;
+    }
+
+    await this.invalidateCache();
+    this.log({
+      operation: "DELETE_WHERE",
+      collection: this.options.collectionName,
+      data: { count },
+    });
+    return count;
+  }
+
+  /**
+   * Soft-delete every document in `ids` — a convenience wrapper over
+   * {@link deleteWhere}. No-op for an empty list. Returns the number deleted.
+   */
+  deleteMany(
+    ids: string[],
+    options: { executionerId?: string; session?: unknown } = {},
+  ): Promise<number> {
+    if (ids.length === 0) return Promise.resolve(0);
+    return this.deleteWhere(
+      { id: { $in: ids } } as unknown as Filter<T>,
+      options,
+    );
+  }
+
+  /**
+   * Apply the SAME partial to every ACTIVE document matching `filter` — one
+   * statement when the backend implements {@link BulkWriteBackend}, else a
+   * concurrent per-document fallback. Deep-sets the given paths, stamps
+   * `meta.updated_at`/`updated_by`, and bumps `version`.
+   *
+   * UNLIKE {@link patch}, the fast path does NO per-document read, deep-merge, or
+   * schema validation — the same fixed paths are written to every match. Use it
+   * for uniform scalar/known updates (a flag flip, a foreign-key reassignment);
+   * for a validated read-modify-write use {@link patch}. Refuses an empty filter.
+   */
+  async patchWhere(
+    filter: Filter<T>,
+    args: Partial<Omit<T, "id" | "meta" | "version">>,
+    options: { executionerId?: string; session?: unknown } = {},
+  ): Promise<number> {
+    if (!filter || Object.keys(filter as object).length === 0) {
+      throw new Error(
+        `[${this.options.collectionName}] [PATCH_WHERE] refusing an empty filter`,
+      );
+    }
+    if (!args || typeof args !== "object") {
+      throw new Error(
+        `[${this.options.collectionName}] [PATCH_WHERE] args must be an object`,
+      );
+    }
+    const activeFilter = this.withDeletedFilter(filter);
+    const bulk = this.bulkWrite;
+
+    let count: number;
+    if (bulk) {
+      // Flatten the partial to dotted paths (arrays are whole-value leaves);
+      // drop id/version/meta — meta audit fields are set below, version bumps in
+      // the backend.
+      const flatArgs = this.flattenObject(
+        this.denestObject(args as Record<string, any>),
+      );
+      const paths: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(flatArgs)) {
+        if (key === "id" || key === "version" || key.startsWith("meta.")) {
+          continue;
+        }
+        paths[key] = value;
+      }
+      paths["meta.updated_at"] = Date.now();
+      paths["meta.updated_by"] = options.executionerId ?? "system";
+
+      count = await this.executeWithTimeout(
+        "PATCH_WHERE",
+        bulk.updatePathsWhere(activeFilter, paths, {
+          bumpVersion: true,
+          session: options.session,
+        }),
+        this.queryTimeout * BULK_TIMEOUT_MULTIPLIER,
+      );
+    } else {
+      // No native bulk write on this backend: patch each match, but bounded —
+      // an id-only read and capped concurrency so a large match set can't
+      // exhaust the connection pool.
+      const docs = await this.backend.findMany(activeFilter, {
+        select: ["id"],
+        session: options.session,
+      });
+      await runChunked(
+        docs,
+        BULK_FALLBACK_CONCURRENCY,
+        (d) =>
+          this.patch((d as { id: string }).id, args, {
+            executionerId: options.executionerId,
+            session: options.session,
+          }),
+      );
+      count = docs.length;
+    }
+
+    await this.invalidateCache();
+    this.log({
+      operation: "PATCH_WHERE",
+      collection: this.options.collectionName,
+      data: { count },
+    });
+    return count;
+  }
+
+  /**
+   * Apply the same partial to every document in `ids` — a convenience wrapper
+   * over {@link patchWhere}. No-op for an empty list. Returns the number patched.
+   */
+  patchMany(
+    ids: string[],
+    args: Partial<Omit<T, "id" | "meta" | "version">>,
+    options: { executionerId?: string; session?: unknown } = {},
+  ): Promise<number> {
+    if (ids.length === 0) return Promise.resolve(0);
+    return this.patchWhere(
+      { id: { $in: ids } } as unknown as Filter<T>,
+      args,
+      options,
+    );
   }
 }
