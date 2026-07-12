@@ -158,6 +158,23 @@ export class FakeCollection {
     return Promise.resolve(options.returnDocument === "after" ? doc : doc);
   }
 
+  updateMany(
+    filter: Query,
+    update: Doc,
+    _options: Doc = {},
+  ): Promise<{ modifiedCount: number }> {
+    const matched = this.docs.filter((d) => matchesQuery(d, filter));
+    for (const doc of matched) {
+      this.lastUpdate = update;
+      if (update.$set) applySet(doc, update.$set);
+      if (update.$inc) applyInc(doc, update.$inc);
+      if (update.$unset) {
+        for (const key of Object.keys(update.$unset as Doc)) delete doc[key];
+      }
+    }
+    return Promise.resolve({ modifiedCount: matched.length });
+  }
+
   findOneAndDelete(filter: Query): Promise<Doc | null> {
     const i = this.docs.findIndex((d) => matchesQuery(d, filter));
     if (i < 0) return Promise.resolve(null);
