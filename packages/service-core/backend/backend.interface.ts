@@ -143,6 +143,34 @@ export interface SchemaColumn {
  * stays in code — the declarative config is the source of truth — so this
  * surface is intentionally introspect-and-cleanup only.
  */
+/**
+ * Optional backend capability for **set-wide writes**: apply the same update to
+ * every document matching a filter in a single statement, instead of the core's
+ * per-document read-modify-write. Backends advertise support by implementing it;
+ * `DocumentService` feature-detects via its `bulkWrite` getter (`null` when
+ * absent) and falls back to a concurrent per-document loop.
+ *
+ * This sits BELOW the per-document contract: it does no per-row read, no
+ * optimistic lock, and no per-document schema validation — the same fixed
+ * `paths` are deep-set on every match. It is the primitive behind the service's
+ * bulk soft-delete ({@link StorageBackend} note) and bulk patch; callers needing
+ * per-row validation or locking use the single-document `patch`/`delete`.
+ */
+export interface BulkWriteBackend<T> {
+  /**
+   * Deep-set `paths` (dotted document paths) on every document matching
+   * `filter`, in one statement. Honors {@link UpdatePathsOptions.bumpVersion}
+   * (soft delete passes false; patch true). Returns the number of documents
+   * updated. `filter` is already scoped by the caller — the service adds the
+   * active-documents condition before calling.
+   */
+  updatePathsWhere(
+    filter: Filter<T>,
+    paths: Record<string, unknown>,
+    options?: UpdatePathsOptions,
+  ): Promise<number>;
+}
+
 export interface SchemaAdmin {
   /**
    * List the promoted columns physically present in storage, each flagged

@@ -31,6 +31,7 @@ export type {
 export type { Condition, Filter, FilterOperators } from "./filter/filter.ts";
 export type {
   BackendOpOptions,
+  BulkWriteBackend,
   FindManyOptions,
   SchemaAdmin,
   SchemaColumn,

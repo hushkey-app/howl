@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import {
   type BackendOpOptions,
+  type BulkWriteBackend,
   type DocumentShape,
   type Filter,
   type FindManyOptions,
@@ -93,7 +94,8 @@ $$ LANGUAGE plpgsql IMMUTABLE;
  *
  * @typeParam T The public document shape.
  */
-export class PgBackend<T extends DocumentShape> implements StorageBackend<T>, SchemaAdmin {
+export class PgBackend<T extends DocumentShape>
+  implements StorageBackend<T>, SchemaAdmin, BulkWriteBackend<T> {
   /** Cache-key namespace for SQL-backed services. */
   readonly cachePrefix = "sql";
 
@@ -376,6 +378,44 @@ export class PgBackend<T extends DocumentShape> implements StorageBackend<T>, Sc
       params,
     );
     return rows.length > 0 ? this.#toDoc(rows[0]) : null;
+  }
+
+  /**
+   * Bulk variant of {@link updatePaths}: deep-set `paths` on EVERY document
+   * matching `filter`, in one UPDATE — no per-row read, no optimistic lock.
+   * Implements {@link BulkWriteBackend.updatePathsWhere}; the service uses it for
+   * bulk soft-delete and bulk patch. Returns the number of rows updated.
+   */
+  async updatePathsWhere(
+    filter: Filter<T>,
+    paths: Record<string, unknown>,
+    options: UpdatePathsOptions = {},
+  ): Promise<number> {
+    await this.#ready;
+    const params: unknown[] = [];
+    let expr = "doc";
+    for (const [path, value] of Object.entries(paths)) {
+      if (value === undefined) continue;
+      const segments = path.split(".").map(assertIdent);
+      params.push(JSON.stringify(value ?? null));
+      expr = `howl_jsonb_deep_set(${expr}, '{${segments.join(",")}}', $${params.length}::jsonb)`;
+    }
+    if (options.bumpVersion !== false) {
+      // RHS `doc` is the pre-update row value — the increment is atomic per row.
+      expr = `jsonb_set(${expr}, '{version}', to_jsonb(((doc->>'version'))::bigint + 1), true)`;
+    }
+    // The WHERE clause's parameters follow the SET parameters, so the filter
+    // compiler starts numbering after them.
+    const where = compileWhere(
+      filter as Record<string, unknown>,
+      this.#promoted,
+      params.length + 1,
+    );
+    const { rows } = await this.#exec(options).query(
+      `UPDATE "${this.#table}" SET doc = ${expr} WHERE ${where.text} RETURNING id`,
+      [...params, ...where.params],
+    );
+    return rows.length;
   }
 
   /** Hard-delete one document by id. Returns the deleted document, or null. */
