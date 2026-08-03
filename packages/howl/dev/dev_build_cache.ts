@@ -62,6 +62,13 @@ export interface DevBuildCache<State> extends BuildCache<State> {
     content: Uint8Array,
     hash: string | null,
   ): Promise<void>;
+  /**
+   * Drop every file produced by the static-file transformer so the next request
+   * re-runs it. Called on a dev hot rebuild: transformed output (Tailwind's
+   * generated CSS above all) is derived from page sources, so an edit that
+   * never touches `static/` can still invalidate it.
+   */
+  invalidateTransformedFiles(): void;
   flush(): Promise<void>;
   prepare(): Promise<void>;
 }
@@ -100,6 +107,8 @@ export function engineRoutesFromFiles<State>(
 export class MemoryBuildCache<State> implements DevBuildCache<State> {
   #processedFiles = new Map<string, MemoryFile>();
   #unprocessedFiles = new Map<string, string>();
+  /** Pathnames in `#processedFiles` that came from the transformer, not the bundler. */
+  #transformedFiles = new Set<string>();
   #inFlight = new Map<string, Promise<StaticFile | null>>();
   #config: ResolvedBuildConfig;
   #transformer: FileTransformer;
@@ -241,6 +250,7 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
         }
         const filePpathname = new URL(rel, "http://localhost").pathname;
         await this.addProcessedFile(filePpathname, file.content, null);
+        this.#transformedFiles.add(filePpathname);
       }
       if (this.#processedFiles.has(pathname)) {
         return this.readFile(pathname);
@@ -282,6 +292,14 @@ export class MemoryBuildCache<State> implements DevBuildCache<State> {
       hash,
       contentType: getContentType(pathname),
     });
+  }
+
+  invalidateTransformedFiles(): void {
+    for (const pathname of this.#transformedFiles) {
+      this.#processedFiles.delete(pathname);
+    }
+    this.#transformedFiles.clear();
+    this.#unprocessedFiles.clear();
   }
 
   async flush(): Promise<void> {
@@ -394,6 +412,10 @@ export class DiskBuildCache<State> implements DevBuildCache<State> {
 
     await fsAdapter.mkdirp(path.dirname(filePath));
     await Deno.writeFile(filePath, content);
+  }
+
+  invalidateTransformedFiles(): void {
+    // One-shot production build — nothing is served long enough to go stale.
   }
 
   async readFile(pathname: string): Promise<StaticFile | null> {

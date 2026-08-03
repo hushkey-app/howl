@@ -7,11 +7,13 @@ import {
   TEST_FILE_PATTERN,
   UniqueNamer,
 } from "../core/mod.ts";
+import { devInvalidateHandler } from "../core/app.ts";
 import * as path from "@std/path";
 import * as colors from "@std/fmt/colors";
 import { bundleJs, bundleVueSsr, type HowlBundleOptions } from "./esbuild.ts";
 import type { Plugin as EsbuildPlugin } from "esbuild";
-import { liveReload } from "./middlewares/live_reload.ts";
+import { DevReloadHub, liveReload } from "./middlewares/live_reload.ts";
+import { classifyDevChange, type DevChangeKind, DevWatcher } from "./watcher.ts";
 import {
   cssAssetHash,
   FileTransformer,
@@ -113,6 +115,22 @@ export type ResolvedBuildConfig =
   };
 
 /**
+ * Hooks the dev server calls when a watched file changes outside the client
+ * tree. {@linkcode HowlBuilder} supplies these so `apis/` can be re-imported in
+ * the running process instead of restarting it.
+ */
+export interface DevReloadHooks {
+  /** Extra directories to watch, e.g. the resolved `apis/` directory. */
+  apiDir?: string | null;
+  /**
+   * Re-load API route definitions after a file under {@linkcode apiDir}
+   * changed. Returns `true` when the route table changed and the handler has to
+   * be rebuilt.
+   */
+  onApiChange?: () => Promise<boolean>;
+}
+
+/**
  * Lower-level build pipeline — drives esbuild, file transforms, FS crawling,
  * and the dev server. Most users should prefer {@linkcode HowlBuilder}, which
  * wraps `Builder` with project-aware defaults.
@@ -125,6 +143,7 @@ export class Builder<State = any> {
   config: ResolvedBuildConfig;
   #fsRoutes: FsRoute<State>;
   #ready = Promise.withResolvers<void>();
+  #watcher: DevWatcher | null = null;
 
   /** Construct a builder with the given options. Defaults are applied here. */
   constructor(options?: BuildOptions) {
@@ -174,6 +193,7 @@ export class Builder<State = any> {
   async listen(
     importHowl: () => Promise<{ app: Howl<State> } | Howl<State>>,
     options: ListenOptions = {},
+    hooks: DevReloadHooks = {},
   ): Promise<void> {
     this.config.mode = "development";
 
@@ -197,10 +217,13 @@ export class Builder<State = any> {
     app.config.mode = "development";
     setBuildCache(app, buildCache, "development");
 
-    const appHandler = app.handler();
+    // Rebuilt in place when a hot reload changes the route table, so the dev
+    // server can pick up new routes without the process restarting.
+    let appHandler = app.handler();
+    const hub = new DevReloadHub();
 
     const devHowl = new Howl<State>(app.config)
-      .use(liveReload())
+      .use(liveReload(hub))
       .use(devErrorOverlay())
       .use(automaticWorkspaceFolders(this.config.root))
       .use(async (ctx: any) => {
@@ -213,10 +236,155 @@ export class Builder<State = any> {
     devHowl.config.mode = "development";
     setBuildCache(devHowl, buildCache, "development");
 
+    const rebuildHandler = () => {
+      devInvalidateHandler(app as Howl<State>);
+      appHandler = (app as Howl<State>).handler();
+    };
+
     await Promise.all([
       devHowl.listen(options),
-      this.#build(buildCache, true),
+      this.#build(buildCache, true).then(() =>
+        this.#startHotReload(buildCache, hub, hooks, rebuildHandler)
+      ),
     ]);
+  }
+
+  /**
+   * Watch the client tree, static directory and `apis/` and reload them inside
+   * the running process. Only what actually changed is redone: the browser
+   * bundle rebuilds incrementally, transformed assets are dropped, and the
+   * router is rebuilt only when the route table moved. Everything else — server
+   * modules the runtime itself loaded — stays with Deno's watcher.
+   */
+  #startHotReload(
+    buildCache: MemoryBuildCache<State>,
+    hub: DevReloadHub,
+    hooks: DevReloadHooks,
+    rebuildHandler: () => void,
+  ): void {
+    const clientDir = this.config.clientEntry !== undefined
+      ? path.dirname(path.dirname(this.config.clientEntry))
+      : this.config.routeDir;
+    const dirs = {
+      outDir: this.config.outDir,
+      clientDir,
+      staticDir: this.config.staticDir,
+      apiDir: hooks.apiDir ?? null,
+    };
+
+    const watcher = new DevWatcher(
+      [clientDir, this.config.staticDir, ...(dirs.apiDir !== null ? [dirs.apiDir] : [])],
+      async (paths) => {
+        const kinds = new Set<DevChangeKind>();
+        for (const p of paths) kinds.add(classifyDevChange(p, dirs));
+        kinds.delete("ignored");
+        if (kinds.size === 0) return;
+        await this.#hotReload(buildCache, hub, hooks, rebuildHandler, kinds);
+      },
+    );
+
+    if (watcher.start()) this.#watcher = watcher;
+  }
+
+  async #hotReload(
+    buildCache: MemoryBuildCache<State>,
+    hub: DevReloadHub,
+    hooks: DevReloadHooks,
+    rebuildHandler: () => void,
+    kinds: Set<DevChangeKind>,
+  ): Promise<void> {
+    const started = performance.now();
+    // Hold incoming requests until the rebuild lands so nothing is served from
+    // a half-updated cache.
+    this.#ready = Promise.withResolvers<void>();
+    let routesChanged = false;
+    let apisChanged = false;
+
+    try {
+      // A `restart` change is still a client-tree change: rebuild the bundle so
+      // it is current even if no runtime watcher picks the escalation up.
+      if (kinds.has("client") || kinds.has("restart")) {
+        const before = this.#routeSignature();
+        await this.#crawlFsItems();
+        routesChanged = before !== this.#routeSignature();
+        await this.#build(buildCache, true, { incremental: !routesChanged });
+      }
+
+      if (kinds.has("api") && hooks.onApiChange !== undefined) {
+        apisChanged = await hooks.onApiChange();
+      }
+
+      buildCache.invalidateTransformedFiles();
+
+      // Page routes are resolved from the build cache, API routes from the
+      // definitions the router captured — either way a changed route table only
+      // takes effect once the handler is rebuilt.
+      if (routesChanged) await buildCache.prepare();
+      if (routesChanged || apisChanged) rebuildHandler();
+    } catch (err) {
+      // A broken page or API keeps the previous build serving — the terminal is
+      // where the failure belongs, and the browser is left alone rather than
+      // reloaded onto a stale bundle that looks like a successful update.
+      console.error(
+        `${colors.red("_ Hot reload failed")} — previous build still serving.\n`,
+        err,
+      );
+      return;
+    } finally {
+      this.#ready.resolve();
+    }
+
+    const ms = Math.round(performance.now() - started);
+
+    if (kinds.has("restart") && this.#requestRuntimeRestart()) {
+      console.log(
+        `${colors.cyan("_ restarting")} — a module the runtime owns changed ` +
+          `${colors.dim(`(${ms}ms rebuild)`)}`,
+      );
+      // The browser reconnects to the new process and reloads from its
+      // revision; notifying a process that is about to exit would only race it.
+      return;
+    }
+
+    const what = routesChanged ? "routes" : apisChanged ? "apis" : [...kinds].join(" + ");
+    console.log(
+      `${colors.cyan("_ hot reload")} ${what} ${colors.dim(`${ms}ms`)}`,
+    );
+    hub.notifyReload();
+  }
+
+  /**
+   * Ask the runtime's file watcher to restart the process by touching the
+   * server entry, which is inside the graph it watches. Returns `false` when
+   * there is nothing to touch — the caller then falls back to a hot reload,
+   * which at least keeps the browser bundle current.
+   */
+  #requestRuntimeRestart(): boolean {
+    try {
+      const now = new Date();
+      Deno.utimeSync(this.config.serverEntry, now, now);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Identity of the current route table — changes when a page is added, removed or renamed. */
+  #routeSignature(): string {
+    return this.#fsRoutes.files
+      .map((f) => `${f.type}:${f.routePattern}:${f.filePath}`)
+      .sort()
+      .join("\n");
+  }
+
+  /**
+   * Stop watching for changes. The dev server holds a filesystem watcher for
+   * the lifetime of the process; tests and embedders that start and stop a
+   * server need to release it.
+   */
+  async close(): Promise<void> {
+    await this.#watcher?.close();
+    this.#watcher = null;
   }
 
   /**
@@ -308,9 +476,14 @@ export class Builder<State = any> {
     this.#fsRoutes.files = routes;
   }
 
-  async #build<T>(buildCache: DevBuildCache<T>, dev: boolean): Promise<void> {
+  async #build<T>(
+    buildCache: DevBuildCache<T>,
+    dev: boolean,
+    opts: { incremental?: boolean } = {},
+  ): Promise<void> {
     const { target, outDir, root } = this.config;
     const staticOutDir = path.join(outDir, "static");
+    const incremental = opts.incremental === true;
 
     const hasClientArtifacts = this.#fsRoutes.files.length > 0;
 
@@ -329,12 +502,28 @@ export class Builder<State = any> {
         cssAssetHash(this.#transformer);
       }
 
-      await removeDirIfExists(staticOutDir);
+      // Hot rebuilds keep the output tree: nothing is written to it in dev
+      // (the memory cache serves the bundle), and wiping it on every keystroke
+      // would also delete a production build sitting in the same directory.
+      if (!incremental) await removeDirIfExists(staticOutDir);
 
       // No base client runtime: engines (Vue/React) ship their own boot chunks.
       const entryPoints: Record<string, string> = {};
 
       const namer = new UniqueNamer();
+
+      // On a hot rebuild the route table is unchanged, so every wrapper would
+      // be rewritten byte-for-byte. Leaving them alone keeps their mtime stable
+      // and lets esbuild reuse its parse of them.
+      const prepareWrapperDir = async (dir: string) => {
+        if (incremental) return;
+        await removeDirIfExists(dir);
+        await Deno.mkdir(dir, { recursive: true });
+      };
+      const writeWrapper = async (file: string, contents: string) => {
+        if (incremental) return;
+        await Deno.writeTextFile(file, contents);
+      };
 
       // Vue pages: each `.vue` page route gets a client hydration chunk that
       // re-renders the page tree over the server-rendered markup.
@@ -349,8 +538,7 @@ export class Builder<State = any> {
       const vueAotEntryToPattern = new Map<string, string>();
       if (vuePageFiles.length > 0) {
         const wrapperDir = path.join(outDir, ".vue-pages");
-        await removeDirIfExists(wrapperDir);
-        await Deno.mkdir(wrapperDir, { recursive: true });
+        await prepareWrapperDir(wrapperDir);
         for (const f of vuePageFiles) {
           const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
           const name = namer.getUniqueName(`vuepage_${slug}`);
@@ -378,7 +566,7 @@ export class Builder<State = any> {
               : "";
             const styleArr = (app !== null ? ["..._sapp"] : [])
               .concat(comps.map((_, i) => `..._cs${i}`)).join(", ");
-            await Deno.writeTextFile(
+            await writeWrapper(
               wrapperPath,
               `${appStyle}${compImports}\n` +
                 `import { aotMountVuePage, hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
@@ -397,7 +585,7 @@ export class Builder<State = any> {
             const appCss = app !== null ? `import ${JSON.stringify(app)};\n` : "";
             // Export `hydrate()` (rather than auto-running) so the same chunk URL
             // can be preloaded + imported on every visit without a cache-bust.
-            await Deno.writeTextFile(
+            await writeWrapper(
               wrapperPath,
               `${appCss}${imports}\n` +
                 `import { hydrateVuePage } from "${VUE_BOOT_SPECIFIER}";\n` +
@@ -421,8 +609,7 @@ export class Builder<State = any> {
       );
       if (reactPageFiles.length > 0) {
         const wrapperDir = path.join(outDir, ".react-pages");
-        await removeDirIfExists(wrapperDir);
-        await Deno.mkdir(wrapperDir, { recursive: true });
+        await prepareWrapperDir(wrapperDir);
         for (const f of reactPageFiles) {
           const slug = f.routePattern.replace(/[^a-zA-Z0-9]+/g, "_") || "root";
           const name = namer.getUniqueName(`reactpage_${slug}`);
@@ -440,7 +627,7 @@ export class Builder<State = any> {
           const aotExport = f.aot === true
             ? `export function aotMount(props: Record<string, unknown>) { aotMountReactPage(_comps, props); }\n`
             : "";
-          await Deno.writeTextFile(
+          await writeWrapper(
             wrapperPath,
             `${imports}\n` +
               `import { hydrateReactPage, renderReactPage${aotImport} } from "${REACT_BOOT_SPECIFIER}";\n` +
@@ -467,7 +654,7 @@ export class Builder<State = any> {
         sourceMap: this.config.sourceMap,
         alias: this.config.alias,
         plugins: this.config.plugins ?? [],
-      });
+      }, incremental);
 
       const prefix = `/_howl/js/${BUILD_ID}/`;
 

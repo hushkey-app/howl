@@ -1,5 +1,5 @@
 import { denoPlugin } from "./deno_esbuild_plugin.ts";
-import type { BuildOptions, Plugin as EsbuildPlugin } from "esbuild";
+import type { BuildContext, BuildOptions, Plugin as EsbuildPlugin } from "esbuild";
 import * as path from "@std/path";
 
 export interface HowlBundleOptions {
@@ -51,6 +51,7 @@ async function withEsbuildServiceRetry<R>(run: () => Promise<R>): Promise<R> {
     if (!/service was stopped|service is no longer running|EPIPE/i.test(message)) {
       throw err;
     }
+    await disposeDevContext();
     try {
       await esbuild?.stop();
     } catch {
@@ -64,8 +65,96 @@ async function withEsbuildServiceRetry<R>(run: () => Promise<R>): Promise<R> {
   }
 }
 
+/**
+ * Translate {@linkcode HowlBundleOptions} into the esbuild options literal.
+ * `write`/`metafile` stay in the return type so esbuild still infers that
+ * `outputFiles` and `metafile` are present on the result.
+ */
+function clientBuildOptions(
+  options: HowlBundleOptions,
+): BuildOptions & { write: false; metafile: true } {
+  return {
+    entryPoints: options.entryPoints,
+
+    platform: "browser",
+    target: options.target,
+
+    format: "esm",
+    bundle: true,
+    splitting: true,
+    treeShaking: true,
+    sourcemap: options.dev ? "linked" : options.sourceMap?.kind,
+    sourceRoot: options.dev ? undefined : options.sourceMap?.sourceRoot,
+    sourcesContent: options.dev ? undefined : options.sourceMap?.sourcesContent,
+    minify: !options.dev,
+    logOverride: {
+      "suspicious-nullish-coalescing": "silent",
+      "unsupported-jsx-comment": "silent",
+    },
+
+    jsxDev: options.dev,
+    jsx: "automatic",
+    jsxImportSource: options.jsxImportSource,
+
+    absWorkingDir: options.cwd,
+    outdir: ".",
+    write: false,
+    metafile: true,
+
+    alias: options.alias,
+
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(
+        options.dev ? "development" : "production",
+      ),
+    },
+
+    plugins: [
+      buildIdPlugin(options.buildId),
+      windowsPathFixer(),
+      ...(options.plugins ?? []),
+      denoPlugin({
+        preserveJsx: true,
+        debug: false,
+        publicEnvVarPrefix: "howl_PUBLIC_",
+      }),
+    ],
+  };
+}
+
+/**
+ * Long-lived esbuild context used by the dev server. Keeping the context alive
+ * across rebuilds is what makes hot rebuilds cheap: esbuild re-reads and
+ * re-parses only the files whose mtime changed, reusing everything else.
+ * Keyed by entry-point set — adding or removing a page invalidates it.
+ */
+let devContext:
+  | { key: string; ctx: BuildContext<BuildOptions & { write: false; metafile: true }> }
+  | null = null;
+
+/** Dispose the incremental dev context, if one is alive. */
+async function disposeDevContext(): Promise<void> {
+  if (devContext === null) return;
+  const { ctx } = devContext;
+  devContext = null;
+  try {
+    await ctx.dispose();
+  } catch {
+    // A dead esbuild service rejects dispose() — the handle is being dropped
+    // either way, so there is nothing left to clean up.
+  }
+}
+
+/**
+ * Bundle the client entry points.
+ *
+ * With `incremental` (dev server hot rebuilds) the esbuild context is retained
+ * between calls and only the changed files are re-read; the first call pays the
+ * full cost. Any other call runs a one-shot build.
+ */
 export async function bundleJs(
   options: HowlBundleOptions,
+  incremental = false,
 ): Promise<BuildOutput> {
   if (esbuild === null) {
     await startEsbuild();
@@ -79,55 +168,25 @@ export async function bundleJs(
     }
   }
 
-  const bundle = await withEsbuildServiceRetry(() =>
-    esbuild!.build({
-      entryPoints: options.entryPoints,
+  const bundle = await withEsbuildServiceRetry(async () => {
+    if (!incremental) return await esbuild!.build(clientBuildOptions(options));
 
-      platform: "browser",
-      target: options.target,
-
-      format: "esm",
-      bundle: true,
-      splitting: true,
-      treeShaking: true,
-      sourcemap: options.dev ? "linked" : options.sourceMap?.kind,
-      sourceRoot: options.dev ? undefined : options.sourceMap?.sourceRoot,
-      sourcesContent: options.dev ? undefined : options.sourceMap?.sourcesContent,
-      minify: !options.dev,
-      logOverride: {
-        "suspicious-nullish-coalescing": "silent",
-        "unsupported-jsx-comment": "silent",
-      },
-
-      jsxDev: options.dev,
-      jsx: "automatic",
-      jsxImportSource: options.jsxImportSource,
-
-      absWorkingDir: options.cwd,
-      outdir: ".",
-      write: false,
-      metafile: true,
-
-      alias: options.alias,
-
-      define: {
-        "process.env.NODE_ENV": JSON.stringify(
-          options.dev ? "development" : "production",
-        ),
-      },
-
-      plugins: [
-        buildIdPlugin(options.buildId),
-        windowsPathFixer(),
-        ...(options.plugins ?? []),
-        denoPlugin({
-          preserveJsx: true,
-          debug: false,
-          publicEnvVarPrefix: "howl_PUBLIC_",
-        }),
-      ],
-    })
-  );
+    const key = JSON.stringify(options.entryPoints);
+    if (devContext !== null && devContext.key !== key) {
+      await disposeDevContext();
+    }
+    if (devContext === null) {
+      devContext = { key, ctx: await esbuild!.context(clientBuildOptions(options)) };
+    }
+    try {
+      return await devContext.ctx.rebuild();
+    } catch (err) {
+      // A rebuild against a context whose service died can't recover in place —
+      // drop it so `withEsbuildServiceRetry` rebuilds from a fresh one.
+      await disposeDevContext();
+      throw err;
+    }
+  });
 
   const files: BuildOutput["files"] = [];
   for (let i = 0; i < bundle.outputFiles.length; i++) {
@@ -190,6 +249,7 @@ export async function bundleJs(
  * service. Called by `HowlBuilder.build()` after all clients are built.
  */
 export async function stopEsbuild(): Promise<void> {
+  await disposeDevContext();
   if (esbuild !== null) {
     await esbuild.stop();
     esbuild = null;
