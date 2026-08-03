@@ -1,7 +1,7 @@
 # @hushkey/studio
 
 Admin UI for [`@hushkey/service-core`](../service-core/README.md) services — **one tool across every
-backend** (MongoDB, Postgres, SQLite, and whatever comes next).
+backend** (MongoDB, Postgres, SQLite, Redis, and whatever comes next).
 
 Unlike a wire-protocol bridge (the FerretDB road), the studio speaks the **service contract**: every
 write validates against the schema, bumps the optimistic-lock version, stamps audit fields
@@ -17,9 +17,9 @@ app.use(studio({ services: { users, blogs, reviews } }));
 // → dashboard at /studio, JSON API at /studio/api
 ```
 
-The dashboard page serves a prebuilt component bundle (react via an import map) and
-loads **daisyUI + Tailwind from a CDN** in its `<head>` — no build pipeline, no static assets, and
-no daisyUI install needed in the host app. The UI is styled entirely with daisyUI classes and
+The dashboard page serves a prebuilt component bundle (react via an import map) and loads
+**daisyUI + Tailwind from a CDN** in its `<head>` — no build pipeline, no static assets, and no
+daisyUI install needed in the host app. The UI is styled entirely with daisyUI classes and
 [heroicons](https://heroicons.com), in a flat, rounded look — Inter for chrome and JetBrains Mono
 for data (both from Google Fonts).
 
@@ -75,8 +75,8 @@ can override the theme, swap fonts, or add brand tweaks. Component mode is style
 
 Compass-style, dark + light themes (toggle persisted):
 
-- **Connections sidebar** grouped by backend (sqlite / sql / mongo accents) — click a collection to
-  open it in a **closeable tab**; tabs keep their query/page state like Compass
+- **Connections sidebar** grouped by backend (sqlite / sql / mongo / redis accents) — click a
+  collection to open it in a **closeable tab**; tabs keep their query/page state like Compass
 - **Query bar with autocompletion**: field names sampled from loaded documents (nested dot-paths
   included) and the exact operator grammar after `$` — ↑↓ navigate, Tab/Enter accept, Esc close.
   Relaxed syntax accepted (`{ rating: { $gte: 4 } }`, unquoted keys, single quotes)
@@ -84,35 +84,62 @@ Compass-style, dark + light themes (toggle persisted):
   and arrays expand inline into the same type-colored, per-branch-collapsible tree (not a raw JSON
   dump)
 - **Inline card editing** (✎) — flips a card in place: each value becomes a type-aware control
-  (text/number input, true/false select, JSON textarea for objects/arrays) and SAVE sends a
-  **merge patch of only the changed fields** (version bumps). `id`/`version`/`meta` stay read-only;
-  type changes still go through the JSON editor
+  (text/number input, true/false select, JSON textarea for objects/arrays) and SAVE sends a **merge
+  patch of only the changed fields** (version bumps). `id`/`version`/`meta` stay read-only; type
+  changes still go through the JSON editor
 - Filter grammar (`$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists`)
+- **Query options** (OPTIONS) — the Compass options row next to the filter: **PROJECT**, **SORT**,
+  **COLLATION** and **INDEX HINT**, each with field-name completion and bracket pairing. Applied
+  options travel with paging, refresh and EXPORT, and the toggle carries a badge with how many are
+  active so a collapsed panel can't silently shape a result set. Each input is annotated with what
+  the selected backend actually does with it (`approximate` / `ignored on this backend`), read from
+  the service's `findCapabilities`. See the
+  [find-options matrix](../service-core/README.md#find-options). A projection that drops `id`
+  (`{ id: 0 }`) leaves nothing to address a write to, so those rows render **READ-ONLY** —
+  edit/delete/restore disabled
 - Document table with sampled columns, version, active/deleted state, pagination
 - JSON editor: create + patch (merge semantics; schema errors and **409 optimistic-lock conflicts**
   render inline)
-- **Bulk update** patches every document matching the current query — with a **backfill** toggle that
-  scopes the patch to documents missing the patched keys (`$exists: false`), so you can add a newly
-  declared field across an existing collection without overwriting docs that already have a value.
-  The button and preview show the live count of documents that actually lack the field
+- **Bulk update** patches every document matching the current query — with a **backfill** toggle
+  that scopes the patch to documents missing the patched keys (`$exists: false`), so you can add a
+  newly declared field across an existing collection without overwriting docs that already have a
+  value. The button and preview show the live count of documents that actually lack the field
   (`BACKFILL N DOCS`, or "nothing to backfill" when every doc already has it)
-- Delete is **confirmed in a modal** with a soft/hard choice (soft is restorable, hard is permanent);
-  restore and the `viewDeleted` "deleted" toggle round out the lifecycle
+- Delete is **confirmed in a modal** with a soft/hard choice (soft is restorable, hard is
+  permanent); restore and the `viewDeleted` "deleted" toggle round out the lifecycle
 - **Schema view** (⚙) has two parts:
   - **Document fields** — diffs the live schema against stored documents (works on every backend,
-    Mongo included). It's an **active snapshot**: soft-deleted documents are ignored, so the count and
-    actions reflect your live data. **MISSING** fields (declared in the schema, absent from docs) show
-    their schema default with a one-click **BACKFILL** that sets it on the active docs that lack it,
-    through the contract (validate + version bump + audit). **ORPHAN** fields (present in the JSON but
-    no longer declared) show a **DROP** that removes the key from every document (a yes/no dialog; it
-    deletes that stored data). The zero-migration field-evolution console: add a field to the schema →
-    backfill; remove it → drop.
+    Mongo included). It's an **active snapshot**: soft-deleted documents are ignored, so the count
+    and actions reflect your live data. **MISSING** fields (declared in the schema, absent from
+    docs) show their schema default with a one-click **BACKFILL** that sets it on the active docs
+    that lack it, through the contract (validate + version bump + audit). **ORPHAN** fields (present
+    in the JSON but no longer declared) show a **DROP** that removes the key from every document (a
+    yes/no dialog; it deletes that stored data). The zero-migration field-evolution console: add a
+    field to the schema → backfill; remove it → drop.
   - **Promoted columns** — lists the backend's generated columns and flags **orphans**: columns left
     physically present after a `promote` entry was removed from the live config. Orphans render on a
     yellow row with two actions: `✕` drops the column (and its index) through a yes/no dialog
     (document data untouched — it lives in `doc`, so a drop only reclaims an unused index), and `→`
     **migrates** the orphan into a declared field (a rename) before dropping it. Backends with no
     column concept (Mongo) report "not supported" and the panel hides the column controls.
+
+## Query options over the JSON API
+
+The list route takes the same options the UI panel edits — JSON-encoded query params:
+
+```
+GET /studio/api/services/:key
+      ?filter={"status":"active"}
+      &project={"name":1,"meta.deleted_at":1}
+      &sort={"meta.created_at":-1}
+      &collation={"locale":"en","strength":2}
+      &hint=users_email_idx          # or a JSON key pattern on Mongo
+      &limit=25&skip=0&deleted=false
+```
+
+`total` is the match count and ignores the projection. Bad options answer `400` with the message
+inline (mixed include/exclude projection, an index SQLite can't use, …). `GET /studio/api/meta`
+reports each service's `capabilities` so a client can annotate the options it exposes.
 
 ## Schema introspection & orphan cleanup
 

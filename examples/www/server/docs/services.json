@@ -9,11 +9,14 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Howl ships an optional service layer: a Mongo-shaped document store with one contract that runs unchanged on SQLite, Postgres, or MongoDB. @hushkey/service-core owns everything non-storage-specific — validation, an audit/soft-delete envelope, optimistic locking, versioned cache invalidation, timeouts, telemetry. Each backend passes a shared conformance suite, so swapping databases changes a connection, not your code."
+          "text": "Howl ships an optional service layer: a Mongo-shaped document store with one contract that runs unchanged on SQLite, Postgres, MongoDB, or Redis. @hushkey/service-core owns everything non-storage-specific — validation, an audit/soft-delete envelope, optimistic locking, versioned cache invalidation, timeouts, telemetry. Each backend passes a shared conformance suite, so swapping databases changes a connection, not your code."
         },
         {
           "type": "table",
-          "headers": ["Package", "Backend"],
+          "headers": [
+            "Package",
+            "Backend"
+          ],
           "rows": [
             [
               "@hushkey/service-core",
@@ -27,7 +30,14 @@
               "@hushkey/pg-service",
               "Postgres (docs as JSONB), with an embedded PGlite fallback for local dev."
             ],
-            ["@hushkey/mongo-service", "MongoDB."]
+            [
+              "@hushkey/mongo-service",
+              "MongoDB."
+            ],
+            [
+              "@hushkey/redis-service",
+              "Redis as the database (documents + secondary indexes, no modules)."
+            ]
           ]
         },
         {
@@ -88,16 +98,31 @@
         },
         {
           "type": "table",
-          "headers": ["Method", "Purpose"],
+          "headers": [
+            "Method",
+            "Purpose"
+          ],
           "rows": [
-            ["create(fields, { executionerId })", "Validate, stamp audit + version, insert."],
-            ["get(id)", "Fetch one document by id (or null)."],
-            ["mget(ids)", "Fetch many by id, preserving order."],
             [
-              "find({ query, sort, limit, skip, viewDeleted })",
-              "Query with the neutral filter grammar."
+              "create(fields, { executionerId })",
+              "Validate, stamp audit + version, insert."
             ],
-            ["count({ query, viewDeleted })", "Count matching documents."],
+            [
+              "get(id)",
+              "Fetch one document by id (or null)."
+            ],
+            [
+              "mget(ids)",
+              "Fetch many by id, preserving order."
+            ],
+            [
+              "find({ query, project, sort, collation, hint, limit, skip, viewDeleted })",
+              "Query with the neutral filter grammar and the shaping options."
+            ],
+            [
+              "count({ query, viewDeleted })",
+              "Count matching documents."
+            ],
             [
               "patch(id, partial, { executionerId })",
               "Merge fields, bump version (optimistic lock)."
@@ -106,7 +131,10 @@
               "delete(id, { hard, executionerId })",
               "Soft delete by default; hard: true to remove."
             ],
-            ["restore(id, { executionerId })", "Undo a soft delete."]
+            [
+              "restore(id, { executionerId })",
+              "Undo a soft delete."
+            ]
           ]
         },
         {
@@ -136,6 +164,126 @@
       ]
     },
     {
+      "id": "find-options",
+      "heading": "Find options",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Next to the filter, find() takes the same shaping options a Mongo client offers: project (which fields come back), sort, collation (locale/case-aware comparison) and hint (which index to use), plus limit/skip. They work on every backend — what differs is how far each one can honor them, which the backend advertises rather than leaving you to guess."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "text": "await blogs.find({\n  query: { published: true },\n  project: { title: 1, \"author.name\": 1 },   // or exclude: { body: 0 }\n  sort: { \"meta.created_at\": -1 },\n  collation: { locale: \"en\", strength: 2 },  // case-insensitive ordering\n  hint: \"blogs_slug_idx\",\n  limit: 20,\n});"
+        },
+        {
+          "type": "p",
+          "text": "project is Mongo-shaped: 1 includes, 0 excludes, dot-paths reach into sub-documents, and include and exclude cannot be mixed (except id, which rides along with an include projection unless you opt out with { id: 0 }). The older select: [\"title\"] spelling still works and is deprecated. Projected result sets are cached, but never prefetched into the by-id cache — a partial document must never be served to a later get()."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Option",
+            "mongo",
+            "pg",
+            "sqlite",
+            "redis"
+          ],
+          "rows": [
+            [
+              "project",
+              "native",
+              "approximate (applied to fetched rows)",
+              "approximate (fetched rows)",
+              "approximate (fetched documents)"
+            ],
+            [
+              "sort",
+              "native",
+              "native",
+              "native",
+              "approximate (in process; id order free)"
+            ],
+            [
+              "collation",
+              "native",
+              "approximate (lower(), text compare)",
+              "approximate (COLLATE NOCASE)",
+              "approximate (case folding in process)"
+            ],
+            [
+              "hint",
+              "native",
+              "none (Postgres has no query hint)",
+              "native (INDEXED BY)",
+              "none (no query planner to hint)"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "service.findCapabilities reports this per option: native (passed to storage), approximate (honored, but above storage or as a documented subset), or none (accepted and ignored). Under a collation the SQL backends compare values as text — that is what folding case means there — so a collated sort on a numeric field orders lexicographically. SQLite's NOCASE folds ASCII only, and its INDEXED BY is a constraint rather than advice: an unknown or unusable index is an error, and a key-pattern hint is refused."
+        }
+      ]
+    },
+    {
+      "id": "redis",
+      "heading": "Redis as a database",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "@hushkey/redis-service treats Redis as the store itself rather than a cache in front of one — the rung of the ladder you climb to for latency. Documents live in Redis as JSON, and the paths you declare in index get a physical secondary index: a SET of ids per value (tag) or a ZSET scored by the value (number). The planner compiles the neutral filter grammar into set operations Redis runs itself."
+        },
+        {
+          "type": "code",
+          "lang": "ts",
+          "filename": "server/services/sessions/sessions.service.ts",
+          "text": "import { RedisService } from \"@hushkey/redis-service\";\nimport { sessionsSchema, type Session } from \"./sessions.schema.ts\";\n\n// Any client works — the backend needs one sendCommand(args) method.\nconst client = { sendCommand: (a: (string | number)[]) => redis.call(...a.map(String)) };\n\nexport class SessionsService extends RedisService<Session> {\n  constructor() {\n    super(client, sessionsSchema, {\n      collectionName: \"sessions\",\n      index: [\"user_id\", { path: \"expires_at\", kind: \"number\" }],\n    });\n  }\n}\n\nexport const sessionsService = new SessionsService();"
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Query",
+            "What Redis runs"
+          ],
+          "rows": [
+            [
+              "A page of the collection",
+              "ZRANGE … BYLEX LIMIT — one page, nothing else"
+            ],
+            [
+              "count() unfiltered",
+              "ZCARD — no documents leave Redis"
+            ],
+            [
+              "{ user_id: \"u1\" } (tag)",
+              "ZINTER of the live set and the value set"
+            ],
+            [
+              "{ expires_at: { $lt: now } } (number)",
+              "ZRANGEBYSCORE, then ZMSCORE against the live set"
+            ],
+            [
+              "Anything undeclared",
+              "scan the live set, filter in process"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Every query is correct either way — the index list only decides how much work Redis does. A condition an index cannot answer soundly (a null equality, which must also match absent keys; $ne / $nin / $exists; an undeclared path) narrows nothing and is re-checked against the fetched candidates with the same semantics the SQL backends compile into SQL."
+        },
+        {
+          "type": "p",
+          "text": "Writes are one round trip: a compare-and-set Lua script that guards on the exact previous document bytes and applies the document and its index changes together — so a document and its indexes can never diverge, optimistic locking is enforced server-side, and a lost race re-reads and re-applies instead of clobbering the other writer. Plain Redis 6.2+ is enough (Valkey, Dragonfly and Upstash too): no RedisJSON, no RediSearch."
+        },
+        {
+          "type": "warning",
+          "text": "Leave the service cache off here (the default). A read is already a memory lookup one hop away — caching in front of Redis buys nothing and adds an invalidation surface."
+        }
+      ]
+    },
+    {
       "id": "studio",
       "heading": "Studio: the admin UI",
       "blocks": [
@@ -156,6 +304,10 @@
         {
           "type": "p",
           "text": "The schema view also carries the zero-migration field console: it diffs the live schema against stored documents and lists MISSING fields (declared but absent from old docs) with a one-click backfill of the schema default, and ORPHAN fields (in the JSON but no longer declared) with a one-click drop. So evolving a schema needs no migration script — add a field and backfill it, or remove it and drop it, right from the UI. Works on every backend, document stores included."
+        },
+        {
+          "type": "p",
+          "text": "The query bar has an OPTIONS row for the same knobs — PROJECT, SORT, COLLATION and INDEX HINT — with field-name completion, a badge counting the active ones, and a per-input note of what the selected backend actually does with it. They travel with paging, refresh and EXPORT, so what downloads matches what you see. A projection that drops id leaves nothing to address a write to, so those rows render read-only."
         }
       ]
     },
@@ -165,13 +317,19 @@
       "blocks": [
         {
           "type": "table",
-          "headers": ["Option", "Purpose"],
+          "headers": [
+            "Option",
+            "Purpose"
+          ],
           "rows": [
             [
               "services",
               "Map of UI name → service. Null/undefined entries are skipped, so you can register conditionally-connected services without guards."
             ],
-            ["path", "Mount path (default /studio)."],
+            [
+              "path",
+              "Mount path (default /studio)."
+            ],
             [
               "mode",
               "\"standalone\" (default) serves a full page; \"component\" mounts only the JSON API."
@@ -180,7 +338,10 @@
               "executionerId",
               "Audit identity stamped on writes (default \"studio\"). A function receives the context to read your auth state."
             ],
-            ["style", "daisyUI theme + primary/secondary action classes + extra stylesheet URLs."]
+            [
+              "style",
+              "daisyUI theme + primary/secondary action classes + extra stylesheet URLs."
+            ]
           ]
         },
         {

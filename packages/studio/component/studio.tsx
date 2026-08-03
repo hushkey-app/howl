@@ -45,10 +45,22 @@ interface Ui {
   secondary: string;
 }
 
+/** How a backend honors one query option: natively, loosely, or not at all. */
+type FindSupport = "native" | "approximate" | "none";
+
+/** Per-backend support for the query options in the FIND options panel. */
+interface FindCapabilities {
+  project: FindSupport;
+  sort: FindSupport;
+  collation: FindSupport;
+  hint: FindSupport;
+}
+
 interface ServiceMeta {
   key: string;
   collection: string;
   backend: string;
+  capabilities?: FindCapabilities;
 }
 interface Doc {
   id: string;
@@ -439,6 +451,227 @@ function QueryBar(
   );
 }
 
+// ─────────────────────────────────────────────────────────── find options ──
+
+/** The Compass-style query options that ride along with the filter. */
+interface QueryOptions {
+  /** Projection — `{ field: 1 }` include / `{ field: 0 }` exclude. */
+  project: string;
+  /** Sort — `{ field: 1 | -1 }`. */
+  sort: string;
+  /** Collation — `{ locale: 'en', strength: 2 }`. */
+  collation: string;
+  /** Index hint — an index name, or a key pattern on Mongo. */
+  hint: string;
+}
+
+const EMPTY_OPTIONS: QueryOptions = { project: "", sort: "", collation: "", hint: "" };
+
+const OPTION_FIELDS: {
+  key: keyof QueryOptions;
+  label: string;
+  placeholder: string;
+  json: boolean;
+}[] = [
+  {
+    key: "project",
+    label: "PROJECT",
+    placeholder: "{ name: 1, 'meta.deleted_at': 1 }",
+    json: true,
+  },
+  { key: "sort", label: "SORT", placeholder: "{ 'meta.created_at': -1 }", json: true },
+  {
+    key: "collation",
+    label: "COLLATION",
+    placeholder: "{ locale: 'en', strength: 2 }",
+    json: true,
+  },
+  { key: "hint", label: "INDEX HINT", placeholder: "index_name", json: false },
+];
+
+// What each support level means for the operator staring at the input.
+const SUPPORT_NOTE: Record<FindSupport, string> = {
+  native: "",
+  approximate: "approximated on this backend",
+  none: "ignored on this backend",
+};
+
+// Are any options set? Drives the "N" badge on the OPTIONS toggle so a
+// collapsed panel can never silently shape a result set.
+function activeOptionCount(options: QueryOptions): number {
+  return Object.values(options).filter((v) => v.trim()).length;
+}
+
+// The options inputs are plain fields with the query bar's editor manners:
+// bracket pairing plus a field-name dropdown (no operators — these take
+// document paths, not conditions).
+function OptionInput(
+  { value, placeholder, fields, suggest, onChange, onFind }: {
+    value: string;
+    placeholder: string;
+    fields: string[];
+    suggest: boolean;
+    onChange: (v: string) => void;
+    onFind: () => void;
+  },
+): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<string[]>([]);
+  const [sel, setSel] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function refresh(text: string, caret: number) {
+    if (!suggest) return;
+    const before = text.slice(0, caret);
+    const token = before.match(/[\w.]*$/)?.[0] ?? "";
+    const hits = token
+      ? fields.filter((f) => f.startsWith(token) && f !== token)
+      : /[{,[]\s*["']?$/.test(before) || before.trim() === ""
+      ? fields
+      : [];
+    setItems(hits.slice(0, 8));
+    setSel(0);
+    setOpen(hits.length > 0);
+  }
+
+  function accept(item: string) {
+    const el = inputRef.current;
+    if (!el) return;
+    setOpen(false);
+    const caret = el.selectionStart ?? value.length;
+    const before = value.slice(0, caret).replace(/[\w.]*$/, "");
+    const after = value.slice(caret);
+    // A dotted path needs quoting inside the object literal; a bare key does not.
+    const quoted = item.includes(".") ? `'${item}'` : item;
+    const next = value.trim() === "" ? `{ ${quoted}: ` : before + quoted + after;
+    onChange(next);
+    const pos = value.trim() === "" ? next.length : before.length + quoted.length;
+    queueMicrotask(() => {
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  }
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        value={value}
+        placeholder={placeholder}
+        className="input input-bordered input-sm w-full font-mono text-xs"
+        onFocus={(e) => {
+          const el = e.target as HTMLInputElement;
+          refresh(el.value, el.selectionStart ?? el.value.length);
+        }}
+        onChange={(e) => {
+          const el = e.target as HTMLInputElement;
+          onChange(el.value);
+          refresh(el.value, el.selectionStart ?? el.value.length);
+        }}
+        onKeyDown={(e) => {
+          if (open) {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setSel((s) => (s + 1) % items.length);
+              return;
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setSel((s) => (s - 1 + items.length) % items.length);
+              return;
+            }
+            if (e.key === "Tab" || e.key === "Enter") {
+              e.preventDefault();
+              accept(items[sel]);
+              return;
+            }
+            if (e.key === "Escape") {
+              setOpen(false);
+              return;
+            }
+          }
+          const el = inputRef.current;
+          if (
+            el && handlePairKey(e, el, (next, s, en) => {
+              onChange(next);
+              queueMicrotask(() => {
+                el.focus();
+                el.setSelectionRange(s, en);
+              });
+            })
+          ) {
+            return;
+          }
+          if (e.key === "Enter") onFind();
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (
+        <ul className="menu menu-sm absolute top-full left-0 z-30 mt-1 min-w-56 rounded-box border border-base-300 bg-base-100 p-1 font-mono text-xs shadow-lg">
+          {items.map((item, i) => (
+            <li key={item}>
+              <a
+                className={i === sel ? "active" : ""}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  accept(item);
+                }}
+              >
+                {item}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function OptionsPanel(
+  { value, fields, capabilities, onChange, onFind }: {
+    value: QueryOptions;
+    fields: string[];
+    capabilities?: FindCapabilities;
+    onChange: (next: QueryOptions) => void;
+    onFind: () => void;
+  },
+): ReactElement {
+  return (
+    <div className="mb-3 grid gap-3 rounded-2xl bg-base-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
+      {OPTION_FIELDS.map((field) => {
+        const support = capabilities?.[field.key] ?? "native";
+        const note = SUPPORT_NOTE[support];
+        return (
+          <label key={field.key} className="flex flex-col gap-1">
+            <span className="flex items-center gap-1.5 text-[11px] tracking-wide text-base-content/60">
+              {field.label}
+              {note && (
+                <span
+                  className={`badge badge-xs ${
+                    support === "none" ? "badge-warning" : "badge-ghost"
+                  }`}
+                  title={note}
+                >
+                  {support}
+                </span>
+              )}
+            </span>
+            <OptionInput
+              value={value[field.key]}
+              placeholder={field.placeholder}
+              fields={fields}
+              suggest={field.json}
+              onChange={(v) => onChange({ ...value, [field.key]: v })}
+              onFind={onFind}
+            />
+            {note && <span className="text-[10px] text-base-content/50">{note}</span>}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 // ───────────────────────────────────────────────────────────── doc cards ──
 
 // A nested value rendered as an expandable, type-colored tree — the same field
@@ -590,6 +823,9 @@ function DocCard(
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hardDelete, setHardDelete] = useState(false);
   const deleted = doc.meta?.deleted_at != null;
+  // A projection can drop `id` (`{ id: 0 }`) — without it there is nothing to
+  // address a write to, so the card renders as a read-only result row.
+  const addressable = typeof doc.id === "string";
   const entries = Object.entries(doc).filter(([k]) => k !== "id");
   const anyExpanded = Object.values(expanded).some(Boolean);
   // System fields are owned by the contract (version bumps on write, meta is
@@ -688,10 +924,16 @@ function DocCard(
         }`}
       >
         {deleted && <span className="badge badge-error badge-xs">DELETED</span>}
+        {!addressable && (
+          <span className="badge badge-ghost badge-xs" title="projection excluded id">
+            READ-ONLY
+          </span>
+        )}
         <button
           type="button"
           className={`btn btn-ghost btn-sm btn-circle ${editing ? "text-primary" : ""}`}
           title={editing ? "cancel edit" : "edit fields inline"}
+          disabled={!addressable}
           onClick={() => (editing ? cancelEdit() : startEdit())}
         >
           <Icon.Pencil className="size-4" />
@@ -711,6 +953,7 @@ function DocCard(
                 type="button"
                 className="btn btn-ghost btn-sm btn-circle"
                 title="restore"
+                disabled={!addressable}
                 onClick={onRestore}
               >
                 <Icon.Restore className="size-4" />
@@ -719,6 +962,7 @@ function DocCard(
                 type="button"
                 className="btn btn-ghost btn-sm btn-circle text-error"
                 title="hard delete"
+                disabled={!addressable}
                 onClick={() => {
                   setHardDelete(true);
                   setConfirmDelete(true);
@@ -733,6 +977,7 @@ function DocCard(
               type="button"
               className="btn btn-ghost btn-sm btn-circle text-error"
               title="delete"
+              disabled={!addressable}
               onClick={() => {
                 setHardDelete(false);
                 setConfirmDelete(true);
@@ -744,12 +989,14 @@ function DocCard(
       </div>
 
       <div className="leading-7">
-        <div>
-          <span className="mr-1 inline-block w-3 align-middle" />
-          <span className="font-bold text-base-content">id</span>
-          <span className="mx-1 text-base-content/60">:</span>
-          <span className="text-error">"{doc.id}"</span>
-        </div>
+        {addressable && (
+          <div>
+            <span className="mr-1 inline-block w-3 align-middle" />
+            <span className="font-bold text-base-content">id</span>
+            <span className="mx-1 text-base-content/60">:</span>
+            <span className="text-error">"{doc.id}"</span>
+          </div>
+        )}
         {entries.map(([k, v]) => {
           const isObj = v !== null && typeof v === "object";
           const canEdit = editing && editable(k);
@@ -1253,6 +1500,9 @@ function CollectionTab(
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState("");
   const [applied, setApplied] = useState("");
+  const [options, setOptions] = useState<QueryOptions>(EMPTY_OPTIONS);
+  const [appliedOptions, setAppliedOptions] = useState<QueryOptions>(EMPTY_OPTIONS);
+  const [showOptions, setShowOptions] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [skip, setSkip] = useState(0);
   const [limit, setLimit] = useState(20);
@@ -1289,11 +1539,23 @@ function CollectionTab(
     return applied.trim() ? looseJsonParse(applied) : {};
   }
 
+  // Projection/sort/collation/hint travel with every list request — the
+  // applied snapshot, not the in-progress text, so paging and refresh keep
+  // returning the result set the operator asked for.
+  function setOptionParams(params: URLSearchParams, opts: QueryOptions) {
+    for (const field of OPTION_FIELDS) {
+      const raw = opts[field.key].trim();
+      if (!raw) continue;
+      params.set(field.key, field.json ? JSON.stringify(looseJsonParse(raw)) : raw);
+    }
+  }
+
   async function load(
     filterText = applied,
     atSkip = skip,
     deleted = showDeleted,
     atLimit = limit,
+    opts = appliedOptions,
   ) {
     setError("");
     try {
@@ -1301,6 +1563,7 @@ function CollectionTab(
       if (filterText.trim()) {
         params.set("filter", JSON.stringify(looseJsonParse(filterText)));
       }
+      setOptionParams(params, opts);
       if (deleted) params.set("deleted", "true");
       const res = await call<{ data: Doc[]; total?: number }>(`/services/${svc.key}?${params}`);
       setDocs(res.data);
@@ -1328,14 +1591,17 @@ function CollectionTab(
 
   function find() {
     setApplied(filter);
+    setAppliedOptions(options);
     setSkip(0);
-    load(filter, 0);
+    load(filter, 0, showDeleted, limit, options);
   }
   function reset() {
     setFilter("");
     setApplied("");
+    setOptions(EMPTY_OPTIONS);
+    setAppliedOptions(EMPTY_OPTIONS);
     setSkip(0);
-    load("", 0);
+    load("", 0, showDeleted, limit, EMPTY_OPTIONS);
   }
 
   function openEditor(doc: Doc | "new") {
@@ -1466,6 +1732,9 @@ function CollectionTab(
     try {
       const params = new URLSearchParams({ limit: String(Math.max(total, 1)), skip: "0" });
       if (applied.trim()) params.set("filter", JSON.stringify(looseJsonParse(applied)));
+      // The export is the current query — projection and sort included, so what
+      // downloads matches what the table shows.
+      setOptionParams(params, appliedOptions);
       if (showDeleted) params.set("deleted", "true");
       const res = await call<{ data: Doc[] }>(`/services/${svc.key}?${params}`);
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
@@ -1726,6 +1995,20 @@ function CollectionTab(
           >
             <Icon.Search className="size-5" /> FIND
           </button>
+          <button
+            type="button"
+            className={`btn btn-ghost rounded-full ${showOptions ? "btn-active" : ""}`}
+            title="projection, sort, collation and index hint"
+            onClick={() => setShowOptions((o) => !o)}
+          >
+            OPTIONS
+            {activeOptionCount(appliedOptions) > 0 && (
+              <span className="badge badge-sm badge-primary">
+                {activeOptionCount(appliedOptions)}
+              </span>
+            )}
+            <Icon.ChevronDown className={`size-4 ${showOptions ? "" : "-rotate-90"}`} />
+          </button>
           <button type="button" className="btn btn-ghost rounded-full" onClick={reset}>
             RESET
           </button>
@@ -1794,6 +2077,16 @@ function CollectionTab(
             <Icon.Refresh className="size-5" />
           </button>
         </div>
+      )}
+
+      {view !== "schema" && showOptions && (
+        <OptionsPanel
+          value={options}
+          fields={fields}
+          capabilities={svc.capabilities}
+          onChange={setOptions}
+          onFind={find}
+        />
       )}
 
       {error && (
@@ -1976,9 +2269,9 @@ function CollectionTab(
 
       {/* ── views ── */}
       {view === "cards" &&
-        docs.map((d) => (
+        docs.map((d, i) => (
           <DocCard
-            key={d.id}
+            key={d.id ?? i}
             doc={d}
             ui={ui}
             expandSignal={expandSignal}
@@ -1995,9 +2288,9 @@ function CollectionTab(
         ))}
 
       {view === "raw" &&
-        docs.map((d) => (
+        docs.map((d, i) => (
           <pre
-            key={d.id}
+            key={d.id ?? i}
             className={`mb-3 overflow-x-auto rounded-2xl bg-base-200 px-4 py-3 font-mono text-xs ${
               d.meta?.deleted_at != null ? "opacity-55" : ""
             }`}
@@ -2017,12 +2310,15 @@ function CollectionTab(
               </tr>
             </thead>
             <tbody>
-              {docs.map((d) => {
+              {docs.map((d, i) => {
                 const deleted = d.meta?.deleted_at != null;
+                // `{ id: 0 }` in the projection leaves nothing to address a
+                // write to — the row still renders, its actions do not.
+                const addressable = typeof d.id === "string";
                 return (
-                  <tr key={d.id} className={deleted ? "opacity-50" : ""}>
+                  <tr key={d.id ?? i} className={deleted ? "opacity-50" : ""}>
                     <td className="max-w-56 truncate text-error" title={d.id}>
-                      {d.id.slice(0, 8)}…
+                      {addressable ? `${d.id.slice(0, 8)}…` : "·"}
                     </td>
                     {columns.map((c) => (
                       <td
@@ -2042,6 +2338,7 @@ function CollectionTab(
                         type="button"
                         className="btn btn-ghost btn-sm btn-circle"
                         title="edit"
+                        disabled={!addressable}
                         onClick={() => openEditor(d)}
                       >
                         <Icon.Pencil className="size-4" />
@@ -2060,6 +2357,7 @@ function CollectionTab(
                             type="button"
                             className="btn btn-ghost btn-sm btn-circle"
                             title="restore"
+                            disabled={!addressable}
                             onClick={() =>
                               act(`/services/${svc.key}/${d.id}/restore`, { method: "POST" })}
                           >
@@ -2071,6 +2369,7 @@ function CollectionTab(
                             type="button"
                             className="btn btn-ghost btn-sm btn-circle text-error"
                             title="soft delete"
+                            disabled={!addressable}
                             onClick={() =>
                               act(`/services/${svc.key}/${d.id}`, { method: "DELETE" })}
                           >

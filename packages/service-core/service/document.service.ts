@@ -10,6 +10,8 @@ import type {
   SchemaAdmin,
   StorageBackend,
 } from "../backend/backend.interface.ts";
+import type { Collation, FindCapabilities, IndexHint, Projection } from "../query/projection.ts";
+import { DEFAULT_FIND_CAPABILITIES, normalizeProjection } from "../query/projection.ts";
 
 /**
  * Minimal structural constraint on stored document shapes: every document has
@@ -216,6 +218,16 @@ export class DocumentService<T extends DocumentShape> {
   /** The storage backend's kind tag (`mongo`, `sql`, `sqlite`, …). */
   get backendKind(): string {
     return this.backend.cachePrefix;
+  }
+
+  /**
+   * What the backend does with each optional `find()` option (`project`,
+   * `sort`, `collation`, `hint`): honored natively, approximated above
+   * storage, or accepted and ignored. Backends that advertise nothing are
+   * reported as fully native.
+   */
+  get findCapabilities(): FindCapabilities {
+    return this.backend.findCapabilities ?? DEFAULT_FIND_CAPABILITIES;
   }
 
   /**
@@ -1020,21 +1032,32 @@ export class DocumentService<T extends DocumentShape> {
 
   /**
    * Query documents with the neutral filter grammar. Soft-deleted documents
-   * are excluded unless `viewDeleted`. Supports projection (`select`),
-   * `limit`/`skip`, `sort`, and a backend read-routing hint. Result sets are
-   * cached (and the first 50 docs prefetched into the get cache) when caching
-   * is enabled and no `session` is active.
+   * are excluded unless `viewDeleted`. Supports projection (`project`),
+   * `limit`/`skip`, `sort`, collation, an index hint, and a backend
+   * read-routing hint. Result sets are cached (and the first 50 docs
+   * prefetched into the get cache) when caching is enabled, no `session` is
+   * active and no projection is applied — projected documents are partial and
+   * must never land in the by-id cache.
    *
-   * @param args Query, projection, pagination, sort, read hint, session.
+   * `collation` and `hint` are honored to different degrees per backend; read
+   * {@link DocumentService.findCapabilities} before relying on either.
+   *
+   * @param args Query, projection, pagination, sort, collation, hints, session.
    * @returns The matching documents.
    */
   async find(
     args: {
       query?: Filter<T>;
+      project?: Projection;
+      /**
+       * @deprecated Use `project` — `{ name: 1 }` instead of `["name"]`.
+       */
       select?: (keyof T & string)[];
       limit?: number;
       skip?: number;
       sort?: { [key: string]: 1 | -1 };
+      collation?: Collation;
+      hint?: IndexHint;
       viewDeleted?: boolean;
       readPreference?: string;
       session?: unknown;
@@ -1060,6 +1083,7 @@ export class DocumentService<T extends DocumentShape> {
 
       const rawQuery = (args.query ?? {}) as Filter<T>;
       const query = args.viewDeleted ? rawQuery : this.withDeletedFilter(rawQuery);
+      const projection = normalizeProjection(args.project, args.select);
 
       // Cache check — skip when session is active (inside a transaction)
       const cacheable = this.cacheEnabled && this.cacheFind &&
@@ -1074,7 +1098,9 @@ export class DocumentService<T extends DocumentShape> {
             limit: args.limit,
             skip: args.skip,
             sort: args.sort,
-            select: args.select,
+            project: projection,
+            collation: args.collation,
+            hint: args.hint,
           });
           const dKey = performance.now() - tKey;
           const tGet = performance.now();
@@ -1119,7 +1145,9 @@ export class DocumentService<T extends DocumentShape> {
           limit: args.limit,
           skip: args.skip,
           sort: args.sort,
-          select: args.select as string[] | undefined,
+          project: projection,
+          collation: args.collation,
+          hint: args.hint,
           readPreference: args.readPreference,
           session: args.session,
         }),
@@ -1129,8 +1157,11 @@ export class DocumentService<T extends DocumentShape> {
         try {
           await this.cacheAdapter!.set(cacheKey, items, this.cacheTtl);
 
-          // Prefetch individual items into get cache (non-blocking)
-          if (this.cacheGet && items.length > 0) {
+          // Prefetch individual items into get cache (non-blocking). Projected
+          // results are partial documents — caching them by id would serve a
+          // half-document to the next get(), so a projection skips the
+          // prefetch entirely.
+          if (this.cacheGet && items.length > 0 && !projection) {
             const PREFETCH_LIMIT = 50;
             const PREFETCH_CONCURRENCY = 20;
             const toPrefetch = items.slice(0, PREFETCH_LIMIT);
@@ -1633,7 +1664,7 @@ export class DocumentService<T extends DocumentShape> {
       // bounded — an id-only read and capped concurrency so a large match set
       // can't exhaust the connection pool.
       const docs = await this.backend.findMany(activeFilter, {
-        select: ["id"],
+        project: { id: 1 },
         session: options.session,
       });
       await runChunked(
@@ -1732,7 +1763,7 @@ export class DocumentService<T extends DocumentShape> {
       // an id-only read and capped concurrency so a large match set can't
       // exhaust the connection pool.
       const docs = await this.backend.findMany(activeFilter, {
-        select: ["id"],
+        project: { id: 1 },
         session: options.session,
       });
       await runChunked(

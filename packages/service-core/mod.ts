@@ -30,6 +30,18 @@ export type {
 } from "./service/document.service.ts";
 export type { Condition, Filter, FilterOperators } from "./filter/filter.ts";
 export type {
+  Collation,
+  FindCapabilities,
+  FindSupport,
+  IndexHint,
+  Projection,
+} from "./query/projection.ts";
+export {
+  applyProjection,
+  DEFAULT_FIND_CAPABILITIES,
+  normalizeProjection,
+} from "./query/projection.ts";
+export type {
   BackendOpOptions,
   BulkWriteBackend,
   FindManyOptions,

@@ -1,11 +1,15 @@
 // deno-lint-ignore-file no-explicit-any
 import {
+  applyProjection,
   type BackendOpOptions,
   type BulkWriteBackend,
+  type Collation,
   type DocumentShape,
   type Filter,
+  type FindCapabilities,
   type FindManyOptions,
   type IndexSpec,
+  normalizeProjection,
   type SchemaAdmin,
   type SchemaColumn,
   type StorageBackend,
@@ -110,6 +114,18 @@ export class PgBackend<T extends DocumentShape>
   implements StorageBackend<T>, SchemaAdmin, BulkWriteBackend<T> {
   /** Cache-key namespace for SQL-backed services. */
   readonly cachePrefix = "sql";
+
+  /**
+   * Projection is applied to the fetched rows (documents live in one JSONB
+   * value), collation implements the case-folding half of `strength`, and
+   * Postgres has no query-level index hint — `hint` is accepted and ignored.
+   */
+  readonly findCapabilities: FindCapabilities = {
+    project: "approximate",
+    sort: "native",
+    collation: "approximate",
+    hint: "none",
+  };
 
   readonly #table: string;
   readonly #promoted: Map<string, PromotedColumn>;
@@ -276,15 +292,29 @@ export class PgBackend<T extends DocumentShape>
     return { ...(row.doc as Record<string, unknown>), id: row.id } as T;
   }
 
-  #orderBy(sort?: Record<string, 1 | -1>): string {
+  // Collation strength 1/2 are the case-insensitive levels. Postgres has no
+  // per-query ICU strength, so the sort expression is folded with lower() over
+  // the value's text form — which also means values compare as text under a
+  // collation (a documented consequence, not a silent one).
+  #collate(expr: string, collation?: Collation): string {
+    if (!collation || (collation.strength ?? 3) > 2) return expr;
+    return `lower((${expr})::text)`;
+  }
+
+  #orderBy(sort?: Record<string, 1 | -1>, collation?: Collation): string {
     if (!sort || Object.keys(sort).length === 0) return "";
     const terms = Object.entries(sort).map(([path, dir]) => {
       const direction = dir === -1 ? "DESC" : "ASC";
-      if (path === "id") return `id ${direction}`;
+      if (path === "id") return `${this.#collate("id", collation)} ${direction}`;
       const promoted = this.#promoted.get(path);
-      if (promoted) return `"${promoted.column}" ${direction}`;
+      if (promoted) {
+        return `${this.#collate(`"${promoted.column}"`, collation)} ${direction}`;
+      }
       const segments = path.split(".").map(assertIdent);
-      return `doc #> '{${segments.join(",")}}' ${direction}`;
+      const expr = collation
+        ? `doc #>> '{${segments.join(",")}}'`
+        : `doc #> '{${segments.join(",")}}'`;
+      return `${this.#collate(expr, collation)} ${direction}`;
     });
     return ` ORDER BY ${terms.join(", ")}`;
   }
@@ -320,7 +350,7 @@ export class PgBackend<T extends DocumentShape>
     const where = compileWhere(filter as Record<string, unknown>, this.#promoted);
     const params: unknown[] = [...where.params];
     let sql = `SELECT id, doc FROM "${this.#table}" WHERE ${where.text}${
-      this.#orderBy(options.sort)
+      this.#orderBy(options.sort, options.collation)
     }`;
     if (options.limit !== undefined) {
       params.push(options.limit);
@@ -331,18 +361,11 @@ export class PgBackend<T extends DocumentShape>
       sql += ` OFFSET $${params.length}`;
     }
     const { rows } = await this.#exec(options).query(sql, params);
-    let docs = rows.map((r) => this.#toDoc(r));
+    const docs = rows.map((r) => this.#toDoc(r));
     // Projection happens after fetch: documents live in one JSONB value, so a
     // SQL-side projection would rebuild objects for no I/O win at these sizes.
-    if (options.select && options.select.length > 0) {
-      const keep = new Set<string>([...options.select, "id"]);
-      docs = docs.map((d) =>
-        Object.fromEntries(
-          Object.entries(d as Record<string, unknown>).filter(([k]) => keep.has(k)),
-        ) as unknown as T
-      );
-    }
-    return docs;
+    const projection = normalizeProjection(options.project, options.select);
+    return projection ? docs.map((d) => applyProjection(d, projection)) : docs;
   }
 
   /** Count matches for a neutral filter. */

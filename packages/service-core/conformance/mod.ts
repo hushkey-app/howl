@@ -172,9 +172,56 @@ const CASES: [string, (ctx: Ctx) => Promise<void>][] = [
     });
     expect(or.map((d) => d.name)).toEqual(["A", "C"]);
 
+    // `select` is the deprecated include-only spelling of `project`.
     const projected = await service.find({ select: ["name"], sort: { name: 1 } });
     expect(projected[0].name).toBe("A");
     expect((projected[0] as unknown as Record<string, unknown>).email).toBeUndefined();
+  }],
+
+  ["find projects: include, exclude, dot-path, id opt-out, no mixing", async ({ service }) => {
+    await service.create({ name: "A", email: "a@b.com", score: 10 });
+
+    const included = await service.find({ project: { name: 1 } });
+    expect(Object.keys(included[0]).sort()).toEqual(["id", "name"]);
+
+    const excluded = await service.find({ project: { email: 0 } });
+    const first = excluded[0] as unknown as Record<string, unknown>;
+    expect(first.email).toBeUndefined();
+    expect(first.name).toBe("A");
+    expect(typeof first.version).toBe("number");
+    expect(typeof first.id).toBe("string");
+
+    // Dot-paths reach into sub-documents and rebuild only the picked branch.
+    const dotted = await service.find({ project: { "meta.deleted_at": 1 } });
+    expect(dotted[0].meta.deleted_at).toBe(null);
+    expect(
+      (dotted[0].meta as unknown as Record<string, unknown>).created_at,
+    ).toBeUndefined();
+
+    // `id` rides along with an include projection unless opted out.
+    const noId = await service.find({ project: { name: 1, id: 0 } });
+    expect((noId[0] as unknown as Record<string, unknown>).id).toBeUndefined();
+    expect(noId[0].name).toBe("A");
+
+    await expect(service.find({ project: { name: 1, email: 0 } })).rejects.toThrow();
+  }],
+
+  ["find sorts case-insensitively under a strength-2 collation", async ({ service }) => {
+    await service.create({ name: "cherry", email: "c@b.com" });
+    await service.create({ name: "Banana", email: "b@b.com" });
+    await service.create({ name: "apple", email: "a@b.com" });
+
+    const folded = await service.find({
+      sort: { name: 1 },
+      collation: { locale: "en", strength: 2 },
+    });
+    expect(folded.map((d) => d.name)).toEqual(["apple", "Banana", "cherry"]);
+
+    const descending = await service.find({
+      sort: { name: -1 },
+      collation: { locale: "en", strength: 2 },
+    });
+    expect(descending.map((d) => d.name)).toEqual(["cherry", "Banana", "apple"]);
   }],
 
   ["filter operators: $ne $nin $lt $lte $exists and null equality", async ({ service }) => {

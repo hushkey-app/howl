@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@source "../client";
+
+/* shadcn/ui — Tailwind v4 design tokens. Neutral base, with the iOS app's
+ * violet as `--primary` and its per-muscle accents as the chart colours
+ * (MyGym/Theme.swift). Light-only: the page never switches themes, so no
+ * `.dark` block and no toggle. Type is the default system stack — no webfont. */
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.19 0.02 290);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.19 0.02 290);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.19 0.02 290);
+  --primary: oklch(0.55 0.25 296);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.97 0.01 296);
+  --secondary-foreground: oklch(0.3 0.08 296);
+  --muted: oklch(0.97 0.004 290);
+  --muted-foreground: oklch(0.52 0.02 290);
+  --accent: oklch(0.96 0.02 296);
+  --accent-foreground: oklch(0.35 0.12 296);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.92 0.008 290);
+  --input: oklch(0.92 0.008 290);
+  --ring: oklch(0.55 0.25 296);
+
+  /* Fills and icons — the app's accents, kept vivid. */
+  --chart-1: #ff5259; /* chest */
+  --chart-2: #2eb8ff; /* back */
+  --chart-3: #ff9429; /* shoulders */
+  --chart-4: #b8f233; /* biceps */
+  --chart-5: #f052d1; /* triceps */
+
+  /* Same hues pulled down for text on white, where the vivid ones fail contrast. */
+  --ink-1: #d0353c;
+  --ink-2: #0f7fc0;
+  --ink-3: #c96200;
+  --ink-4: #5f8a06;
+  --ink-5: #b32f96;
+
+  /* Flat tinted panels — the site's only "background art". */
+  --tint-violet: oklch(0.972 0.026 296);
+  --tint-sky: oklch(0.972 0.03 234);
+  --tint-lime: oklch(0.972 0.04 122);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-ink-5: var(--ink-5);
+
+  --color-tint-violet: var(--tint-violet);
+  --color-tint-sky: var(--tint-sky);
+  --color-tint-lime: var(--tint-lime);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

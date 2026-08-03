@@ -34,6 +34,7 @@
   --db-sqlite: oklch(78% 0.16 75);
   --db-pg: oklch(70% 0.13 245);
   --db-mongo: oklch(72% 0.17 150);
+  --db-redis: oklch(68% 0.19 25);
   --grid-line: oklch(30% 0.02 255 / 0.25);
 }
 
@@ -79,7 +80,8 @@ body::after {
   animation: led-pulse 2.4s ease-in-out infinite;
 }
 @keyframes led-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -121,4 +123,7 @@ body::after {
 }
 .panel-glow-mongo {
   box-shadow: 0 0 0 1px var(--db-mongo), 0 0 24px oklch(72% 0.17 150 / 0.12);
+}
+.panel-glow-redis {
+  box-shadow: 0 0 0 1px var(--db-redis), 0 0 24px oklch(68% 0.19 25 / 0.12);
 }

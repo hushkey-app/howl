@@ -15,6 +15,6 @@ export class ReviewsService extends MongoService<Review> {
   }
 }
 
-// Mongo has no embedded fallback — without MONGO_URL the service is null and
-// the review endpoints answer 503 with a setup hint.
-export const reviewsService: ReviewsService = new ReviewsService();
+// Mongo has no embedded fallback — without a reachable server the service is
+// null and the review endpoints answer 503 with a setup hint.
+export const reviewsService: ReviewsService | null = mongoDb ? new ReviewsService() : null;

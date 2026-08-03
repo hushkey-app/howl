@@ -204,6 +204,9 @@ export function studio(
             key,
             collection: s.collection,
             backend: s.backendKind,
+            // Which query options this backend honors natively vs. approximates
+            // vs. ignores — the UI annotates the options panel with it.
+            capabilities: s.findCapabilities,
           })),
         });
       }
@@ -216,13 +219,28 @@ export function studio(
 
         if (!id && method === "GET") {
           const q = ctx.url.searchParams;
-          const filter = q.get("filter") ? JSON.parse(q.get("filter")!) : {};
-          const sort = q.get("sort") ? JSON.parse(q.get("sort")!) : undefined;
+          const jsonParam = (name: string) => {
+            const raw = q.get(name);
+            return raw ? JSON.parse(raw) : undefined;
+          };
+          const filter = jsonParam("filter") ?? {};
+          const sort = jsonParam("sort");
+          const project = jsonParam("project");
+          const collation = jsonParam("collation");
+          // A hint is either an index name or (Mongo) a key pattern — the
+          // bare-string form is the common one, so only JSON-shaped values parse.
+          const rawHint = q.get("hint")?.trim();
+          const hint = rawHint
+            ? (rawHint.startsWith("{") ? JSON.parse(rawHint) : rawHint)
+            : undefined;
           const viewDeleted = q.get("deleted") === "true";
           const [docs, total] = await Promise.all([
             service.find({
               query: filter,
               sort,
+              project,
+              collation,
+              hint,
               limit: Number(q.get("limit") ?? 25),
               skip: Number(q.get("skip") ?? 0),
               viewDeleted,
