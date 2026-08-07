@@ -68,25 +68,6 @@ export default function Home(props: ReactPageProps<unknown, State>) {
             end to end.
           </p>
         </div>
-
-        <div
-          className="rise mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm"
-          style={{ animationDelay: "0.22s" }}
-        >
-          {SOCIALS.map((social) => (
-            <a
-              key={social.href}
-              href={social.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => playSound("tap")}
-              className="group inline-flex items-center gap-1 text-ink-dim transition-colors hover:text-ink"
-            >
-              {social.label}
-              <ArrowUpRight className="size-3.5 text-ink-faint transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-            </a>
-          ))}
-        </div>
       </section>
 
       {/* ---------------------------------------------------------- projects */}
