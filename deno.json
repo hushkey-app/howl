@@ -16,6 +16,7 @@
     "./examples/_vue",
     "./examples/kawaii-www",
     "./examples/nobiru-www",
+    "./examples/leotermine-www",
     "./examples/_react",
     "./examples/_react-shadcn",
     "./examples/_backend",

@@ -532,7 +532,9 @@ Tasks (defined in root `deno.json`):
 ## Examples
 
 - `examples/www/` — howl.dev site + JSON-driven docs (the docs surface from the documentation rule)
-- `examples/software-www/`, `examples/kawaii-www/` — additional site builds
+- `examples/software-www/`, `examples/kawaii-www/`, `examples/nobiru-www/` — additional site builds
+- `examples/leotermine-www/` — personal site + reusable `/[project]/{support,privacy}` template
+  (React engine, data-driven project registry in `shared/projects/`)
 - `examples/_vue/`, `examples/_react/` — engine playgrounds
 - `examples/_backend/` — API-only app
 - `examples/_db/` — service-layer / multi-database demo

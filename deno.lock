@@ -1280,6 +1280,23 @@
           "npm:zod@4.3.6"
         ]
       },
+      "examples/leotermine-www": {
+        "dependencies": [
+          "jsr:@hushkey/howl-react@0.18",
+          "jsr:@hushkey/howl@0.18",
+          "jsr:@std/path@1",
+          "npm:@radix-ui/react-slot@^1.1.2",
+          "npm:@types/react@^19.1.0",
+          "npm:class-variance-authority@~0.7.1",
+          "npm:clsx@^2.1.1",
+          "npm:lucide-react@0.468",
+          "npm:react-dom@^19.1.0",
+          "npm:react@^19.1.0",
+          "npm:tailwind-merge@^3.3.1",
+          "npm:tailwindcss@4.1.18",
+          "npm:zod@4.3.6"
+        ]
+      },
       "examples/nobiru-www": {
         "dependencies": [
           "jsr:@hushkey/howl-react@0.18",
