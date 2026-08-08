@@ -37,9 +37,13 @@ export interface SocialLink {
   handle: string;
 }
 
-/** Public profiles worth linking. Ordered — the first two show in the hero. */
+/**
+ * Off-site profiles for the Reach out section.
+ *
+ * Howl and Hushkey used to sit here too and were removed: both are projects
+ * with their own cards and pages, so listing them again as "places to find me"
+ * said the same thing a third time.
+ */
 export const SOCIALS: SocialLink[] = [
   { label: "GitHub", href: "https://github.com/mirairoad", handle: "@mirairoad" },
-  { label: "Howl", href: "https://howl.hushkey.dev", handle: "howl.hushkey.dev" },
-  { label: "Hushkey", href: "https://hushkey.app", handle: "hushkey.app" },
 ];

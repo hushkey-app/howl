@@ -7,7 +7,7 @@ export const hound: Project = {
   tagline: "Type-safe job queue for Deno",
   summary:
     "A job queue with at-least-once delivery: sorted-set scheduling, a reaper that reclaims whatever a crashed worker left mid-run, cron scheduling and a management API. Runs on Redis, Deno KV or in memory.",
-  year: "2025",
+  year: "2024",
   status: "open source",
   hue: 32,
   languages: ["TypeScript"],

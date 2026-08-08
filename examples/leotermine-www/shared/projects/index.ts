@@ -19,8 +19,22 @@ export type {
   ProjectSupport,
 } from "./types.ts";
 
-/** Every project, in the order they appear on the home page. */
-export const PROJECTS: Project[] = [nobiru, howl, hound, pack, hushkey /*, spellit */];
+const REGISTERED: Project[] = [nobiru, howl, hound, pack, hushkey /*, spellit */];
+
+/** The first four-digit year in a `year` string, used only for ordering. */
+function startYear(project: Project): number {
+  const match = project.year.match(/\d{4}/);
+  return match ? Number(match[0]) : 0;
+}
+
+/**
+ * Every project, newest first.
+ *
+ * Sorted rather than hand-ordered so a new entry lands in the right place on
+ * its own. `sort` is stable, so projects sharing a year keep the order they
+ * are registered in above — that list is where you break a tie.
+ */
+export const PROJECTS: Project[] = [...REGISTERED].sort((a, b) => startYear(b) - startYear(a));
 
 /** Look up a project by URL slug. Returns `undefined` for unknown slugs. */
 export function getProject(slug: string | undefined): Project | undefined {

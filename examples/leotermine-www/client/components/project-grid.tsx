@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { hueVars } from "@/lib/utils.ts";
+import { cn, hueVars } from "@/lib/utils.ts";
 import { playSound } from "@/lib/sound.ts";
 import { Chip, Tag } from "@/components/ui/chip.tsx";
 import {
@@ -9,6 +9,15 @@ import {
   type Project,
   PROJECTS,
 } from "../../shared/projects/index.ts";
+
+/**
+ * Whether the language filter and its result count are shown.
+ *
+ * Both are built and working — hidden for now because five projects fit on one
+ * screen, and a filter that never narrows anything is furniture. Flip to
+ * `true` when the grid is long enough to earn it; nothing else needs changing.
+ */
+const SHOW_FILTER = false;
 
 /**
  * The projects grid and its filter.
@@ -38,36 +47,42 @@ export function ProjectGrid() {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
-        <Chip active={selected.length === 0} onClick={() => setSelected([])}>All</Chip>
-        {languages.map((language) => (
-          <Chip
-            key={language}
-            active={selected.includes(language)}
-            onClick={() => toggle(language)}
-          >
-            {language}
-          </Chip>
-        ))}
-      </div>
+      {SHOW_FILTER && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Chip active={selected.length === 0} onClick={() => setSelected([])}>All</Chip>
+            {languages.map((language) => (
+              <Chip
+                key={language}
+                active={selected.includes(language)}
+                onClick={() => toggle(language)}
+              >
+                {language}
+              </Chip>
+            ))}
+          </div>
 
-      <p aria-live="polite" className="mt-4 text-sm text-ink-faint">
-        {selected.length === 0
-          ? `${PROJECTS.length} projects`
-          : `${visible.length} ${visible.length === 1 ? "project" : "projects"} in ${
-            selected.join(" or ")
-          }`}
-      </p>
+          <p aria-live="polite" className="mt-4 text-sm text-ink-faint">
+            {selected.length === 0
+              ? `${PROJECTS.length} projects`
+              : `${visible.length} ${visible.length === 1 ? "project" : "projects"} in ${
+                selected.join(" or ")
+              }`}
+          </p>
+        </>
+      )}
 
       {visible.length === 0
         ? (
-          <div className="card mt-6 rounded-[1.5rem] px-6 py-14 text-center">
+          <div
+            className={cn("card rounded-[1.5rem] px-6 py-14 text-center", SHOW_FILTER && "mt-6")}
+          >
             <p className="text-lg font-semibold">Nothing in that language</p>
             <p className="mt-1 text-sm text-ink-dim">Clear the filter to see everything again.</p>
           </div>
         )
         : (
-          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+          <ul className={cn("grid gap-4 sm:grid-cols-2", SHOW_FILTER && "mt-6")}>
             {visible.map((project) => <ProjectCard key={project.slug} project={project} />)}
           </ul>
         )}
