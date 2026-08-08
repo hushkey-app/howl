@@ -72,3 +72,38 @@ steps:
 
       - docker push "$IMAGE:latest"
       - docker push "$IMAGE:$NEW_SHA"
+
+  build-leotermine-www:
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - set -euo pipefail
+
+      - REGISTRY="localhost:9011"
+      - IMAGE="$REGISTRY/${CI_REPO_NAME}-leotermine-www"
+      - NEW_SHA="${CI_COMMIT_SHA}"
+
+      - echo "NEW_SHA=$NEW_SHA"
+      - echo "IMAGE=$IMAGE"
+
+      - OLD_SHA="$(docker image inspect "$IMAGE:latest" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' 2>/dev/null || true)"
+      - echo "OLD_SHA=$OLD_SHA"
+
+      - |
+          if [ -n "$NEW_SHA" ] && [ "$OLD_SHA" = "$NEW_SHA" ]; then
+            echo "No changes since last build. Skipping."
+            exit 0
+          fi
+
+      - |
+          docker build \
+            --build-arg GIT_REVISION="$NEW_SHA" \
+            --label "org.opencontainers.image.revision=$NEW_SHA" \
+            -f examples/leotermine-www/Dockerfile \
+            -t "$IMAGE:latest" \
+            -t "$IMAGE:$NEW_SHA" \
+            .
+
+      - docker push "$IMAGE:latest"
+      - docker push "$IMAGE:$NEW_SHA"
