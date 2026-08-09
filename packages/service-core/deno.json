@@ -1,6 +1,6 @@
 {
   "name": "@hushkey/service-core",
-  "version": "0.15.7",
+  "version": "0.18.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,6 +14,7 @@
     ".": "./mod.ts",
     "./service": "./service/document.service.ts",
     "./filter": "./filter/filter.ts",
+    "./query": "./query/projection.ts",
     "./backend": "./backend/backend.interface.ts",
     "./schema": "./schema/schema.interface.ts",
     "./meta": "./meta/meta.schema.ts",

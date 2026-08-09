@@ -1,0 +1,352 @@
+@import "tailwindcss";
+
+@source "../client";
+@source "../shared";
+
+/* ---------------------------------------------------------------------------
+ * Tokens.
+ *
+ * A warm off-white page with white objects floating above it. Everything reads
+ * as a physical card: rounded hard, lifted by a three-stop shadow, frosted so
+ * the pale wash underneath tints it. No webfonts — the system stack is the
+ * type, which is also why the sizes here are conservative.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --radius: 1.5rem;
+
+  --canvas: oklch(0.977 0.004 95);
+  --canvas-sunk: oklch(0.955 0.005 95);
+  --surface: oklch(1 0 0);
+
+  --ink: oklch(0.24 0.012 265);
+  --ink-dim: oklch(0.47 0.012 265);
+  --ink-faint: oklch(0.63 0.01 265);
+
+  --hairline: oklch(0.24 0.012 265 / 0.09);
+  --hairline-strong: oklch(0.24 0.012 265 / 0.16);
+
+  /* Per-project accent. Pages override the trio via `hueVars()`. */
+  --hue: 250;
+  --accent: oklch(0.55 0.14 250);
+  --accent-soft: oklch(0.94 0.03 250);
+
+  /* The three-stop lift. Contact shadow, mid shadow, ambient — the same
+   * recipe on every floating object so they all sit at a believable height. */
+  --lift:
+    0 1px 2px oklch(0.24 0.012 265 / 0.05),
+    0 8px 20px -8px oklch(0.24 0.012 265 / 0.1),
+    0 26px 48px -28px oklch(0.24 0.012 265 / 0.18);
+  --lift-high:
+    0 1px 2px oklch(0.24 0.012 265 / 0.06),
+    0 14px 30px -10px oklch(0.24 0.012 265 / 0.13),
+    0 40px 70px -32px oklch(0.24 0.012 265 / 0.22);
+}
+
+/* Dark. The same objects on a darker surface — cards become a lift of light
+ * rather than a sheet of white, and the shadow ramp deepens so they still read
+ * as floating instead of dissolving into the background. `data-theme` is
+ * stamped on `<html>` before first paint by the boot script in `_app.tsx`. */
+:root[data-theme="dark"] {
+  --canvas: oklch(0.165 0.012 265);
+  --canvas-sunk: oklch(0.225 0.014 265);
+  --surface: oklch(0.22 0.014 265);
+
+  --ink: oklch(0.965 0.004 265);
+  --ink-dim: oklch(0.75 0.012 265);
+  --ink-faint: oklch(0.58 0.014 265);
+
+  --hairline: oklch(1 0 0 / 0.1);
+  --hairline-strong: oklch(1 0 0 / 0.2);
+
+  --accent: oklch(0.78 0.13 250);
+  --accent-soft: oklch(0.33 0.07 250);
+
+  --lift:
+    0 1px 2px oklch(0 0 0 / 0.35),
+    0 8px 20px -8px oklch(0 0 0 / 0.5),
+    0 26px 48px -28px oklch(0 0 0 / 0.7);
+  --lift-high:
+    0 1px 2px oklch(0 0 0 / 0.4),
+    0 14px 30px -10px oklch(0 0 0 / 0.55),
+    0 40px 70px -32px oklch(0 0 0 / 0.75);
+}
+
+@theme inline {
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: var(--radius);
+  --radius-2xl: 2rem;
+
+  --color-canvas: var(--canvas);
+  --color-canvas-sunk: var(--canvas-sunk);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background: var(--canvas);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    letter-spacing: -0.004em;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.022em;
+    line-height: 1.15;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * The wash. Three very pale pools of colour, fixed behind the page. They are
+ * almost invisible on their own — their whole job is to give the frosted
+ * surfaces something to pick up, so a card drifting over one warms slightly.
+ * ------------------------------------------------------------------------- */
+
+.wash {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(46rem 34rem at 12% 4%, oklch(0.92 0.05 250 / 0.5), transparent 70%),
+    radial-gradient(40rem 30rem at 92% 14%, oklch(0.93 0.05 25 / 0.42), transparent 70%),
+    radial-gradient(52rem 38rem at 50% 108%, oklch(0.93 0.05 165 / 0.4), transparent 72%);
+}
+
+/* Same three pools, pitched for a dark surface: more chroma, far less alpha,
+ * so they tint the frost without lighting the whole page. */
+:root[data-theme="dark"] .wash {
+  background:
+    radial-gradient(46rem 34rem at 12% 4%, oklch(0.55 0.14 255 / 0.3), transparent 70%),
+    radial-gradient(40rem 30rem at 92% 14%, oklch(0.55 0.14 15 / 0.24), transparent 70%),
+    radial-gradient(52rem 38rem at 50% 108%, oklch(0.55 0.13 165 / 0.24), transparent 72%);
+}
+
+/* ---------------------------------------------------------------------------
+ * Objects. One class does the whole "floating card" job.
+ * ------------------------------------------------------------------------- */
+
+.card {
+  background: oklch(1 0 0 / 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--lift);
+}
+
+:root[data-theme="dark"] .card {
+  background: oklch(0.28 0.014 265 / 0.6);
+}
+
+/* Light product screenshots glare against a dark card; a touch off the
+ * brightness settles them without washing out what they show. */
+:root[data-theme="dark"] .cover-img {
+  filter: brightness(0.9) saturate(0.95);
+}
+
+/* Actions that appear over a card's cover on hover. Gated on the *pointer*,
+ * not the screen width: a touch device has no hover state to reveal them
+ * with, so it gets the always-visible row underneath instead and this one is
+ * removed from the tree entirely. `focus-within` keeps them reachable by
+ * keyboard, where hover never fires. */
+.hover-actions {
+  opacity: 0;
+  transform: translateY(1.1rem);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.95s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.group:hover .hover-actions,
+.group:focus-within .hover-actions {
+  opacity: 1;
+  transform: none;
+}
+
+.touch-actions {
+  display: none;
+}
+
+@media (hover: none) {
+  .hover-actions {
+    display: none;
+  }
+
+  .touch-actions {
+    display: flex;
+  }
+}
+
+/* Per-project accent. `hueVars()` writes both pairs inline; this picks one.
+ * `--accent` has to be declared here, on the element carrying the inline
+ * values, or the root's substitution would win. */
+.hued {
+  --accent: var(--accent-l);
+  --accent-soft: var(--accent-soft-l);
+}
+
+:root[data-theme="dark"] .hued {
+  --accent: var(--accent-d);
+  --accent-soft: var(--accent-soft-d);
+}
+
+/* The panel behind an app icon or a monogram, for projects with no site to
+ * screenshot. Two offset pools of the project's accent over a diagonal wash —
+ * enough depth that the icon reads as sitting on something, without a pattern
+ * competing with the icon's own shape. */
+.cover-gradient {
+  background:
+    radial-gradient(
+    95% 85% at 18% 8%,
+    color-mix(in oklab, var(--accent) 34%, transparent),
+    transparent 68%
+  ),
+    radial-gradient(
+    85% 75% at 88% 92%,
+    color-mix(in oklab, var(--accent) 20%, transparent),
+    transparent 70%
+  ),
+    linear-gradient(
+    148deg,
+    var(--accent-soft),
+    color-mix(in oklab, var(--accent-soft) 35%, var(--canvas-sunk))
+  );
+}
+
+/* Interactive cards deepen their shadow under the cursor — they do not move.
+ * The card already answers the pointer through its own contents (a cover image
+ * zooms, actions fade in); lifting the whole slab on top of that reads as two
+ * separate things reacting to one hover. */
+.card-hover {
+  transition:
+    box-shadow 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-hover:hover {
+  box-shadow: var(--lift-high);
+  border-color: var(--hairline-strong);
+}
+
+/* A flatter surface for things nested inside a card, where a second shadow
+ * would just read as noise. */
+.inset {
+  background: var(--canvas-sunk);
+  border: 1px solid var(--hairline);
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion. Deliberately small: a fade-and-lift on reveal, nothing else.
+ * ------------------------------------------------------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.scroll-locked {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion.
+ * ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  /*
+   * Not a blanket kill. What the setting is asking for is an end to things
+   * travelling across the screen — parallax, zooms, slides — not an end to a
+   * panel changing opacity. So: transforms and keyframes stop, fades stay, and
+   * at a real duration. The alternative (`transition-duration: 0` on
+   * everything) turns every hover into a hard cut, which reads as broken
+   * rather than as calm.
+   */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow, fill
+      !important;
+    transition-duration: 320ms !important;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  }
+
+  .rise {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* The one moving part settles at its resting position and stays there —
+   * only its opacity changes. */
+  .hover-actions {
+    transform: none !important;
+  }
+}
+
+/* Safari drops backdrop-filter under memory pressure; the card has to stay
+ * readable when it does. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card {
+    background: oklch(1 0 0 / 0.96);
+  }
+
+  :root[data-theme="dark"] .card {
+    background: oklch(0.26 0.014 265 / 0.97);
+  }
+}

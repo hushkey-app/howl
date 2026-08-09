@@ -2,17 +2,17 @@
   "name": "@howl/_react",
   "version": "0.0.1",
   "tasks": {
-    "dev": "deno run -A --watch=. --watch-exclude=dist/,node_modules/ dev.ts",
+    "dev": "deno run -A --watch --watch-exclude=dist/,node_modules/,server/apis/ dev.ts",
     "build": "deno run -A dev.ts build",
     "start": "deno run -A dist/compiled-entry.js",
     "compile": "deno compile -A --include dist/static --output dist/bin/reacty dist/compiled-entry.js"
   },
   "exports": "./server/main.ts",
   "imports": {
-    "@hushkey/howl": "jsr:@hushkey/howl@^0.15.7",
-    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.15.7/dev",
-    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.15.7/api",
-    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.15.7",
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.18.0",
+    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.18.0/dev",
+    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.18.0/api",
+    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.18.0",
     "@std/path": "jsr:@std/path@^1.0.0",
     "@howl/config": "./howl.config.ts",
     "react": "npm:react@^19.1.0",

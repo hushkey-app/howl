@@ -11,6 +11,7 @@
  * @module
  */
 import type { Filter } from "../filter/filter.ts";
+import type { Collation, FindCapabilities, IndexHint, Projection } from "../query/projection.ts";
 
 /** Options common to every backend operation. */
 export interface BackendOpOptions {
@@ -29,8 +30,28 @@ export interface FindManyOptions extends BackendOpOptions {
   skip?: number;
   /** Sort specification: field (or dot-path) → 1 ascending, -1 descending. */
   sort?: Record<string, 1 | -1>;
-  /** Projection: return only these fields (plus `id`). */
+  /**
+   * Mongo-style projection: dot-path → 1 (include) / 0 (exclude). `id` is
+   * kept unless excluded explicitly. Takes precedence over `select`.
+   */
+  project?: Projection;
+  /**
+   * Projection: return only these fields (plus `id`).
+   *
+   * @deprecated Use `project` — `{ name: 1 }` instead of `["name"]`. Still
+   * honored (as an include projection) for existing callers.
+   */
   select?: string[];
+  /**
+   * Locale/case-aware comparison for the sort. Support varies by backend —
+   * see {@link StorageBackend.findCapabilities}.
+   */
+  collation?: Collation;
+  /**
+   * Index to use for this query (name, or key pattern where the backend takes
+   * one). Advisory — see {@link StorageBackend.findCapabilities}.
+   */
+  hint?: IndexHint;
   /** Backend-specific read routing hint (e.g. Mongo read preference). */
   readPreference?: string;
 }
@@ -62,6 +83,13 @@ export interface StorageBackend<T> {
    * version-owning cache adapter is configured with the same prefix.
    */
   readonly cachePrefix: string;
+
+  /**
+   * What this backend does with each optional {@link FindManyOptions} knob
+   * (`project`, `sort`, `collation`, `hint`) — native, approximated above
+   * storage, or ignored. Optional: an unset value means everything is native.
+   */
+  readonly findCapabilities?: FindCapabilities;
 
   /** Generate a new unique document id (string form). */
   generateId(): string;
@@ -128,22 +156,6 @@ export interface SchemaColumn {
 }
 
 /**
- * Optional backend capability for **schema introspection and orphan cleanup**.
- *
- * The promoted-column DDL backends apply is purely additive (`ADD COLUMN IF
- * NOT EXISTS`): removing a path from `promote` stops routing queries to its
- * column but never drops the physical column or its index, leaving an orphan
- * that costs write/index maintenance for no read benefit. This capability lets
- * an operator surface those orphans and drop them — the one schema operation
- * that lives below the service contract (no validation, no version bump).
- *
- * Backends advertise support by implementing both methods; `DocumentService`
- * feature-detects via its `schemaAdmin` getter (returns `null` when absent, as
- * for document stores with no column concept). Authoring new promoted columns
- * stays in code — the declarative config is the source of truth — so this
- * surface is intentionally introspect-and-cleanup only.
- */
-/**
  * Optional backend capability for **set-wide writes**: apply the same update to
  * every document matching a filter in a single statement, instead of the core's
  * per-document read-modify-write. Backends advertise support by implementing it;
@@ -171,6 +183,22 @@ export interface BulkWriteBackend<T> {
   ): Promise<number>;
 }
 
+/**
+ * Optional backend capability for **schema introspection and orphan cleanup**.
+ *
+ * The promoted-column DDL backends apply is purely additive (`ADD COLUMN IF
+ * NOT EXISTS`): removing a path from `promote` stops routing queries to its
+ * column but never drops the physical column or its index, leaving an orphan
+ * that costs write/index maintenance for no read benefit. This capability lets
+ * an operator surface those orphans and drop them — the one schema operation
+ * that lives below the service contract (no validation, no version bump).
+ *
+ * Backends advertise support by implementing both methods; `DocumentService`
+ * feature-detects via its `schemaAdmin` getter (returns `null` when absent, as
+ * for document stores with no column concept). Authoring new promoted columns
+ * stays in code — the declarative config is the source of truth — so this
+ * surface is intentionally introspect-and-cleanup only.
+ */
 export interface SchemaAdmin {
   /**
    * List the promoted columns physically present in storage, each flagged

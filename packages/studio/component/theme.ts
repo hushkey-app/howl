@@ -26,12 +26,13 @@ const ACCENTS: Record<string, Accent> = {
   mongo: { text: "text-success", bg: "bg-success", border: "border-success" },
   sql: { text: "text-info", bg: "bg-info", border: "border-info" },
   sqlite: { text: "text-warning", bg: "bg-warning", border: "border-warning" },
+  redis: { text: "text-error", bg: "bg-error", border: "border-error" },
 };
 
 const FALLBACK: Accent = { text: "text-accent", bg: "bg-accent", border: "border-accent" };
 
 /** daisyUI accent classes for a backend kind (sqlite warning, sql info, mongo
- * success), with a neutral accent fallback. */
+ * success, redis error), with a neutral accent fallback. */
 export function backendAccent(backend: string): Accent {
   return ACCENTS[backend] ?? FALLBACK;
 }

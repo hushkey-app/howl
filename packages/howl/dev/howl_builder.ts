@@ -32,6 +32,7 @@ export class HowlBuilder<State = any> {
   #builders: Map<string, Builder<State>> = new Map();
   #apis: AnyApiDefinition[] = [];
   #apiEntries: ApiEntry[] = [];
+  #apiGeneration = 0;
 
   /** Build a {@linkcode HowlBuilder} bound to the given app and options. */
   constructor(howl: Howl<State>, options: HowlDevOptions<State> = {}) {
@@ -79,17 +80,14 @@ export class HowlBuilder<State = any> {
   // --- API crawling ---
 
   /**
-   * Crawl `apis/` and import every `*.api.ts`. With `failFast` (production
-   * builds) a module that throws on import or yields an unregisterable route
-   * path aborts the build with the file named — a deploy silently missing an
-   * endpoint is worse than a build error. Dev keeps going and logs instead.
+   * Absolute path of the `apis/` directory this project crawls, or `null` when
+   * API routes are disabled or the directory does not exist. Resolved relative
+   * to `serverEntry` (e.g. `./server/main.ts` → `./server/apis`) when set.
    */
-  async #crawlApis(failFast: boolean): Promise<void> {
-    if (!this.#howl.isApiRoutesEnabled()) return;
+  async resolveApisDir(): Promise<string | null> {
+    if (!this.#howl.isApiRoutesEnabled()) return null;
 
     const root = this.#options.root ?? Deno.cwd();
-    // When serverEntry is provided (e.g. ./server/main.ts) look for apis/
-    // inside that directory rather than project root.
     const serverEntry = this.#options.serverEntry;
     const serverBase = serverEntry
       ? path.dirname(
@@ -100,11 +98,21 @@ export class HowlBuilder<State = any> {
 
     try {
       const stat = await Deno.stat(apisDir);
-      if (!stat.isDirectory) return;
+      return stat.isDirectory ? apisDir : null;
     } catch {
-      // no apis/ folder — skip silently
-      return;
+      return null;
     }
+  }
+
+  /**
+   * Crawl `apis/` and import every `*.api.ts`. With `failFast` (production
+   * builds) a module that throws on import or yields an unregisterable route
+   * path aborts the build with the file named — a deploy silently missing an
+   * endpoint is worse than a build error. Dev keeps going and logs instead.
+   */
+  async #crawlApis(failFast: boolean): Promise<void> {
+    const apisDir = await this.resolveApisDir();
+    if (apisDir === null) return;
 
     await this.#walkApis(apisDir, apisDir, failFast);
 
@@ -134,7 +142,7 @@ export class HowlBuilder<State = any> {
         await this.#walkApis(fullPath, root, failFast);
       } else if (entry.name.endsWith(".api.ts")) {
         try {
-          const mod = await import(path.toFileUrl(fullPath).href);
+          const mod = await import(this.#apiModuleUrl(fullPath));
           if (mod.default) {
             const api = mod.default as AnyApiDefinition;
             const fsPath = this.#inferFsPath(fullPath, root);
@@ -271,9 +279,40 @@ export class HowlBuilder<State = any> {
     );
   }
 
+  /**
+   * Module URL for an API file. Hot reloads append a generation counter so the
+   * runtime treats the file as a new module — a plain re-import would resolve
+   * to the copy already in the module cache and the edit would never land.
+   * Only the `.api.ts` file itself is re-imported; anything it imports comes
+   * from the cache, so changes to shared server code still need a restart.
+   */
+  #apiModuleUrl(filePath: string): string {
+    const href = path.toFileUrl(filePath).href;
+    return this.#apiGeneration === 0 ? href : `${href}?howl-hot=${this.#apiGeneration}`;
+  }
+
+  /**
+   * Re-import every `*.api.ts` and rebind the API routes on a running app.
+   * Returns `true` when the handler has to be rebuilt — which is whenever any
+   * definition was reloaded, since the router captured the previous handlers.
+   */
+  async reloadApis(app: Howl<State>): Promise<boolean> {
+    if (!this.#howl.isApiRoutesEnabled()) return false;
+
+    this.#apiGeneration++;
+    this.#apis = [];
+    this.#apiEntries = [];
+    await this.#crawlApis(false);
+    this.#registerApis(app);
+    return true;
+  }
+
   #registerApis(app: Howl<State>): void {
     if (!this.#howl.isApiRoutesEnabled()) return;
-    if (this.#apis.length === 0) return;
+    // An empty list is only skipped on the first pass: once routes have been
+    // registered, re-registering nothing is how a deleted `.api.ts` stops
+    // being routable.
+    if (this.#apis.length === 0 && this.#apiGeneration === 0) return;
 
     const config = (app.getApiConfig() ?? null) as
       | HowlApiConfig<State, string>
@@ -301,12 +340,21 @@ export class HowlBuilder<State = any> {
     await this.#warnIfStaticUnserved();
 
     if (this.#builders.size === 1) {
-      await this.#builders.values().next().value!.listen(async () => {
-        const result = await Promise.resolve(importApp());
-        const app = result instanceof Howl ? result : result.app;
-        this.#registerApis(app);
-        return app;
-      }, options);
+      let running: Howl<State> | null = null;
+      await this.#builders.values().next().value!.listen(
+        async () => {
+          const result = await Promise.resolve(importApp());
+          const app = result instanceof Howl ? result : result.app;
+          this.#registerApis(app);
+          running = app;
+          return app;
+        },
+        options,
+        {
+          apiDir: await this.resolveApisDir(),
+          onApiChange: () => this.reloadApis(running!),
+        },
+      );
       return;
     }
 
@@ -435,6 +483,15 @@ export class HowlBuilder<State = any> {
       await cache.flush();
     }
     void builder;
+  }
+
+  /**
+   * Stop the dev server's file watchers. `listen()` runs until the process
+   * ends, so this is for embedders and tests that start a server and need the
+   * filesystem handles released.
+   */
+  async close(): Promise<void> {
+    for (const builder of this.#builders.values()) await builder.close();
   }
 
   /**

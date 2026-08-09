@@ -7,7 +7,7 @@
           Howl <span class="text-primary">//</span> DB Console
         </h1>
         <p class="text-xs opacity-60 mt-1">
-          one service contract · three databases · @hushkey/service-core
+          one service contract · four databases · @hushkey/service-core
         </p>
       </div>
       <div class="flex items-center gap-5 ml-auto text-xs">
@@ -23,14 +23,18 @@
           <i class="led" :class="status.mongo ? 'led-on' : ''" :style="{ color: status.mongo ? 'var(--db-mongo)' : 'oklch(45% 0.16 25)' }" />
           mongo
         </span>
+        <span class="flex items-center gap-2">
+          <i class="led" :class="status.redis ? 'led-on' : ''" :style="{ color: status.redis ? 'var(--db-redis)' : 'oklch(45% 0.16 25)' }" />
+          redis
+        </span>
         <button class="btn btn-primary btn-sm font-display tracking-wider" :disabled="flowRunning" @click="runFlow">
           {{ flowRunning ? "RUNNING…" : "▶ RUN FLOW" }}
         </button>
       </div>
     </header>
 
-    <!-- ── the three database panels ─────────────────────────────────── -->
-    <div class="grid gap-5 lg:grid-cols-3 items-start">
+    <!-- ── the four database panels ──────────────────────────────────── -->
+    <div class="grid gap-5 md:grid-cols-2 2xl:grid-cols-4 items-start">
       <!-- USERS · SQLITE -->
       <section class="bg-base-200/70 rounded-box panel-glow-sqlite overflow-hidden">
         <header class="flex items-center justify-between px-4 py-2.5 border-b border-base-300" :style="{ background: 'oklch(78% 0.16 75 / 0.08)' }">
@@ -196,13 +200,78 @@
         </template>
         <p class="px-4 pb-3 text-[10px] min-h-5" :class="logs.reviews.startsWith('ERR') ? 'text-error' : 'opacity-50'">{{ logs.reviews }}</p>
       </section>
+
+      <!-- SESSIONS · REDIS -->
+      <section class="bg-base-200/70 rounded-box panel-glow-redis overflow-hidden">
+        <header class="flex items-center justify-between px-4 py-2.5 border-b border-base-300" :style="{ background: 'oklch(68% 0.19 25 / 0.08)' }">
+          <h2 class="font-display font-semibold tracking-wider uppercase text-sm" :style="{ color: 'var(--db-redis)' }">sessions</h2>
+          <code class="text-[10px] opacity-60">redis · sets + sorted sets</code>
+        </header>
+
+        <div v-if="!status.redis" class="p-6 text-center">
+          <p class="font-display text-error tracking-[0.3em] text-lg">● OFFLINE</p>
+          <p class="text-[11px] opacity-60 mt-3 leading-relaxed">
+            nothing listening on <code class="text-warning">127.0.0.1:6379</code> — start one
+            and restart the server:<br />
+            <code class="opacity-80">docker run -d -p 6379:6379 redis:7</code><br />
+            <code class="opacity-60">(REDIS_URL overrides the default)</code>
+          </p>
+        </div>
+
+        <template v-else>
+          <form class="p-4 grid gap-2 border-b border-base-300" @submit.prevent="createSession">
+            <div class="flex gap-2 items-center">
+              <label class="text-[11px] opacity-60 shrink-0">ttl</label>
+              <input v-model.number="sessionForm.ttl_hours" type="range" min="1" max="72" class="range range-xs flex-1" />
+              <code class="text-[11px] w-10 text-right">{{ sessionForm.ttl_hours }}h</code>
+            </div>
+            <div class="flex gap-2 items-center">
+              <span class="text-[11px] flex-1 truncate" :class="selectedAuthor ? '' : 'text-error'">
+                user: {{ selectedAuthor ? `${selectedAuthor.name} (sqlite)` : "← click a user row" }}
+              </span>
+              <button class="btn btn-sm" :disabled="!selectedAuthor" :style="{ background: 'var(--db-redis)', color: 'oklch(14% 0.04 25)' }">
+                + issue
+              </button>
+            </div>
+          </form>
+
+          <div class="px-4 pt-3 flex gap-1.5 text-[11px]">
+            <button
+              v-for="f in (['all', 'mine', 'expired'] as const)"
+              :key="f"
+              class="btn btn-xs"
+              :class="sessionFilter === f ? 'btn-neutral' : 'btn-ghost opacity-60'"
+              :disabled="f === 'mine' && !selectedAuthor"
+              @click="sessionFilter = f; loadSessions()"
+            >{{ f }}</button>
+            <span class="ml-auto opacity-40 self-center">{{ sessions.length }} rows</span>
+          </div>
+
+          <!-- which Redis structure the current filter actually hits -->
+          <p class="px-4 pt-2 text-[10px] opacity-45">
+            <code>{{ sessionPlan }}</code>
+          </p>
+
+          <ul class="p-2">
+            <li v-for="s in sessions" :key="s.id" class="px-2 py-1.5 rounded flex items-center gap-2 text-xs">
+              <i class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ background: s.expires_at > now ? 'var(--db-mongo)' : 'oklch(45% 0.02 255)' }" :title="s.expires_at > now ? 'live' : 'expired'" />
+              <span class="font-semibold">{{ nameOf(s.user_id) }}</span>
+              <span class="opacity-50 truncate">{{ ttl(s.expires_at) }}</span>
+              <code class="opacity-30 text-[10px]">v{{ s.version }}</code>
+              <button class="btn btn-ghost btn-xs text-error ml-auto" title="revoke (soft delete → leaves the active set)" @click="revokeSession(s)">✕</button>
+            </li>
+            <li v-if="sessions.length === 0" class="px-2 py-3 text-xs opacity-40">no rows — pick a user, issue one ↑</li>
+          </ul>
+        </template>
+        <p class="px-4 pb-3 text-[10px] min-h-5" :class="logs.sessions.startsWith('ERR') ? 'text-error' : 'opacity-50'">{{ logs.sessions }}</p>
+      </section>
     </div>
 
     <!-- ── flow transcript ───────────────────────────────────────────── -->
     <section v-if="flow.length > 0" class="mt-6 border border-base-300 bg-base-200/80 rounded-box overflow-hidden">
       <header class="px-4 py-2.5 border-b border-base-300 flex items-center gap-3">
         <h2 class="font-display font-semibold tracking-wider uppercase text-sm">flow transcript</h2>
-        <code class="text-[10px] opacity-50">GET /api/demo/flow — one scenario across all three databases</code>
+        <code class="text-[10px] opacity-50">GET /api/demo/flow — one scenario across all four databases</code>
         <button class="btn btn-ghost btn-xs ml-auto" @click="flow = []">clear</button>
       </header>
       <ol class="p-4 grid gap-1 text-xs">
@@ -222,12 +291,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { useHead } from "@hushkey/howl-vue/head";
 
 useHead({
   title: "Howl // DB Console",
-  meta: [{ name: "description", content: "One service contract, three databases — interactive demo." }],
+  meta: [{ name: "description", content: "One service contract, four databases — interactive demo." }],
 });
 
 interface Meta {
@@ -256,25 +325,45 @@ interface Review {
   rating: number;
   comment: string;
 }
+interface Session {
+  id: string;
+  user_id: string;
+  expires_at: number;
+  user_agent: string;
+  version: number;
+}
 
-const status = reactive({ sqlite: false, pg: false, mongo: false });
-const logs = reactive({ users: "", blogs: "", reviews: "" });
+const status = reactive({ sqlite: false, pg: false, mongo: false, redis: false });
+const logs = reactive({ users: "", blogs: "", reviews: "", sessions: "" });
 
 const users = ref<User[]>([]);
 const blogs = ref<Blog[]>([]);
 const reviews = ref<Review[]>([]);
+const sessions = ref<Session[]>([]);
 const flow = ref<{ step: string; info: string }[]>([]);
 
 const userFilter = ref("all");
 const showDeleted = ref(false);
 const minRating = ref(1);
+const sessionFilter = ref<"all" | "mine" | "expired">("all");
 const selectedAuthor = ref<User | null>(null);
 const conflictId = ref("");
 const flowRunning = ref(false);
+// Drives the live/expired dot without re-fetching.
+const now = ref(Date.now());
+let clock = 0;
 
 const userForm = reactive({ name: "", email: "", role: "reader" });
 const blogForm = reactive({ title: "", slug: "", published: false });
 const reviewForm = reactive({ blog_id: "", rating: 4, comment: "" });
+const sessionForm = reactive({ ttl_hours: 24 });
+
+// The point of the panel: each filter is a different physical Redis structure.
+const sessionPlan = computed(() => {
+  if (sessionFilter.value === "mine") return "ZINTER active + t:user_id:<id> — indexed set";
+  if (sessionFilter.value === "expired") return "ZRANGEBYSCORE n:expires_at -inf now — indexed zset";
+  return "ZRANGE ids BYLEX — one page, no scan";
+});
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/${path}`, {
@@ -305,6 +394,20 @@ async function loadReviews() {
     status.mongo = true;
   } catch {
     status.mongo = false;
+  }
+}
+async function loadSessions() {
+  try {
+    let q = "";
+    if (sessionFilter.value === "mine" && selectedAuthor.value) {
+      q = `?user_id=${selectedAuthor.value.id}`;
+    } else if (sessionFilter.value === "expired") {
+      q = "?expired=true";
+    }
+    sessions.value = await api<Session[]>(`sessions${q}`);
+    status.redis = true;
+  } catch {
+    status.redis = false;
   }
 }
 
@@ -385,6 +488,42 @@ async function createReview() {
   }
 }
 
+async function createSession() {
+  if (!selectedAuthor.value) return;
+  try {
+    const s = await api<Session>("sessions/create", {
+      user_id: selectedAuthor.value.id,
+      ttl_hours: sessionForm.ttl_hours,
+    });
+    logs.sessions = `SET + index ops in one CAS script → ${ttl(s.expires_at)}`;
+    await loadSessions();
+  } catch (e) {
+    logs.sessions = `ERR ${(e as Error).message}`;
+  }
+}
+
+async function revokeSession(s: Session) {
+  try {
+    await api("sessions/revoke", { id: s.id });
+    logs.sessions = `SOFT DELETE → id left the active zset (document + indexes kept)`;
+    await loadSessions();
+  } catch (e) {
+    logs.sessions = `ERR ${(e as Error).message}`;
+  }
+}
+
+function ttl(expiresAt: number): string {
+  const ms = expiresAt - now.value;
+  if (ms <= 0) return "expired";
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  return hours > 0 ? `${hours}h ${minutes}m left` : `${minutes}m left`;
+}
+
+function nameOf(userId: string): string {
+  return users.value.find((u) => u.id === userId)?.name ?? userId.slice(0, 8);
+}
+
 async function runFlow() {
   flowRunning.value = true;
   flow.value = [];
@@ -392,7 +531,7 @@ async function runFlow() {
     const res = await fetch("/api/demo/flow");
     const json = await res.json();
     flow.value = json.steps ?? [];
-    await Promise.all([loadUsers(), loadBlogs(), loadReviews()]);
+    await Promise.all([loadUsers(), loadBlogs(), loadReviews(), loadSessions()]);
   } finally {
     flowRunning.value = false;
   }
@@ -412,10 +551,16 @@ function badgeStyle(step: string): Record<string, string> {
   if (step.includes("mongo") || step.includes("reviews")) {
     return { background: "var(--db-mongo)", color: "oklch(14% 0.04 150)" };
   }
+  if (step.includes("redis") || step.includes("sessions")) {
+    return { background: "var(--db-redis)", color: "oklch(14% 0.04 25)" };
+  }
   return { background: "oklch(40% 0.02 255)", color: "oklch(90% 0 0)" };
 }
 
 onMounted(async () => {
-  await Promise.allSettled([loadUsers(), loadBlogs(), loadReviews()]);
+  clock = setInterval(() => now.value = Date.now(), 30_000);
+  await Promise.allSettled([loadUsers(), loadBlogs(), loadReviews(), loadSessions()]);
 });
+
+onUnmounted(() => clearInterval(clock));
 </script>

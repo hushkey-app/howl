@@ -1,0 +1,40 @@
+{
+  "name": "@howl/nobiru-www",
+  "version": "0.0.1",
+  "tasks": {
+    "dev": "deno run -A --watch --watch-exclude=dist/,node_modules/,server/apis/ dev.ts",
+    "build": "deno run -A dev.ts build",
+    "start": "deno run -A dist/compiled-entry.js",
+    "compile": "deno compile -A --include dist --include static --output dist/bin/nobiru dist/compiled-entry.js"
+  },
+  "exports": "./server/main.ts",
+  "imports": {
+    "@hushkey/howl": "jsr:@hushkey/howl@^0.18.0",
+    "@hushkey/howl/dev": "jsr:@hushkey/howl@^0.18.0/dev",
+    "@hushkey/howl/api": "jsr:@hushkey/howl@^0.18.0/api",
+    "@hushkey/howl/plugins": "jsr:@hushkey/howl@^0.18.0/plugins",
+    "@hushkey/howl/middleware": "jsr:@hushkey/howl@^0.18.0/middleware",
+    "@hushkey/howl-react": "jsr:@hushkey/howl-react@^0.18.0",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@howl/config": "./howl.config.ts",
+    "@/": "./client/",
+    "react": "npm:react@^19.1.0",
+    "react/jsx-runtime": "npm:react@^19.1.0/jsx-runtime",
+    "react-dom": "npm:react-dom@^19.1.0",
+    "react-dom/server": "npm:react-dom@^19.1.0/server.edge",
+    "react-dom/client": "npm:react-dom@^19.1.0/client",
+    "tailwindcss": "npm:tailwindcss@4.1.18",
+    "class-variance-authority": "npm:class-variance-authority@^0.7.1",
+    "clsx": "npm:clsx@^2.1.1",
+    "tailwind-merge": "npm:tailwind-merge@^3.3.1",
+    "lucide-react": "npm:lucide-react@^0.468.0",
+    "@radix-ui/react-slot": "npm:@radix-ui/react-slot@^1.1.2",
+    "zod": "npm:zod@4.3.6"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "npm:@types/react@^19.1.0",
+    "lib": ["dom", "dom.iterable", "deno.ns", "deno.unstable"]
+  }
+}

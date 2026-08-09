@@ -3,6 +3,7 @@ import { defineApi } from "../../../howl.config.ts";
 import { usersService } from "../../services/users/users.service.ts";
 import { blogsService } from "../../services/blogs/blogs.service.ts";
 import { reviewsService } from "../../services/reviews/reviews.service.ts";
+import { sessionsService } from "../../services/sessions/sessions.service.ts";
 import type { Blog } from "../../services/blogs/blogs.schema.ts";
 
 export default defineApi({
@@ -12,23 +13,29 @@ export default defineApi({
   roles: [],
   responses: {
     200: z.object({
-      databases: z.object({ users: z.string(), blogs: z.string(), reviews: z.string() }),
+      databases: z.object({
+        users: z.string(),
+        blogs: z.string(),
+        reviews: z.string(),
+        sessions: z.string(),
+      }),
       steps: z.array(z.object({ step: z.string(), info: z.string() })),
     }),
   },
-  // One scenario across all three databases: an author in SQLite writes blogs
-  // in Postgres that get reviewed in MongoDB — referenced by string ids only.
-  // Idempotent: wipes all three collections first.
+  // One scenario across all four databases: an author in SQLite writes blogs in
+  // Postgres that get reviewed in MongoDB, and signs in through a session in
+  // Redis — referenced by string ids only. Idempotent: wipes every collection
+  // first.
   handler: async () => {
     const steps: { step: string; info: string }[] = [];
     const log = (step: string, info: string) => steps.push({ step, info });
 
-    for (const service of [usersService, blogsService, reviewsService]) {
+    for (const service of [usersService, blogsService, reviewsService, sessionsService]) {
       if (!service) continue;
       const leftovers = await service.find({ viewDeleted: true });
       for (const doc of leftovers) await service.delete(doc.id, { hard: true });
     }
-    log("cleanup", "all three collections wiped");
+    log("cleanup", "all four collections wiped");
 
     // users — SQLite
     const ada = await usersService.create(
@@ -89,6 +96,38 @@ export default defineApi({
       );
     }
 
+    // sessions — Redis, keyed to the SQLite user. Both queries below are set
+    // operations Redis runs itself: the user_id tag SET and the expires_at ZSET.
+    if (sessionsService) {
+      const hour = 60 * 60 * 1000;
+      await sessionsService.create(
+        { user_id: ada.id, expires_at: Date.now() + 24 * hour, user_agent: "demo/flow" },
+        { executionerId: ada.id },
+      );
+      const stale = await sessionsService.create(
+        { user_id: ada.id, expires_at: Date.now() - hour, user_agent: "demo/expired" },
+        { executionerId: ada.id },
+      );
+      const mine = await sessionsService.forUser(ada.id);
+      const expired = await sessionsService.expired();
+      log(
+        "sessions (redis)",
+        `2 issued for ${ada.name}; forUser → ${mine.length} (ZINTER on the user_id set), expired → ${expired.length} (ZRANGEBYSCORE on the expires_at zset)`,
+      );
+      await sessionsService.delete(stale.id, { executionerId: "demo" });
+      log(
+        "revoke (redis)",
+        `soft delete → id left the active zset; forUser now → ${
+          (await sessionsService.forUser(ada.id)).length
+        }`,
+      );
+    } else {
+      log(
+        "sessions (redis)",
+        "skipped — no Redis at 127.0.0.1:6379 (docker run -d -p 6379:6379 redis:7)",
+      );
+    }
+
     // soft delete / restore on the Postgres side
     await blogsService.delete(post.id, { executionerId: "demo" });
     log(
@@ -104,6 +143,7 @@ export default defineApi({
         users: "sqlite (node:sqlite, data/app.db)",
         blogs: Deno.env.get("PG_URL") ? "postgres (server)" : "postgres (embedded PGlite)",
         reviews: reviewsService ? "mongodb" : "offline (nothing on localhost:27017)",
+        sessions: sessionsService ? "redis" : "offline (nothing on 127.0.0.1:6379)",
       },
       steps,
     };

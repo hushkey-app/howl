@@ -283,6 +283,12 @@ export let setErrorInterceptor: <State>(
   app: Howl<State>,
   fn: (err: unknown) => void,
 ) => void;
+/**
+ * @internal Drops the cached handler(s) and unfreezes the app so routes can be
+ * re-registered. Dev-server only: the hot-reload path re-crawls routes/APIs in
+ * the running process instead of restarting it, which needs a fresh router.
+ */
+export let devInvalidateHandler: <State>(app: Howl<State>) => void;
 
 const NOOP = () => {};
 
@@ -364,6 +370,10 @@ export class Howl<State = any> {
     };
     setErrorInterceptor = (app, fn) => {
       app.#onError = fn;
+    };
+    devInvalidateHandler = (app) => {
+      app.#handlerCache.clear();
+      app.#frozen = false;
     };
   }
 

@@ -102,19 +102,60 @@ function applyInc(doc: Doc, inc: Doc): void {
   for (const [k, v] of Object.entries(inc)) doc[k] = (doc[k] ?? 0) + (v as number);
 }
 
-function project(doc: Doc, projection?: Record<string, 1>): Doc {
+function setPath(target: Doc, key: string, value: unknown): void {
+  const parts = key.split(".");
+  let node = target;
+  for (let i = 0; i < parts.length - 1; i++) {
+    node = (node[parts[i]] ??= {}) as Doc;
+  }
+  node[parts[parts.length - 1]] = value;
+}
+
+function deletePath(target: Doc, key: string): void {
+  const parts = key.split(".");
+  let node = target;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const next = node[parts[i]];
+    if (!next || typeof next !== "object") return;
+    node = next as Doc;
+  }
+  delete node[parts[parts.length - 1]];
+}
+
+function project(doc: Doc, projection?: Record<string, 0 | 1>): Doc {
   if (!projection) return doc;
-  const out: Doc = { _id: doc._id };
-  for (const key of Object.keys(projection)) {
-    if (key !== "_id") out[key] = getPath(doc, key);
+  const include = Object.entries(projection)
+    .some(([key, value]) => key !== "_id" && value === 1);
+  if (!include) {
+    const out = structuredClone({ ...doc, _id: undefined });
+    out._id = doc._id;
+    for (const [key, value] of Object.entries(projection)) {
+      if (value === 0) key === "_id" ? delete out._id : deletePath(out, key);
+    }
+    return out;
+  }
+  const out: Doc = {};
+  if (projection._id !== 0) out._id = doc._id;
+  for (const [key, value] of Object.entries(projection)) {
+    if (key === "_id" || value !== 1) continue;
+    const picked = getPath(doc, key);
+    if (picked !== undefined) setPath(out, key, picked);
   }
   return out;
+}
+
+// Collation strength 1/2 are the case-insensitive levels — the only part of
+// Mongo's collation the fake needs for the conformance sort assertions.
+function collationKey(value: unknown, collation?: Doc): unknown {
+  if (!collation || (collation.strength ?? 3) > 2) return value;
+  return typeof value === "string" ? value.toLowerCase() : value;
 }
 
 /** A single fake collection. Records the last update for assertions. */
 export class FakeCollection {
   docs: Doc[] = [];
   lastUpdate: Doc | null = null;
+  lastFindOptions: Doc | null = null;
 
   createIndex(): Promise<string> {
     return Promise.resolve("idx");
@@ -130,12 +171,13 @@ export class FakeCollection {
   }
 
   find(query: Query, options: Doc = {}): { toArray(): Promise<Doc[]> } {
+    this.lastFindOptions = options;
     let result = this.docs.filter((d) => matchesQuery(d, query));
     if (options.sort) {
       const [[key, dir]] = Object.entries(options.sort) as [[string, number]];
       result = [...result].sort((a, b) => {
-        const av = getPath(a, key) as number;
-        const bv = getPath(b, key) as number;
+        const av = collationKey(getPath(a, key), options.collation) as number;
+        const bv = collationKey(getPath(b, key), options.collation) as number;
         return av === bv ? 0 : (av < bv ? -1 : 1) * (dir as number);
       });
     }

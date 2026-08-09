@@ -26,6 +26,7 @@ JSR scope `@hushkey`. Every package lives under `packages/`:
 | `mongo-service/`  | `@hushkey/mongo-service`  | Mongo backend (passes conformance suite)                               |
 | `pg-service/`     | `@hushkey/pg-service`     | Postgres backend (docs as JSONB)                                       |
 | `sqlite-service/` | `@hushkey/sqlite-service` | SQLite backend (docs as JSON1)                                         |
+| `redis-service/`  | `@hushkey/redis-service`  | Redis backend (docs + own SET/ZSET indexes, Lua CAS writes)            |
 | `studio/`         | `@hushkey/studio`         | Admin UI middleware + React component over the service contract        |
 
 `@hushkey/howl` internal layout and export paths:
@@ -392,9 +393,15 @@ Separate from the HTTP framework: a Mongo-shaped document-store contract.
   (`insertOne / findOne / findMany / count / updatePaths /
   deleteOne` + `generateId` +
   `cachePrefix`); SQL backends store docs as JSONB/JSON1 and compile the neutral filter grammar
-  (`$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists` + dot-paths).
+  (`$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists` + dot-paths). `redis-service` keeps docs as
+  JSON strings plus its own SET/ZSET indexes for declared paths, plans filters into
+  `ZINTER`/`SUNION`/`ZRANGEBYSCORE`, re-checks the rest in process, and writes through a
+  compare-and-set Lua script (leave its service cache off — it IS the fast store).
+- `find()` also takes `project` / `collation` / `hint` next to `sort`; per-backend support is
+  advertised via `service.findCapabilities` (`native` / `approximate` / `none`), never guessed.
 - Every backend must pass `runConformanceSuite` from `@hushkey/service-core/conformance` — mongo/pg
-  suites are env-gated (`MONGO_URL` / `PG_URL`), sqlite runs everywhere.
+  suites are env-gated (`MONGO_URL` / `PG_URL`), redis has an always-on in-memory double plus a
+  `REDIS_URL`-gated real run, sqlite runs everywhere.
 - `@hushkey/studio` mounts an admin UI through the service contract (validates, bumps version,
   stamps audit fields, respects soft delete): `app.use(studio({ services: {...} }))` → `/studio`, or
   `mode: "component"` + `<Studio endpoint>` inside a host dashboard.
@@ -525,7 +532,9 @@ Tasks (defined in root `deno.json`):
 ## Examples
 
 - `examples/www/` — howl.dev site + JSON-driven docs (the docs surface from the documentation rule)
-- `examples/software-www/`, `examples/kawaii-www/` — additional site builds
+- `examples/software-www/`, `examples/kawaii-www/`, `examples/nobiru-www/` — additional site builds
+- `examples/leotermine-www/` — personal site + reusable `/[project]/{support,privacy}` template
+  (React engine, data-driven project registry in `shared/projects/`)
 - `examples/_vue/`, `examples/_react/` — engine playgrounds
 - `examples/_backend/` — API-only app
 - `examples/_db/` — service-layer / multi-database demo

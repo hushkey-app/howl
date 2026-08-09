@@ -5,11 +5,13 @@ import type {
   BulkWriteBackend,
   DocumentShape,
   Filter,
+  FindCapabilities,
   FindManyOptions,
   IndexSpec,
   StorageBackend,
   UpdatePathsOptions,
 } from "@hushkey/service-core";
+import { normalizeProjection } from "@hushkey/service-core";
 
 /** Storage configuration for a {@link MongoBackend}. */
 export interface MongoBackendOptions {
@@ -40,6 +42,14 @@ export class MongoBackend<T extends DocumentShape>
   implements StorageBackend<T>, BulkWriteBackend<T> {
   /** Cache-key namespace for Mongo-backed services. */
   readonly cachePrefix = "mongo";
+
+  /** Every find option maps onto a driver option — all native. */
+  readonly findCapabilities: FindCapabilities = {
+    project: "native",
+    sort: "native",
+    collation: "native",
+    hint: "native",
+  };
 
   /**
    * Create a backend over one MongoDB collection.
@@ -218,11 +228,14 @@ export class MongoBackend<T extends DocumentShape>
     if (options.readPreference !== undefined) {
       findOptions.readPreference = options.readPreference;
     }
-    if (options.select && options.select.length > 0) {
-      findOptions.projection = options.select.reduce((acc, key) => {
-        acc[key] = 1;
-        return acc;
-      }, {} as Record<string, 1>);
+    if (options.collation !== undefined) findOptions.collation = options.collation;
+    if (options.hint !== undefined) findOptions.hint = options.hint;
+    const projection = normalizeProjection(options.project, options.select);
+    if (projection) {
+      // The public `id` is Mongo's `_id`; every other path passes through.
+      findOptions.projection = Object.fromEntries(
+        Object.entries(projection).map(([path, value]) => [path === "id" ? "_id" : path, value]),
+      );
     }
     const items = await this.collection.find(
       this.normalizeQueryIds(filter as Record<string, any>),

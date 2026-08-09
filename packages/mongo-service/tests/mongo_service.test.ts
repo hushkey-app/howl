@@ -140,3 +140,24 @@ Deno.test("find supports projection, sort, and skip/limit", async () => {
   expect(projected[0].name).toBe("A");
   expect((projected[0] as Record<string, unknown>).email).toBeUndefined();
 });
+
+Deno.test("find hands projection (id→_id), collation and hint to the driver", async () => {
+  const { service, collection } = makeService();
+  await service.create({ name: "A", email: "a@b.com" });
+
+  await service.find({
+    project: { name: 1, id: 0 },
+    collation: { locale: "en", strength: 2 },
+    hint: "name_1",
+  });
+
+  expect(collection.lastFindOptions!.projection).toEqual({ name: 1, _id: 0 });
+  expect(collection.lastFindOptions!.collation).toEqual({ locale: "en", strength: 2 });
+  expect(collection.lastFindOptions!.hint).toBe("name_1");
+  expect(service.findCapabilities).toEqual({
+    project: "native",
+    sort: "native",
+    collation: "native",
+    hint: "native",
+  });
+});

@@ -64,8 +64,10 @@ export function denoJson(spec: ProjectSpec): string {
   const include = fullstack ? "--include dist/static " : "";
   // Dirs the dev watcher must ignore, or the build's own output (and the local
   // SQLite/pglite `data/` dir, written on every query) trigger an endless
-  // restart loop. Mirrors the .gitignore set.
-  const watchExclude = ["dist/", "node_modules/", "data/", "generated/"];
+  // restart loop. Mirrors the .gitignore set. `server/apis/` is excluded for a
+  // different reason: Howl's dev server re-imports API definitions in place, so
+  // letting the runtime restart on them would only be slower.
+  const watchExclude = ["dist/", "node_modules/", "data/", "generated/", "server/apis/"];
   const compilerOptions: Record<string, unknown> = {
     lib: ["dom", "dom.iterable", "deno.ns", "deno.unstable"],
   };

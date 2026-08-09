@@ -1,11 +1,15 @@
 // deno-lint-ignore-file no-explicit-any
 import {
+  applyProjection,
   type BackendOpOptions,
   type BulkWriteBackend,
+  type Collation,
   type DocumentShape,
   type Filter,
+  type FindCapabilities,
   type FindManyOptions,
   type IndexSpec,
+  normalizeProjection,
   type SchemaAdmin,
   type SchemaColumn,
   type StorageBackend,
@@ -96,6 +100,19 @@ export class SqliteBackend<T extends DocumentShape>
   implements StorageBackend<T>, SchemaAdmin, BulkWriteBackend<T> {
   /** Cache-key namespace for SQLite-backed services. */
   readonly cachePrefix = "sqlite";
+
+  /**
+   * Projection is applied to the fetched rows (documents live in one JSON
+   * value), collation maps onto SQLite's ASCII-only `NOCASE` at strength 1/2,
+   * and a string `hint` becomes `INDEXED BY` (a hard constraint — SQLite
+   * errors on an unknown or unusable index).
+   */
+  readonly findCapabilities: FindCapabilities = {
+    project: "approximate",
+    sort: "native",
+    collation: "approximate",
+    hint: "native",
+  };
 
   readonly #table: string;
   readonly #promoted: Map<string, PromotedColumn>;
@@ -270,15 +287,25 @@ export class SqliteBackend<T extends DocumentShape>
     return { ...JSON.parse(row.doc as string), id: row.id } as T;
   }
 
-  #orderBy(sort?: Record<string, 1 | -1>): string {
+  // SQLite ships three collating sequences; NOCASE is the only case-folding
+  // one (ASCII letters — no ICU locale support), so strength 1/2 map to it and
+  // stronger/locale-specific comparison falls back to BINARY.
+  #collate(expr: string, collation?: Collation): string {
+    if (!collation || (collation.strength ?? 3) > 2) return expr;
+    return `${expr} COLLATE NOCASE`;
+  }
+
+  #orderBy(sort?: Record<string, 1 | -1>, collation?: Collation): string {
     if (!sort || Object.keys(sort).length === 0) return "";
     const terms = Object.entries(sort).map(([path, dir]) => {
       const direction = dir === -1 ? "DESC" : "ASC";
-      if (path === "id") return `id ${direction}`;
+      if (path === "id") return `${this.#collate("id", collation)} ${direction}`;
       const promoted = this.#promoted.get(path);
-      if (promoted) return `"${promoted.column}" ${direction}`;
+      if (promoted) {
+        return `${this.#collate(`"${promoted.column}"`, collation)} ${direction}`;
+      }
       const segments = path.split(".").map(assertIdent);
-      return `doc->>${jsonPath(segments)} ${direction}`;
+      return `${this.#collate(`doc->>${jsonPath(segments)}`, collation)} ${direction}`;
     });
     return ` ORDER BY ${terms.join(", ")}`;
   }
@@ -323,8 +350,15 @@ export class SqliteBackend<T extends DocumentShape>
   findMany(filter: Filter<T>, options: FindManyOptions = {}): Promise<T[]> {
     const where = compileWhere(filter as Record<string, unknown>, this.#promoted);
     const params: unknown[] = [...where.params];
-    let sql = `SELECT id, doc FROM "${this.#table}" WHERE ${where.text}${
-      this.#orderBy(options.sort)
+    // SQLite's index hint is `INDEXED BY` — a constraint, not advice: an
+    // unknown or unusable index is an error, which is the honest answer to a
+    // hint the planner cannot follow. Key-pattern hints are Mongo-only.
+    if (options.hint !== undefined && typeof options.hint !== "string") {
+      throw new Error("sqlite index hints must be an index name, not a key pattern");
+    }
+    const indexedBy = options.hint ? ` INDEXED BY "${assertIdent(options.hint as string)}"` : "";
+    let sql = `SELECT id, doc FROM "${this.#table}"${indexedBy} WHERE ${where.text}${
+      this.#orderBy(options.sort, options.collation)
     }`;
     if (options.limit !== undefined || options.skip !== undefined) {
       // OFFSET requires LIMIT in SQLite; -1 means unbounded.
@@ -336,18 +370,13 @@ export class SqliteBackend<T extends DocumentShape>
       }
     }
     const rows = this.#handle(options).prepare(sql).all(...params) as Record<string, unknown>[];
-    let docs = rows.map((r) => this.#toDoc(r));
+    const docs = rows.map((r) => this.#toDoc(r));
     // Projection happens after fetch: documents live in one JSON value, so a
     // SQL-side projection would rebuild objects for no I/O win at these sizes.
-    if (options.select && options.select.length > 0) {
-      const keep = new Set<string>([...options.select, "id"]);
-      docs = docs.map((d) =>
-        Object.fromEntries(
-          Object.entries(d as Record<string, unknown>).filter(([k]) => keep.has(k)),
-        ) as unknown as T
-      );
-    }
-    return Promise.resolve(docs);
+    const projection = normalizeProjection(options.project, options.select);
+    return Promise.resolve(
+      projection ? docs.map((d) => applyProjection(d, projection)) : docs,
+    );
   }
 
   /** Count matches for a neutral filter. */

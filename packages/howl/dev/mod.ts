@@ -9,9 +9,16 @@
  * production build (`builder.build()`).
  */
 
-export { Builder, type BuildOptions, type ResolvedBuildConfig } from "./builder.ts";
+export {
+  Builder,
+  type BuildOptions,
+  type DevReloadHooks,
+  type ResolvedBuildConfig,
+} from "./builder.ts";
 export { HowlBuilder, type HowlDevOptions } from "./howl_builder.ts";
 export { type ApiEntry } from "./dev_build_cache.ts";
+export { DevReloadHub } from "./middlewares/live_reload.ts";
+export { classifyDevChange, type DevChangeKind, type DevWatchDirs, DevWatcher } from "./watcher.ts";
 export {
   type OnTransformArgs,
   type OnTransformOptions,

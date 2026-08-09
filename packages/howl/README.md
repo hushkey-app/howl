@@ -196,11 +196,11 @@ if (Deno.args.includes("build")) {
 }
 ```
 
-> **npm tree-shaking** — Client bundles drop unused exports from npm barrel imports
-> automatically. Importing one named export from a package that declares `"sideEffects": false`
-> (`lucide-react` / `lucide-vue-next`, `date-fns`, radix, …) bundles only what you use instead of
-> the whole library — no per-icon deep imports required. Applies to both engines, since it lives in
-> the shared resolver rather than the engine plugin.
+> **npm tree-shaking** — Client bundles drop unused exports from npm barrel imports automatically.
+> Importing one named export from a package that declares `"sideEffects": false` (`lucide-react` /
+> `lucide-vue-next`, `date-fns`, radix, …) bundles only what you use instead of the whole library —
+> no per-icon deep imports required. Applies to both engines, since it lives in the shared resolver
+> rather than the engine plugin.
 
 **`client/pages/_app.tsx`** — root HTML shell
 
@@ -732,6 +732,70 @@ Subsequent calls return the cached handler — `app.listen()` spawns secondary `
 for WS-port routes that share the same underlying state. Once `handler()` has been built,
 `app.use(...)`, `app.get/post/...`, `app.fsApiRoutes(...)`, etc. throw — register all routes and
 middleware before requesting the handler.
+
+---
+
+## Hot reload in dev
+
+`HowlBuilder.listen()` watches the client tree, the static directory and `apis/`, and applies most
+edits **inside the running process** — no restart, no cold esbuild, no in-memory state lost. A hot
+rebuild is typically **~50 ms** against ~600 ms for a process restart on a small app.
+
+| You change                          | What happens                                        | Restart? |
+| ----------------------------------- | --------------------------------------------------- | -------- |
+| `.vue` page or component            | Incremental esbuild rebuild, browser reloads        | no       |
+| CSS / static assets                 | Transformed copies dropped, rebuilt on next request | no       |
+| A page added or deleted             | Routes re-crawled, router rebuilt in place          | no       |
+| `*.api.ts`                          | Definition re-imported, API routes rebound          | no       |
+| `.ts` / `.tsx` in the client tree   | Bundle rebuilt, then a restart is requested         | yes      |
+| `server/` modules, `howl.config.ts` | Deno's watcher restarts the process                 | yes      |
+
+One rule draws the line: **Howl hot-reloads exactly what Deno's module cache does not own.** A
+`.vue` file is compiled per request, so a new version costs nothing. A `.ts` module the runtime
+already imported is pinned in that cache — refreshing only the browser bundle would leave
+server-rendered markup a version behind the script that hydrates it, so the builder touches the
+server entry (`config.serverEntry`) to ask the runtime's watcher for a restart instead.
+
+How it is wired:
+
+- **`DevWatcher`** (`dev/watcher.ts`) — debounced `Deno.watchFs` over the client, static and API
+  directories; batches a burst of writes into one rebuild and never runs two at once.
+  `classifyDevChange()` maps a path to `client` / `static` / `api` / `restart` / `ignored`.
+- **Incremental esbuild** — the dev server holds a long-lived `esbuild.context()` keyed by the entry
+  set, so a rebuild re-reads only the files whose mtime changed. Adding or removing a page
+  invalidates it; `stopEsbuild()` disposes it.
+- **`DevReloadHub`** (`dev/middlewares/live_reload.ts`) — tracks the browsers on `/_howl/alive` and
+  bumps a monotonic revision to trigger a reload. Same wire format as before: the client reloads on
+  a strictly higher revision, which used to arrive only via a process restart.
+- **Router rebuild** — a changed route table calls the internal `devInvalidateHandler(app)`, which
+  drops the cached handler and unfreezes the app so `app.handler()` can be rebuilt in place.
+- **`HowlBuilder.reloadApis(app)`** — re-imports every `*.api.ts` with a generation-stamped
+  specifier (`?howl-hot=N`), since a plain re-import would resolve to the copy already in the module
+  cache. Only the `.api.ts` leaf is refreshed; code it imports still needs a restart.
+
+Recommended dev task — the two watchers partition the project instead of racing over it:
+
+```jsonc
+{
+  "tasks": {
+    // Plain `--watch` (no `=.`) watches only Deno's module graph — precisely the
+    // set Howl cannot hot-reload. `server/apis/` is excluded because Howl
+    // re-imports API definitions itself; a restart would only be slower.
+    "dev": "deno run -A --watch --watch-exclude=dist/,node_modules/,server/apis/ dev.ts"
+  }
+}
+```
+
+The terminal names the path taken: `_ hot reload client 52ms` (process stayed up) or
+`_ restarting — a module the runtime owns changed`. A failed rebuild logs the error and keeps the
+previous build serving rather than reloading the browser onto stale output.
+
+`--watch-hmr` is **not** recommended: Deno can hot-replace a leaf module, but Howl already reloads
+those files itself and rebinds routes the runtime knows nothing about, while anything with top-level
+side effects (`server/main.ts`) restarts either way.
+
+> Multi-client apps (`app.client(...)`) hot-reload their client trees, but API hot-swap is wired for
+> the single-client path only — API edits there fall back to a runtime restart.
 
 ---
 

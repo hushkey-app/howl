@@ -24,11 +24,21 @@ function makeStudio() {
   return { dispatch, docs };
 }
 
-Deno.test("meta lists services with collection and backend kind", async () => {
+Deno.test("meta lists services with collection, backend kind and capabilities", async () => {
   const { dispatch } = makeStudio();
   const res = await dispatch("GET", "/studio/api/meta");
   const body = await res.json();
-  expect(body.services).toEqual([{ key: "docs", collection: "docs", backend: "sqlite" }]);
+  expect(body.services).toEqual([{
+    key: "docs",
+    collection: "docs",
+    backend: "sqlite",
+    capabilities: {
+      project: "approximate",
+      sort: "native",
+      collation: "approximate",
+      hint: "native",
+    },
+  }]);
 });
 
 Deno.test("null service entries are skipped (offline backends)", async () => {
@@ -55,6 +65,50 @@ Deno.test("list returns paginated data plus the unpaginated total", async () => 
   const page = await (await dispatch("GET", "/studio/api/services/docs?limit=3&skip=3")).json();
   expect(page.data).toHaveLength(3);
   expect(page.total).toBe(7);
+});
+
+Deno.test("list honors project, sort, collation and hint options", async () => {
+  const { dispatch } = makeStudio();
+  for (const name of ["cherry", "Banana", "apple"]) {
+    await dispatch("POST", "/studio/api/services/docs", { name, email: `${name}@b.com` });
+  }
+  const q = (params: Record<string, string>) => new URLSearchParams(params).toString();
+
+  const projected = await (await dispatch(
+    "GET",
+    `/studio/api/services/docs?${q({ project: '{"name":1}', sort: '{"name":1}' })}`,
+  )).json();
+  expect(Object.keys(projected.data[0]).sort()).toEqual(["id", "name"]);
+  // The total is the match count, unaffected by the projection.
+  expect(projected.total).toBe(3);
+
+  const folded = await (await dispatch(
+    "GET",
+    `/studio/api/services/docs?${
+      q({ sort: '{"name":1}', collation: '{"locale":"en","strength":2}' })
+    }`,
+  )).json();
+  expect(folded.data.map((d: { name: string }) => d.name)).toEqual([
+    "apple",
+    "Banana",
+    "cherry",
+  ]);
+
+  // A bare-string hint stays a string; sqlite resolves it as INDEXED BY.
+  const badHint = await dispatch("GET", `/studio/api/services/docs?${q({ hint: "nope_idx" })}`);
+  expect(badHint.status).toBe(400);
+  expect((await badHint.json()).message).toMatch(/nope_idx/);
+});
+
+Deno.test("a projection that mixes include and exclude is refused", async () => {
+  const { dispatch } = makeStudio();
+  await dispatch("POST", "/studio/api/services/docs", { name: "A", email: "a@b.com" });
+  const res = await dispatch(
+    "GET",
+    `/studio/api/services/docs?project=${encodeURIComponent('{"name":1,"email":0}')}`,
+  );
+  expect(res.status).toBe(400);
+  expect((await res.json()).message).toMatch(/mix/);
 });
 
 Deno.test("non-studio paths fall through to next()", async () => {
@@ -289,7 +343,9 @@ Deno.test("fields report ignores soft-deleted docs (active snapshot)", async () 
   );
   await docs.create({ name: "live" } as never);
   // an OLD doc with no `tier`, then soft-deleted — must NOT count as missing
-  const old = new SqliteService(db, documentSchema({ name: z.string() }), { collectionName: "docs" });
+  const old = new SqliteService(db, documentSchema({ name: z.string() }), {
+    collectionName: "docs",
+  });
   const goneId = (await old.create({ name: "gone" } as never) as { id: string }).id;
   await docs.delete(goneId);
 

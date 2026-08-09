@@ -9,11 +9,14 @@
     "./packages/mongo-service",
     "./packages/pg-service",
     "./packages/sqlite-service",
+    "./packages/redis-service",
     "./packages/studio",
     "./examples/www",
     "./examples/software-www",
     "./examples/_vue",
     "./examples/kawaii-www",
+    "./examples/nobiru-www",
+    "./examples/leotermine-www",
     "./examples/_react",
     "./examples/_react-shadcn",
     "./examples/_backend",
@@ -34,8 +37,8 @@
     "version:patch": "deno run -A scripts/version.ts upgrade patch",
     "version:minor": "deno run -A scripts/version.ts upgrade minor",
     "check": "deno check packages/howl/core/mod.ts packages/howl/dev/mod.ts",
-    "check:services": "deno check packages/service-core/mod.ts packages/mongo-service/mod.ts packages/pg-service/mod.ts packages/sqlite-service/mod.ts packages/studio/mod.ts packages/studio/component/studio.tsx",
-    "test:services": "deno test -A --no-check packages/service-core/tests/ packages/mongo-service/tests/ packages/pg-service/tests/ packages/sqlite-service/tests/ packages/studio/tests/",
+    "check:services": "deno check packages/service-core/mod.ts packages/mongo-service/mod.ts packages/pg-service/mod.ts packages/sqlite-service/mod.ts packages/redis-service/mod.ts packages/studio/mod.ts packages/studio/component/studio.tsx",
+    "test:services": "deno test -A --no-check packages/service-core/tests/ packages/mongo-service/tests/ packages/pg-service/tests/ packages/sqlite-service/tests/ packages/redis-service/tests/ packages/studio/tests/",
     "test": "deno test -A --no-check packages/howl/tests/ packages/howl-init/tests/ packages/howl-vue/tests/ packages/howl-react/tests/",
     "test:vue": "deno test -A --no-check packages/howl-vue/tests/",
     "test:react": "deno test -A --no-check packages/howl-react/tests/",
@@ -44,7 +47,7 @@
     "test:unit": "deno test -A --no-check packages/howl/tests/unit/",
     "test:init": "deno test -A --no-check packages/howl-init/tests/",
     "doc:lint": "cd packages/howl && deno doc --lint core/mod.ts core/client.ts dev/mod.ts plugins/mod.ts api/mod.ts api/errors.ts api/cache/mod.ts core/middlewares/mod.ts core/middlewares/cors.ts core/middlewares/csrf.ts core/middlewares/csp.ts core/middlewares/trailing_slashes.ts core/middlewares/static_files.ts",
-    "doc:lint:services": "cd packages/service-core && deno doc --lint mod.ts conformance/mod.ts; cd ../mongo-service && deno doc --lint mod.ts; cd ../pg-service && deno doc --lint mod.ts; cd ../sqlite-service && deno doc --lint mod.ts"
+    "doc:lint:services": "cd packages/service-core && deno doc --lint mod.ts conformance/mod.ts; cd ../mongo-service && deno doc --lint mod.ts; cd ../pg-service && deno doc --lint mod.ts; cd ../sqlite-service && deno doc --lint mod.ts; cd ../redis-service && deno doc --lint mod.ts"
   },
   "lint": {
     "rules": {
@@ -58,7 +61,8 @@
     "exclude": [
       "**/node_modules",
       "**/_howl",
-      "**/.git"
+      "**/.git",
+      "packages/studio/component/bundle.js"
     ]
   },
   "fmt": {
@@ -69,7 +73,8 @@
     "singleQuote": false,
     "exclude": [
       "**/node_modules",
-      "**/_howl"
+      "**/_howl",
+      "packages/studio/component/bundle.js"
     ]
   },
   "imports": {},

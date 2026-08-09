@@ -167,6 +167,50 @@
       ]
     },
     {
+      "id": "hot-reload",
+      "heading": "Hot reload in dev",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The dev server applies most edits inside the running process — no restart, no cold esbuild, no in-memory state lost. What it can reload it reloads in tens of milliseconds; what it cannot, it hands back to Deno's own watcher."
+        },
+        {
+          "type": "table",
+          "headers": ["You change", "What happens", "Restart?"],
+          "rows": [
+            [".vue page or component", "Incremental esbuild rebuild, browser reloads", "no"],
+            ["CSS / static assets", "Transformed copies dropped, rebuilt on next request", "no"],
+            ["A page added or deleted", "Routes re-crawled, router rebuilt in place", "no"],
+            ["*.api.ts", "Definition re-imported, API routes rebound", "no"],
+            [".ts / .tsx in the client tree", "Bundle rebuilt, then a restart is requested", "yes"],
+            ["server/ modules, howl.config.ts", "Deno's watcher restarts the process", "yes"]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "One rule draws the line: Howl hot-reloads exactly what Deno's module cache does not own. A .vue file is compiled per request, so a new version costs nothing. A .ts module the runtime already imported is pinned in that cache — refreshing only the browser bundle would leave server-rendered markup a version behind the script that hydrates it, so the dev server asks for a restart rather than ship a mismatch."
+        },
+        {
+          "type": "code",
+          "lang": "json",
+          "filename": "deno.json",
+          "text": "{\n  \"tasks\": {\n    \"dev\": \"deno run -A --watch --watch-exclude=dist/,node_modules/,server/apis/ dev.ts\"\n  }\n}"
+        },
+        {
+          "type": "p",
+          "text": "Plain --watch (no \"=.\") watches only Deno's own module graph, which is precisely the set Howl cannot hot-reload — so the two watchers partition the project instead of racing over it. server/apis/ is excluded because Howl re-imports API definitions itself; letting the runtime restart on them would only be slower."
+        },
+        {
+          "type": "tip",
+          "text": "The terminal says which path ran: `_ hot reload client 52ms` means the process stayed up, `_ restarting — a module the runtime owns changed` means the edit needed a fresh one."
+        },
+        {
+          "type": "warning",
+          "text": "--watch-hmr is not recommended. Deno can hot-replace a leaf module, but Howl already reloads those files itself and rebinds the routes the runtime knows nothing about; anything with top-level side effects (server/main.ts) restarts either way."
+        }
+      ]
+    },
+    {
       "id": "tasks",
       "heading": "Project tasks",
       "blocks": [
@@ -178,7 +222,7 @@
           "type": "table",
           "headers": ["Task", "Command", "What it does"],
           "rows": [
-            ["dev", "deno run -A --watch dev.ts", "Watch + serve with live reload"],
+            ["dev", "deno run -A --watch ... dev.ts", "Serve with hot reload (see above)"],
             ["build", "deno run -A dev.ts build", "Production build into dist/"],
             ["start", "deno run -A dist/compiled-entry.js", "Run the built server"],
             [
