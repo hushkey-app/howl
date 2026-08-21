@@ -357,9 +357,10 @@ const REACT_SSR_EXTERNALS = [
  * with tree-shaking collapses that (e.g. lucide-react's ~1000-module icon barrel
  * down to the handful of icons a page actually renders).
  *
- * Built with `platform: "browser"` — the same resolution conditions as
- * {@linkcode bundleJs} — so the SSR pass and the client pass pick the same
- * module of every isomorphic dependency and the markup hydrates cleanly.
+ * Built with `platform: "node"`, NOT the `"browser"` of {@linkcode bundleJs}.
+ * These modules are evaluated by Deno, so they need the same resolution the
+ * unbundled `.tsx` graph got. Under `"browser"` esbuild picks browser builds and
+ * SSR dies on the first dependency that touches `document` at module scope.
  *
  * Returns a map of entry name → output filename (in `outDir`).
  */
@@ -372,6 +373,8 @@ export async function bundleReactSsr(
     entryPoints: Record<string, string>;
     jsxImportSource?: string;
     alias?: Record<string, string>;
+    /** Extra bare specifiers to keep external, on top of REACT_SSR_EXTERNALS. */
+    ssrExternal?: string[];
     plugins?: EsbuildPlugin[];
   },
 ): Promise<Map<string, string>> {
@@ -383,7 +386,10 @@ export async function bundleReactSsr(
   await withEsbuildServiceRetry(() =>
     esbuild!.build({
       entryPoints: options.entryPoints,
-      platform: "browser",
+      // "node", not the "browser" bundleJs uses: this output runs in Deno, so it
+      // must resolve the way Deno resolves. A browser build of a dependency that
+      // reads `document` at module scope throws the moment SSR imports it.
+      platform: "node",
       format: "esm",
       bundle: true,
       // Pages share almost their whole import graph (`_app` + `_layout` + the
@@ -391,7 +397,7 @@ export async function bundleReactSsr(
       // inline its own copy and the binary would grow, not shrink.
       splitting: true,
       treeShaking: true,
-      external: REACT_SSR_EXTERNALS,
+      external: [...REACT_SSR_EXTERNALS, ...(options.ssrExternal ?? [])],
       minify: !options.dev,
       absWorkingDir: options.cwd,
       outdir: options.outDir,
@@ -410,6 +416,18 @@ export async function bundleReactSsr(
         "suspicious-nullish-coalescing": "silent",
         "unsupported-jsx-comment": "silent",
       },
+      // A CJS dependency that `require()`s an external module is lowered by
+      // esbuild into `__require(...)`, which throws "Dynamic require of X is not
+      // supported" in ESM output. Not hypothetical: use-sync-external-store
+      // (CJS-only, reached via zustand / react-query) does `require("react")`, and
+      // react has to stay external so the render engine shares one instance.
+      //
+      // esbuild's shim defers to a real `require` if it can see one, so the banner
+      // supplies a tiny one backed by static ESM imports. `createRequire` from
+      // node:module does NOT work here — inside a `deno compile` binary the
+      // modules live in a virtual FS with no node_modules to walk, so Node-style
+      // resolution fails with "Cannot find module 'react'".
+      banner: { js: requireShimBanner() },
       plugins: [
         buildIdPlugin(options.buildId),
         windowsPathFixer(),
@@ -464,6 +482,42 @@ function buildIdPlugin(buildId: string): EsbuildPlugin {
       }));
     },
   };
+}
+
+/**
+ * Externals that CJS dependencies reach for with `require()`.
+ *
+ * Only concrete specifiers can be pre-imported — a pattern like `react/*` has
+ * nothing to bind — and in practice these two are what CJS packages in a React
+ * page graph require. Anything else hits the shim's throw with a clear message
+ * rather than esbuild's opaque "Dynamic require" error.
+ */
+const REACT_SSR_REQUIRE_SHIMS = ["react", "react-dom"];
+
+/**
+ * Build the banner that gives esbuild's `__require` shim something real to call.
+ *
+ * Each shimmed specifier is imported as an ESM namespace, then handed back as
+ * `default ?? namespace`: react and react-dom are CJS, so Deno's namespace puts
+ * their `module.exports` on `default`, which is exactly what a `require()` caller
+ * expects. A genuinely-ESM external has no `default` and gets the namespace.
+ */
+function requireShimBanner(): string {
+  const imports = REACT_SSR_REQUIRE_SHIMS
+    .map((spec, i) => `import * as __howlExt${i} from ${JSON.stringify(spec)};`)
+    .join("\n");
+  const entries = REACT_SSR_REQUIRE_SHIMS
+    .map((spec, i) => `${JSON.stringify(spec)}: __howlExt${i}`)
+    .join(", ");
+  return `${imports}
+const __howlExternals = { ${entries} };
+const require = (id) => {
+  const m = __howlExternals[id];
+  if (m === undefined) {
+    throw new Error("Bundled SSR module required \'" + id + "\', which is not a shimmed external");
+  }
+  return m.default ?? m;
+};`;
 }
 
 /**

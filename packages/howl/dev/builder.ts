@@ -89,6 +89,22 @@ export interface BuildOptions {
   /** Alias map passed directly to esbuild. */
   alias?: Record<string, string>;
   /**
+   * Extra bare specifiers to keep external in the React SSR bundle, on top of
+   * the react / howl runtimes that are always external.
+   *
+   * Reach for this when a dependency breaks if it exists twice in one process.
+   * The SSR bundle inlines its dependencies, so a package the *server* also
+   * imports ends up loaded twice — fine for most libraries, fatal for ones that
+   * check identity across the boundary. Yjs is the standard example: two copies
+   * fail its constructor checks and it warns "Yjs was already imported".
+   *
+   * Accepts esbuild external patterns, so `"y-protocols/*"` covers subpaths.
+   *
+   * Anything listed here must also be resolvable by whatever config compiles the
+   * server, since the SSR output now imports it by bare specifier.
+   */
+  ssrExternal?: string[];
+  /**
    * Additional esbuild plugins injected before the Deno resolver.
    * @example [cssModulesPlugin()]
    */
@@ -174,6 +190,7 @@ export class Builder<State = any> {
       buildId: BUILD_ID,
       sourceMap: options?.sourceMap,
       alias: options?.alias ?? {},
+      ssrExternal: options?.ssrExternal ?? [],
       plugins: options?.plugins ?? [],
     };
   }
@@ -797,6 +814,7 @@ export class Builder<State = any> {
           entryPoints: ssrEntries,
           jsxImportSource,
           alias: this.config.alias,
+          ssrExternal: this.config.ssrExternal,
           plugins: this.config.plugins ?? [],
         });
         for (const [name, filePath] of ssrEntryToPath) {
