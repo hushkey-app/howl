@@ -413,7 +413,7 @@ export async function bundleReactSsr(
       plugins: [
         buildIdPlugin(options.buildId),
         windowsPathFixer(),
-        ...(options.plugins ?? []),
+        ...withoutStartHooks(options.plugins ?? []),
         denoPlugin({
           preserveJsx: true,
           debug: false,
@@ -464,6 +464,23 @@ function buildIdPlugin(buildId: string): EsbuildPlugin {
       }));
     },
   };
+}
+
+/**
+ * Re-wrap plugins so their `onStart` hooks never fire for this build.
+ *
+ * The SSR pass runs the same user plugins as {@linkcode bundleJs} because it
+ * needs their resolvers and loaders — raw-markdown imports, engine `.tsx`
+ * handling. It must not re-run their build-start *side effects*: a codegen
+ * plugin that writes a file from `onStart` would regenerate it once per bundle.
+ * `bundleJs` always runs first and owns those hooks, so the SSR pass drops them
+ * and keeps everything else.
+ */
+function withoutStartHooks(plugins: EsbuildPlugin[]): EsbuildPlugin[] {
+  return plugins.map((plugin) => ({
+    name: plugin.name,
+    setup: (build) => plugin.setup({ ...build, onStart: () => {} }),
+  }));
 }
 
 function windowsPathFixer(): EsbuildPlugin {
