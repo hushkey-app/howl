@@ -321,6 +321,115 @@ export async function bundleVueSsr(
   return entryToFile;
 }
 
+/**
+ * Bare specifiers that must NOT be bundled into a React SSR module.
+ *
+ * The render engine (`@hushkey/howl-react/engine`) calls `renderToString` on the
+ * components these modules export, so both sides have to reach the *same*
+ * React instance — a bundled-in copy would have its own dispatcher and every
+ * hook call would throw "invalid hook call". Same reasoning for the howl and
+ * howl-react runtimes: page components read context (`useHowlState`,
+ * `useClientEnv`) that the engine provides, and context identity is per-module.
+ *
+ * Everything else — lucide-react, mermaid, pixi.js, date-fns, … — is bundled and
+ * tree-shaken. That is the whole point: left external, they get embedded into a
+ * `deno compile` binary as their full unshaken npm source.
+ */
+const REACT_SSR_EXTERNALS = [
+  "react",
+  "react/*",
+  "react-dom",
+  "react-dom/*",
+  "@hushkey/howl",
+  "@hushkey/howl/*",
+  "@hushkey/howl-react",
+  "@hushkey/howl-react/*",
+];
+
+/**
+ * Bundle React page **server** (SSR) entries into importable ESM modules — one
+ * per page — that the production snapshot statically imports.
+ *
+ * The wrappers this bundles are plain `.tsx` that Deno can import natively, so
+ * bundling is not needed for *correctness*. It is needed for *size*: a
+ * `deno compile` binary embeds the source of every module in the graph, and the
+ * unbundled wrapper graph reaches the entire client dependency tree. Bundling
+ * with tree-shaking collapses that (e.g. lucide-react's ~1000-module icon barrel
+ * down to the handful of icons a page actually renders).
+ *
+ * Built with `platform: "browser"` — the same resolution conditions as
+ * {@linkcode bundleJs} — so the SSR pass and the client pass pick the same
+ * module of every isomorphic dependency and the markup hydrates cleanly.
+ *
+ * Returns a map of entry name → output filename (in `outDir`).
+ */
+export async function bundleReactSsr(
+  options: {
+    cwd: string;
+    outDir: string;
+    dev: boolean;
+    buildId: string;
+    entryPoints: Record<string, string>;
+    jsxImportSource?: string;
+    alias?: Record<string, string>;
+    plugins?: EsbuildPlugin[];
+  },
+): Promise<Map<string, string>> {
+  if (esbuild === null) {
+    await startEsbuild();
+  }
+  await Deno.mkdir(options.outDir, { recursive: true });
+
+  await withEsbuildServiceRetry(() =>
+    esbuild!.build({
+      entryPoints: options.entryPoints,
+      platform: "browser",
+      format: "esm",
+      bundle: true,
+      // Pages share almost their whole import graph (`_app` + `_layout` + the
+      // component library). Without splitting each of the N page entries would
+      // inline its own copy and the binary would grow, not shrink.
+      splitting: true,
+      treeShaking: true,
+      external: REACT_SSR_EXTERNALS,
+      minify: !options.dev,
+      absWorkingDir: options.cwd,
+      outdir: options.outDir,
+      entryNames: "[name]",
+      chunkNames: "chunk-[hash]",
+      write: true,
+      jsx: "automatic",
+      jsxImportSource: options.jsxImportSource,
+      alias: options.alias,
+      define: {
+        "process.env.NODE_ENV": JSON.stringify(
+          options.dev ? "development" : "production",
+        ),
+      },
+      logOverride: {
+        "suspicious-nullish-coalescing": "silent",
+        "unsupported-jsx-comment": "silent",
+      },
+      plugins: [
+        buildIdPlugin(options.buildId),
+        windowsPathFixer(),
+        ...(options.plugins ?? []),
+        denoPlugin({
+          preserveJsx: true,
+          debug: false,
+          publicEnvVarPrefix: "howl_PUBLIC_",
+        }),
+      ],
+    })
+  );
+
+  const entryToFile = new Map<string, string>();
+  for (const name of Object.keys(options.entryPoints)) {
+    entryToFile.set(name, `${name}.js`);
+  }
+  return entryToFile;
+}
+
 let initialized = false;
 
 export async function startEsbuild() {

@@ -10,7 +10,7 @@ import {
 import { devInvalidateHandler } from "../core/app.ts";
 import * as path from "@std/path";
 import * as colors from "@std/fmt/colors";
-import { bundleJs, bundleVueSsr, type HowlBundleOptions } from "./esbuild.ts";
+import { bundleJs, bundleReactSsr, bundleVueSsr, type HowlBundleOptions } from "./esbuild.ts";
 import type { Plugin as EsbuildPlugin } from "esbuild";
 import { DevReloadHub, liveReload } from "./middlewares/live_reload.ts";
 import { classifyDevChange, type DevChangeKind, DevWatcher } from "./watcher.ts";
@@ -750,17 +750,22 @@ export class Builder<State = any> {
 
       // Prod only: emit a `.react-ssr` wrapper per `.tsx` page that **statically
       // imports** its `_app.tsx` + `_layout.tsx` chain + the page and re-exports
-      // them as `{ app, layouts, page }`. The snapshot static-imports these so a
-      // `deno compile` binary embeds the whole `.tsx` graph — no source on disk
-      // at runtime. Unlike Vue there's no compile step: Deno imports `.tsx`
-      // natively (same as the built-in Preact engine). Imports are written
-      // **relative** to the wrapper so the binary resolves them to the embedded
-      // (`deno-compile://`) copies — an absolute `file://` specifier would match
-      // the on-disk source instead, which the binary can't transpile.
+      // them as `{ app, layouts, page }`, then bundle each wrapper into a single
+      // ESM module. The snapshot static-imports the bundles so a `deno compile`
+      // binary needs no `.tsx` source on disk.
+      //
+      // Deno imports `.tsx` natively, so the bundle step is not needed to *run* —
+      // it is needed to keep the binary small. `deno compile` embeds the source
+      // of every module in the graph, and the raw wrapper graph reaches the whole
+      // client dependency tree (lucide-react's icon barrel, mermaid, pixi.js, …)
+      // at full unshaken size. Bundling tree-shakes that down to what the pages
+      // actually render. See `bundleReactSsr`.
       if (!(dev ?? false) && reactPageFiles.length > 0) {
         const ssrDir = path.join(outDir, ".react-ssr");
         await removeDirIfExists(ssrDir);
         await Deno.mkdir(ssrDir, { recursive: true });
+        const ssrEntries: Record<string, string> = {};
+        const ssrEntryToPath = new Map<string, string>();
         for (const [name, filePath] of reactPageEntryToPath) {
           const { app, layouts } = await discoverEngineChain(filePath, ".tsx");
           const chain = app !== null ? [app, ...layouts, filePath] : [...layouts, filePath];
@@ -781,7 +786,25 @@ export class Builder<State = any> {
               `export const layouts = [${layoutExprs}];\n` +
               `export const page = _c${chain.length - 1};\n`,
           );
-          buildCache.engineSsrPages.set(filePath, `.react-ssr/${name}.server.tsx`);
+          ssrEntries[name] = wrapperPath;
+          ssrEntryToPath.set(name, filePath);
+        }
+        const ssrOut = await bundleReactSsr({
+          cwd: root,
+          outDir: ssrDir,
+          dev: false,
+          buildId: BUILD_ID,
+          entryPoints: ssrEntries,
+          jsxImportSource,
+          alias: this.config.alias,
+          plugins: this.config.plugins ?? [],
+        });
+        for (const [name, filePath] of ssrEntryToPath) {
+          const file = ssrOut.get(name);
+          if (file === undefined) {
+            throw new Error(`Could not find SSR module for React page: ${filePath}`);
+          }
+          buildCache.engineSsrPages.set(filePath, `.react-ssr/${file}`);
         }
       }
 
