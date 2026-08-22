@@ -129,9 +129,7 @@ function fileSideEffects(file: string): false | undefined {
     const rel = path.relative(info.pkgDir, file).replaceAll("\\", "/");
     const base = path.basename(file);
     const sideEffectful = se.some((entry) => {
-      const glob = String(entry).startsWith("./")
-        ? String(entry).slice(2)
-        : String(entry);
+      const glob = String(entry).startsWith("./") ? String(entry).slice(2) : String(entry);
       const re = globToRegExp(glob);
       return re.test(rel) || (!glob.includes("/") && re.test(base));
     });
@@ -194,9 +192,7 @@ function getModuleType(
     case "json":
       return RequestedModuleType.Json;
     default:
-      return file.endsWith(".json")
-        ? RequestedModuleType.Json
-        : RequestedModuleType.Default;
+      return file.endsWith(".json") ? RequestedModuleType.Json : RequestedModuleType.Default;
   }
 }
 
@@ -248,9 +244,7 @@ export function denoPlugin(options: DenoPluginOptions = {}): Plugin {
         loader[Symbol.dispose]?.();
       });
 
-      const externals = (ctx.initialOptions.external ?? []).map((item) =>
-        externalToRegex(item)
-      );
+      const externals = (ctx.initialOptions.external ?? []).map((item) => externalToRegex(item));
 
       const onResolve = async (
         args: OnResolveArgs,
@@ -258,10 +252,9 @@ export function denoPlugin(options: DenoPluginOptions = {}): Plugin {
         if (isBuiltin(args.path) || externals.some((reg) => reg.test(args.path))) {
           return { path: args.path, external: true };
         }
-        const kind =
-          args.kind === "require-call" || args.kind === "require-resolve"
-            ? ResolutionMode.Require
-            : ResolutionMode.Import;
+        const kind = args.kind === "require-call" || args.kind === "require-resolve"
+          ? ResolutionMode.Require
+          : ResolutionMode.Import;
 
         try {
           const res = await loader.resolve(args.path, args.importer, kind);
