@@ -8,6 +8,9 @@ import { howl } from "./howl.ts";
 import { hound } from "./hound.ts";
 import { pack } from "./pack.ts";
 import { hushkey } from "./hushkey.ts";
+import { guard } from "./guard.ts";
+import { rustydeck } from "./rustydeck.ts";
+import { nanoleafPegboard } from "./nanoleaf-pegboard.ts";
 // import { spellit } from "./spellit.ts"; // hidden until it has an icon and a build
 
 export type {
@@ -19,7 +22,17 @@ export type {
   ProjectSupport,
 } from "./types.ts";
 
-const REGISTERED: Project[] = [nobiru, howl, hound, pack, hushkey /*, spellit */];
+const REGISTERED: Project[] = [
+  nobiru,
+  howl,
+  hound,
+  pack,
+  hushkey,
+  guard,
+  rustydeck,
+  nanoleafPegboard,
+  /* spellit */
+];
 
 /** The first four-digit year in a `year` string, used only for ordering. */
 function startYear(project: Project): number {
