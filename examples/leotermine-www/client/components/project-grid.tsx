@@ -13,11 +13,11 @@ import {
 /**
  * Whether the language filter and its result count are shown.
  *
- * Both are built and working — hidden for now because five projects fit on one
- * screen, and a filter that never narrows anything is furniture. Flip to
- * `true` when the grid is long enough to earn it; nothing else needs changing.
+ * Off while five projects fit on one screen — a filter that never narrows
+ * anything is furniture. On from eight, where the chips do real work: Rust cuts
+ * the grid to three, Go to one.
  */
-const SHOW_FILTER = false;
+const SHOW_FILTER = true;
 
 /**
  * The projects grid and its filter.

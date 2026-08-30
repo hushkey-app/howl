@@ -6,12 +6,13 @@
 
 /**
  * The languages the filter knows about. A closed union on purpose — adding a
- * sixth chip should be a deliberate edit here, not a side effect of typing a
- * new string into a project file.
+ * chip should be a deliberate edit here, not a side effect of typing a new
+ * string into a project file.
  */
 export type Language =
   | "TypeScript"
   | "Rust"
+  | "Go"
   | "Swift"
   | "React"
   | "React Native"

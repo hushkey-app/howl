@@ -66,7 +66,7 @@ export const newthing: Project = {
 
 ```ts
 // shared/projects/index.ts
-export const PROJECTS: Project[] = [nobiru, howl, hound, pack, hushkey, spellit, newthing];
+const REGISTERED: Project[] = [nobiru, howl, hound, pack, hushkey, guard, rustydeck, newthing];
 ```
 
 Every project gets `/newthing` — a standard overview page with the cover, what it is written in, and
@@ -94,15 +94,21 @@ nothing spans the viewport, including the nav. Depth comes from a single recipe 
 so cards still read as floating rather than dissolving into the background.
 
 **The filter is languages only.** `Language` in `shared/projects/types.ts` is a closed union —
-TypeScript, Rust, Swift, React, React Native, Vue — so a stray `"Redis"` is a compile error rather
-than a sixth chip nobody wanted. Frameworks, datastores and platforms live in each project's
-`summary`, where they read as prose instead of piling up as a dozen near-useless pills.
+TypeScript, Rust, Go, Swift, React, React Native, Vue, WebAssembly — so a stray `"Redis"` is a
+compile error rather than one more chip nobody wanted. It is also the only axis: "native", "systems"
+and "CLI" are categories, not languages, and adding them as chips would make the bar answer a
+question the grid never asks. Frameworks, datastores and platforms live in each project's `summary`,
+where they read as prose instead of piling up as a dozen near-useless pills.
 
 **Project covers are real, in three tiers.** `cover` is a screenshot of the live site
 (`static/projects/*.jpg`, 1200×750, ~50–100 KB — recapture by screenshotting and cropping to 16:10).
 `icon` is the app's own mark, floated on the project's accent, for products with no site to shoot —
 Nobiru uses its App Store icon. Everything else falls back to a monogram on the same accent panel.
-No mock screenshots: a fake one of something nobody can go and look at is worse than none.
+No mock screenshots: a fake one of something nobody can go and look at is worse than none. A desktop
+app is not a website, so a portrait window — RustyDeck, the Pegboard bar widget — is trimmed to its
+own edges and floated on a light panel in the project's accent rather than cropped to 16:10, because
+cropping one throws away the half worth showing. Still waiting on a shot? Leave the `cover:` line
+commented out; a monogram beats a 404.
 
 **Cards are picture-first.** Cover, name, tagline, languages — the prose lives on the project page,
 not in the grid. Hovering a card slides in one overlay layer, scrim and both buttons together,
