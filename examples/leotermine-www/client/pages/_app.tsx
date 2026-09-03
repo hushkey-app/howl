@@ -1,6 +1,7 @@
 import type { ReactPageProps } from "@hushkey/howl-react";
 import type { State } from "@howl/config";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme.ts";
+import { PREFS_BOOT_SCRIPT } from "@/lib/prefs.ts";
 
 /**
  * Document shell. Owns `<html>` and the app-wide `<head>`; per-page title and
@@ -35,6 +36,7 @@ export default function App(props: ReactPageProps<unknown, State>) {
         */
         }
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: PREFS_BOOT_SCRIPT }} />
 
         <link rel="stylesheet" href="/style.css" />
         <link rel="icon" href={FAVICON} />

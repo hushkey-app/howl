@@ -45,13 +45,14 @@ export function ProjectShell({ project, tab, children }: ProjectShellProps) {
 
   return (
     <div style={hueVars(project.hue)} className="hued mx-auto w-full max-w-2xl px-5">
-      <header className="pt-32 sm:pt-36">
+      <header className="pt-10 sm:pt-14">
         <a
-          href="/#projects"
-          className="group inline-flex items-center gap-1.5 text-sm text-ink-faint transition-colors hover:text-ink-dim"
+          href="/"
+          onClick={() => playSound("tap")}
+          className="back-button group"
         >
-          <ArrowLeft className="size-3.5 transition-transform duration-300 group-hover:-translate-x-0.5" />
-          All projects
+          <ArrowLeft className="size-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+          Back
         </a>
 
         <div className="mt-6 flex items-start gap-4">

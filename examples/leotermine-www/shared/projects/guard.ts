@@ -13,6 +13,11 @@ export const guard: Project = {
   languages: ["Go", "WebAssembly"],
   cover: "/projects/guard.jpg",
   links: [
-    { label: "Visit", href: "https://guard.hushkey.dev", icon: "globe", primary: true },
+    {
+      label: "GitHub",
+      href: "https://github.com/hushkey-app/guard",
+      icon: "github",
+      primary: true,
+    },
   ],
 };
