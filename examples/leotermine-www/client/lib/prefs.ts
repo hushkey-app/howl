@@ -1,26 +1,26 @@
 /**
- * The two switches on the board that are not the theme: the drifting
- * background and the interface sound.
+ * The two switches on the board that are not the theme: the falling stars and
+ * the interface sound.
  *
  * Both follow the same pattern `theme.ts` uses — the value is stamped onto
  * `<html>` by a blocking script before first paint, and this module only reads
- * and flips it afterwards. That matters for the wave: deciding in React would
+ * and flips it afterwards. That matters for the stars: deciding in React would
  * mean a frame of animation starting before the stored "off" was read, which is
  * exactly the thing someone who turned it off does not want to see.
  */
 
 /** A switch on the board. */
-export type Pref = "wave" | "sound";
+export type Pref = "stars" | "sound";
 
 /** Keys the choices are stored under, shared with the inline boot script. */
 export const PREF_KEYS: Record<Pref, string> = {
-  wave: "leotermine:wave",
+  stars: "leotermine:stars",
   sound: "leotermine:sound",
 };
 
 /** The `<html>` data attribute each switch is stamped onto. */
 const ATTRS: Record<Pref, string> = {
-  wave: "wave",
+  stars: "stars",
   sound: "sound",
 };
 
@@ -59,6 +59,6 @@ export function subscribePrefs(listener: () => void): () => void {
  * default to on, so only an explicit "off" is read back.
  */
 export const PREFS_BOOT_SCRIPT = `(function(){try{var d=document.documentElement;` +
-  `d.dataset.wave=localStorage.getItem("${PREF_KEYS.wave}")==="off"?"off":"on";` +
+  `d.dataset.stars=localStorage.getItem("${PREF_KEYS.stars}")==="off"?"off":"on";` +
   `d.dataset.sound=localStorage.getItem("${PREF_KEYS.sound}")==="off"?"off":"on"}` +
   `catch(e){}})()`;

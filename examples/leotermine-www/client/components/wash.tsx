@@ -9,8 +9,14 @@ export function Wash() {
   return (
     <div className="wash" aria-hidden="true">
       <div className="falling-stars">
-        {Array.from({ length: 12 }, (_, index) => <i key={index} />)}
+        {Array.from({ length: 12 }, (_, index) => (
+          <i
+            key={index}
+            onAnimationIteration={() => playSound("star")}
+          />
+        ))}
       </div>
     </div>
   );
 }
+import { playSound } from "@/lib/sound.ts";

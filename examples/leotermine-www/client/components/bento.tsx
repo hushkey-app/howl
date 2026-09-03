@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { ArrowUpRight, Moon, Volume2, Waves } from "lucide-react";
+import { ArrowUpRight, Moon, Sparkles, Volume2 } from "lucide-react";
 import { useRevealOnce } from "@/lib/motion.ts";
 import { playSound } from "@/lib/sound.ts";
 import { usePref } from "@/lib/motion.ts";
@@ -49,12 +49,12 @@ export function Bento() {
       <ProjectTile project={project("rustydeck")} index={next()} span="t-wide" />
       <SwitchTile
         index={next()}
-        pref="wave"
+        pref="stars"
         hue={196}
-        icon={<Waves className="size-5" />}
-        label="Wave"
-        on="Drifting"
-        off="Still"
+        icon={<Sparkles className="size-5" />}
+        label="Stars"
+        on="Falling"
+        off="Hidden"
       />
       <SwitchTile
         index={next()}
@@ -272,7 +272,7 @@ function ContactTile(
 function SwitchTile(
   { index, pref, hue, icon, label, on, off }: {
     index: number;
-    pref: "wave" | "sound";
+    pref: "stars" | "sound";
     hue: number;
     icon: ReactNode;
     label: string;
