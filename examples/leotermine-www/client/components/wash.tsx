@@ -6,5 +6,11 @@
  * slightly instead of being flat white on flat white.
  */
 export function Wash() {
-  return <div className="wash" aria-hidden="true" />;
+  return (
+    <div className="wash" aria-hidden="true">
+      <div className="falling-stars">
+        {Array.from({ length: 12 }, (_, index) => <i key={index} />)}
+      </div>
+    </div>
+  );
 }
