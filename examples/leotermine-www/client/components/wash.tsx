@@ -13,6 +13,7 @@ export function Wash() {
         {Array.from({ length: 3 }, (_, index) => (
           <i
             key={index}
+            onAnimationStart={() => playSound("star")}
             onAnimationIteration={() => playSound("star")}
           />
         ))}

@@ -261,7 +261,7 @@
 }
 
 :root:not([data-stars="on"]) .falling-stars i {
-  animation-play-state: paused;
+  animation-name: none;
 }
 
 :root:not([data-stars="on"]) .falling-stars {
