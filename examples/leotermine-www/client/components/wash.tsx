@@ -10,7 +10,7 @@ export function Wash() {
     <>
       <div className="wash" aria-hidden="true" />
       <div className="falling-stars" aria-hidden="true">
-        {Array.from({ length: 12 }, (_, index) => (
+        {Array.from({ length: 3 }, (_, index) => (
           <i
             key={index}
             onAnimationIteration={() => playSound("star")}

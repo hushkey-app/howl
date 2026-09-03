@@ -182,20 +182,20 @@
 }
 
 .falling-stars i {
-  --star-x: 8%;
+  --star-x: 12%;
   --star-delay: 0s;
-  --star-duration: 9s;
+  --star-duration: 28s;
   display: block;
   position: absolute;
-  top: -5rem;
+  top: -9rem;
   left: var(--star-x);
   width: 3px;
-  height: 7rem;
-  border-radius: 999px;
+  height: 5rem;
+  border-radius: 5% 40% 70%;
   background: linear-gradient(to bottom, transparent, oklch(0.28 0 0 / 0.92));
   box-shadow: 0 0 0.65rem oklch(0.25 0 0 / 0.42);
   opacity: 0;
-  transform: rotate(-24deg);
+  transform: rotate(-32deg);
   animation: star-fall var(--star-duration) linear var(--star-delay) infinite;
 }
 
@@ -204,29 +204,59 @@
   box-shadow: 0 0 0.55rem oklch(1 0 0 / 0.5);
 }
 
-.falling-stars i:nth-child(2) { --star-x: 19%; --star-delay: -6s; --star-duration: 12s; }
-.falling-stars i:nth-child(3) { --star-x: 31%; --star-delay: -2s; --star-duration: 10s; }
-.falling-stars i:nth-child(4) { --star-x: 43%; --star-delay: -9s; --star-duration: 14s; }
-.falling-stars i:nth-child(5) { --star-x: 55%; --star-delay: -4s; --star-duration: 11s; }
-.falling-stars i:nth-child(6) { --star-x: 66%; --star-delay: -12s; --star-duration: 15s; }
-.falling-stars i:nth-child(7) { --star-x: 78%; --star-delay: -7s; --star-duration: 13s; }
-.falling-stars i:nth-child(8) { --star-x: 91%; --star-delay: -3s; --star-duration: 10s; }
-.falling-stars i:nth-child(9) { --star-x: 13%; --star-delay: -11s; --star-duration: 16s; }
-.falling-stars i:nth-child(10) { --star-x: 37%; --star-delay: -5s; --star-duration: 17s; }
-.falling-stars i:nth-child(11) { --star-x: 62%; --star-delay: -15s; --star-duration: 18s; }
-.falling-stars i:nth-child(12) { --star-x: 84%; --star-delay: -8s; --star-duration: 16s; }
+.falling-stars i:nth-child(1) {
+  --star-x: 8%;
+  --star-delay: -7s;
+  --star-duration: 28s;
+  height: 4.5rem;
+}
+
+.falling-stars i:nth-child(2) {
+  --star-x: 38%;
+  --star-delay: -19s;
+  --star-duration: 34s;
+  width: 4px;
+  height: 6rem;
+  animation-name: star-fall-wide;
+}
+
+.falling-stars i:nth-child(3) {
+  --star-x: 72%;
+  --star-delay: -27s;
+  --star-duration: 40s;
+  height: 3.5rem;
+  animation-name: star-fall-short;
+}
 
 @keyframes star-fall {
   0% {
     opacity: 0;
-    transform: translate3d(0, -12vh, 0) rotate(-24deg);
+    transform: translate3d(0, 0, 0) rotate(-32deg);
   }
-  8%, 74% {
-    opacity: 0.7;
+  5%, 68% {
+    opacity: 0.82;
   }
-  82%, 100% {
+  75%, 100% {
     opacity: 0;
-    transform: translate3d(-28vw, 125vh, 0) rotate(-24deg);
+    transform: translate3d(48vw, 125vh, 0) rotate(-32deg);
+  }
+}
+
+@keyframes star-fall-wide {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(-42deg); }
+  5%, 70% { opacity: 0.78; }
+  78%, 100% {
+    opacity: 0;
+    transform: translate3d(62vw, 120vh, 0) rotate(-42deg);
+  }
+}
+
+@keyframes star-fall-short {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(-24deg); }
+  5%, 62% { opacity: 0.72; }
+  70%, 100% {
+    opacity: 0;
+    transform: translate3d(34vw, 118vh, 0) rotate(-24deg);
   }
 }
 
