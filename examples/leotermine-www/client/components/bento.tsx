@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { ArrowUpRight, Moon, Volume2, Waves } from "lucide-react";
+import { ArrowUpRight, Moon, Sparkles, Volume2 } from "lucide-react";
 import { useRevealOnce } from "@/lib/motion.ts";
 import { playSound } from "@/lib/sound.ts";
 import { usePref } from "@/lib/motion.ts";
@@ -35,12 +35,12 @@ export function Bento() {
 
   return (
     <div ref={litRef} className="bento">
+      {/* First in reading order for mobile; the desktop grid pins it centrally. */}
+      <IntroTile index={next()} />
+
       <ProjectTile project={project("howl")} index={next()} span="t-wide" id="projects" />
       <ProjectTile project={project("pack")} index={next()} span="t-wide" />
       <ProjectTile project={project("hushkey")} index={next()} span="t-wide" />
-
-      {/* The middle of the board. Placed by hand; the rest packs around it. */}
-      <IntroTile index={next()} />
 
       <ProjectTile project={project("guard")} index={next()} span="t-wide" />
       <ProjectTile project={project("nobiru")} index={next()} span="t-sm" />
@@ -49,12 +49,12 @@ export function Bento() {
       <ProjectTile project={project("rustydeck")} index={next()} span="t-wide" />
       <SwitchTile
         index={next()}
-        pref="wave"
+        pref="stars"
         hue={196}
-        icon={<Waves className="size-5" />}
-        label="Wave"
-        on="Drifting"
-        off="Still"
+        icon={<Sparkles className="size-5" />}
+        label="Stars"
+        on="Falling"
+        off="Hidden"
       />
       <SwitchTile
         index={next()}
@@ -272,7 +272,7 @@ function ContactTile(
 function SwitchTile(
   { index, pref, hue, icon, label, on, off }: {
     index: number;
-    pref: "wave" | "sound";
+    pref: "stars" | "sound";
     hue: number;
     icon: ReactNode;
     label: string;
@@ -292,9 +292,12 @@ function SwitchTile(
       aria-checked={active}
       aria-label={label}
       onClick={() => {
-        // Flip first: turning sound back on should be audible, turning it off silent.
+        const turningOn = !active;
         togglePref(pref);
-        playSound("tap");
+        // Preview the meteor voice immediately while the click still grants
+        // browser audio permission. All later passes can then play naturally.
+        if (pref === "stars" && turningOn) playSound("star");
+        else playSound("tap");
       }}
       style={{ "--i": index, "--tile-hue": hue } as CSSProperties}
       className={cn("tile tile-reveal t-sm justify-center text-left", active && "is-on")}

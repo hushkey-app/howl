@@ -16,7 +16,7 @@ export default function Layout(props: ReactPageProps<unknown, State>) {
   const isBoard = props.url.pathname === "/";
 
   return (
-    <div className="relative flex min-h-dvh flex-col">
+    <div className="site-shell relative isolate flex min-h-dvh flex-col">
       <Wash />
       <main className="flex-1">
         <Outlet />

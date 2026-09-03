@@ -12,11 +12,12 @@
 import { getPref } from "./prefs.ts";
 
 /** The named voices the UI can trigger. */
-export type Voice = "tap" | "hover" | "open" | "close" | "chip-on" | "chip-off";
+export type Voice = "tap" | "hover" | "open" | "close" | "chip-on" | "chip-off" | "star";
 
 let audio: AudioContext | null = null;
 let master: GainNode | null = null;
 let lastHover = 0;
+let lastStar = -Infinity;
 
 function ensureContext(): AudioContext | null {
   if (typeof globalThis.window === "undefined") return null;
@@ -103,6 +104,7 @@ function transient(ctx: AudioContext, gainValue: number, length = 0.05): void {
  */
 export function playSound(voice: Voice): void {
   if (!getPref("sound")) return;
+  if (voice === "star" && !getPref("stars")) return;
   const ctx = ensureContext();
   if (!ctx) return;
 
@@ -136,5 +138,22 @@ export function playSound(voice: Voice): void {
       transient(ctx, 0.025, 0.03);
       tone(ctx, { freq: 659.25, glide: 415.3, gain: 0.045, length: 0.1 });
       break;
+    case "star": {
+      // Many streaks can complete close together. One quiet pass every few
+      // seconds suggests the whole field without turning it into ambience.
+      const now = performance.now();
+      if (now - lastStar < 3500) return;
+      lastStar = now;
+      tone(ctx, { freq: 1180, glide: 170, gain: 0.018, length: 1.25, type: "sine" });
+      tone(ctx, {
+        freq: 760,
+        glide: 125,
+        gain: 0.009,
+        length: 1.05,
+        type: "triangle",
+        delay: 0.04,
+      });
+      break;
+    }
   }
 }

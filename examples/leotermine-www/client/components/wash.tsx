@@ -6,5 +6,19 @@
  * slightly instead of being flat white on flat white.
  */
 export function Wash() {
-  return <div className="wash" aria-hidden="true" />;
+  return (
+    <>
+      <div className="wash" aria-hidden="true" />
+      <div className="falling-stars" aria-hidden="true">
+        {Array.from({ length: 3 }, (_, index) => (
+          <i
+            key={index}
+            onAnimationStart={() => playSound("star")}
+            onAnimationIteration={() => playSound("star")}
+          />
+        ))}
+      </div>
+    </>
+  );
 }
+import { playSound } from "@/lib/sound.ts";

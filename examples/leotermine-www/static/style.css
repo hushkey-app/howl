@@ -15,7 +15,7 @@
 :root {
   --radius: 1.5rem;
 
-  --canvas: oklch(0.977 0.004 95);
+  --canvas: oklch(0.955 0.008 265);
   --canvas-sunk: oklch(0.955 0.005 95);
   --surface: oklch(1 0 0);
 
@@ -48,7 +48,7 @@
  * as floating instead of dissolving into the background. `data-theme` is
  * stamped on `<html>` before first paint by the boot script in `_app.tsx`. */
 :root[data-theme="dark"] {
-  --canvas: oklch(0.165 0.012 265);
+  --canvas: oklch(0.125 0.016 265);
   --canvas-sunk: oklch(0.225 0.014 265);
   --surface: oklch(0.22 0.014 265);
 
@@ -136,29 +136,132 @@
 }
 
 /* ---------------------------------------------------------------------------
- * The wash. Three very pale pools of colour, fixed behind the page. They are
- * almost invisible on their own — their whole job is to give the frosted
- * surfaces something to pick up, so a card drifting over one warms slightly.
+ * Page backdrop. Neutral depth with a moving star field; no coloured wash.
  * ------------------------------------------------------------------------- */
 
 .wash {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(46rem 34rem at 12% 4%, oklch(0.92 0.05 250 / 0.5), transparent 70%),
-    radial-gradient(40rem 30rem at 92% 14%, oklch(0.93 0.05 25 / 0.42), transparent 70%),
-    radial-gradient(52rem 38rem at 50% 108%, oklch(0.93 0.05 165 / 0.4), transparent 72%);
+  background: radial-gradient(circle at 50% -20%, oklch(1 0 0 / 0.7), transparent 58%);
 }
 
-/* Same three pools, pitched for a dark surface: more chroma, far less alpha,
- * so they tint the frost without lighting the whole page. */
 :root[data-theme="dark"] .wash {
-  background:
-    radial-gradient(46rem 34rem at 12% 4%, oklch(0.55 0.14 255 / 0.3), transparent 70%),
-    radial-gradient(40rem 30rem at 92% 14%, oklch(0.55 0.14 15 / 0.24), transparent 70%),
-    radial-gradient(52rem 38rem at 50% 108%, oklch(0.55 0.13 165 / 0.24), transparent 72%);
+  background: radial-gradient(circle at 50% -20%, oklch(0.3 0.012 265 / 0.7), transparent 62%);
+}
+
+.site-shell > main,
+.site-shell > footer {
+  position: relative;
+  z-index: 1;
+}
+
+/* A sparse meteor field gives the open canvas some depth now that the board
+ * no longer has its own backing panel. Each streak is a tiny compositor layer;
+ * the fixed positions and timings keep server and client output identical. */
+.falling-stars {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.falling-stars i {
+  --star-x: 12%;
+  --star-delay: 0s;
+  --star-duration: 28s;
+  display: block;
+  position: absolute;
+  /* Start with the bright head just inside the viewport, rather than spending
+   * the first several seconds travelling down from an invisible position. */
+  top: -1.5rem;
+  left: var(--star-x);
+  width: 3px;
+  height: 5rem;
+  border-radius: 5% 40% 70%;
+  background: linear-gradient(to bottom, transparent, oklch(0.28 0 0 / 0.92));
+  box-shadow: 0 0 0.65rem oklch(0.25 0 0 / 0.42);
+  opacity: 0;
+  transform: rotate(-32deg);
+  animation: star-fall var(--star-duration) linear var(--star-delay) infinite;
+  /* Stars have their own visible on/off control. Keep that explicit choice in
+   * charge even when the broad reduced-motion stylesheet shortens animations. */
+  animation-duration: var(--star-duration) !important;
+  animation-delay: var(--star-delay) !important;
+  animation-iteration-count: infinite !important;
+}
+
+:root[data-theme="dark"] .falling-stars i {
+  background: linear-gradient(to bottom, transparent, oklch(0.96 0 0 / 0.92));
+  box-shadow: 0 0 0.55rem oklch(1 0 0 / 0.5);
+}
+
+.falling-stars i:nth-child(1) {
+  --star-x: 8%;
+  --star-delay: 0s;
+  --star-duration: 28s;
+  height: 4.5rem;
+}
+
+.falling-stars i:nth-child(2) {
+  --star-x: 38%;
+  --star-delay: 5s;
+  --star-duration: 34s;
+  width: 4px;
+  height: 6rem;
+  animation-name: star-fall-wide;
+}
+
+.falling-stars i:nth-child(3) {
+  --star-x: 72%;
+  --star-delay: 11s;
+  --star-duration: 40s;
+  height: 3.5rem;
+  animation-name: star-fall-short;
+}
+
+@keyframes star-fall {
+  0% {
+    opacity: 0.82;
+    transform: translate3d(0, 0, 0) rotate(-32deg);
+  }
+  5%, 68% {
+    opacity: 0.82;
+  }
+  75%, 100% {
+    opacity: 0;
+    transform: translate3d(48vw, 125vh, 0) rotate(-32deg);
+  }
+}
+
+@keyframes star-fall-wide {
+  0% { opacity: 0.78; transform: translate3d(0, 0, 0) rotate(-42deg); }
+  5%, 70% { opacity: 0.78; }
+  78%, 100% {
+    opacity: 0;
+    transform: translate3d(62vw, 120vh, 0) rotate(-42deg);
+  }
+}
+
+@keyframes star-fall-short {
+  0% { opacity: 0.72; transform: translate3d(0, 0, 0) rotate(-24deg); }
+  5%, 62% { opacity: 0.72; }
+  70%, 100% {
+    opacity: 0;
+    transform: translate3d(34vw, 118vh, 0) rotate(-24deg);
+  }
+}
+
+:root:not([data-stars="on"]) .falling-stars i {
+  animation-name: none;
+}
+
+:root:not([data-stars="on"]) .falling-stars {
+  opacity: 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -363,14 +466,6 @@
  * compositor memory for an effect nobody would see at this size.
  * ------------------------------------------------------------------------- */
 
-:root {
-  --bento-bed: var(--canvas-sunk);
-}
-
-:root[data-theme="dark"] {
-  --bento-bed: oklch(0.135 0.012 265);
-}
-
 .bento {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -382,9 +477,6 @@
   height: calc(100svh - 3rem);
   min-height: 34rem;
   gap: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 1.75rem;
-  background: var(--bento-bed);
 }
 
 .tile {
@@ -399,7 +491,23 @@
   --accent: oklch(0.55 0.15 var(--tile-hue, 250));
   transition:
     transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 0.4s ease;
+    background-color 0.4s ease,
+    box-shadow 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root:not([data-theme="dark"]) .tile {
+  box-shadow:
+    0 1px 2px oklch(0.24 0.012 265 / 0.08),
+    0 8px 20px -8px oklch(0.24 0.012 265 / 0.18),
+    0 24px 46px -24px oklch(0.24 0.012 265 / 0.28);
+}
+
+:root:not([data-theme="dark"]) .tile-reveal:hover,
+:root:not([data-theme="dark"]) .tile-reveal:focus-visible {
+  box-shadow:
+    0 2px 4px oklch(0.24 0.012 265 / 0.1),
+    0 14px 28px -10px oklch(0.24 0.012 265 / 0.22),
+    0 34px 58px -26px oklch(0.24 0.012 265 / 0.34);
 }
 
 :root[data-theme="dark"] .tile {
@@ -684,7 +792,6 @@
   .bento {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.375rem;
-    padding: 0.375rem;
   }
 
   .bento {
@@ -818,92 +925,6 @@
 
 .tile.is-on .switch-knob {
   transform: translateX(0.75rem);
-}
-
-/* ---------------------------------------------------------------------------
- * The drifting wash.
- *
- * Two soft blobs over the static pools, moving on `transform` alone so each one
- * rasterises once and is composited from then on — animating the gradient
- * itself would repaint a full-viewport layer every frame.
- *
- * No `filter: blur()`. A radial gradient that fades to transparent is already
- * soft, so the filter was paying for a full-surface blur pass every frame and
- * buying nothing visible. Off under reduced motion, and switchable from the
- * board.
- * ------------------------------------------------------------------------- */
-
-.wash::before,
-.wash::after {
-  content: "";
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-}
-
-:root[data-wave="on"] .wash::before,
-:root[data-wave="on"] .wash::after {
-  opacity: 1;
-  will-change: transform;
-}
-
-.wash::before {
-  top: -10%;
-  left: -5%;
-  width: 26rem;
-  height: 26rem;
-  background: radial-gradient(circle, oklch(0.88 0.08 250 / 0.55), transparent 70%);
-  animation: drift-a 34s ease-in-out infinite alternate;
-}
-
-.wash::after {
-  right: -8%;
-  bottom: -12%;
-  width: 28rem;
-  height: 28rem;
-  background: radial-gradient(circle, oklch(0.9 0.07 25 / 0.5), transparent 70%);
-  animation: drift-b 44s ease-in-out infinite alternate;
-}
-
-:root[data-theme="dark"] .wash::before {
-  background: radial-gradient(circle, oklch(0.55 0.15 255 / 0.4), transparent 70%);
-}
-
-:root[data-theme="dark"] .wash::after {
-  background: radial-gradient(circle, oklch(0.52 0.14 15 / 0.34), transparent 70%);
-}
-
-/* Paused rather than removed: flipping the switch back on should pick the
- * motion up where it was, not restart both blobs from their corners. */
-:root:not([data-wave="on"]) .wash::before,
-:root:not([data-wave="on"]) .wash::after {
-  animation-play-state: paused;
-}
-
-@keyframes drift-a {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.5);
-  }
-  to {
-    transform: translate3d(22vw, 16vh, 0) scale(1.9);
-  }
-}
-
-@keyframes drift-b {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.8);
-  }
-  to {
-    transform: translate3d(-20vw, -18vh, 0) scale(1.4);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wash::before,
-  .wash::after {
-    animation: none;
-  }
 }
 
 /* ---------------------------------------------------------------------------
