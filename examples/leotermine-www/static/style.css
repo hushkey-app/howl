@@ -176,7 +176,9 @@
   --star-duration: 28s;
   display: block;
   position: absolute;
-  top: -9rem;
+  /* Start with the bright head just inside the viewport, rather than spending
+   * the first several seconds travelling down from an invisible position. */
+  top: -1.5rem;
   left: var(--star-x);
   width: 3px;
   height: 5rem;
@@ -186,6 +188,11 @@
   opacity: 0;
   transform: rotate(-32deg);
   animation: star-fall var(--star-duration) linear var(--star-delay) infinite;
+  /* Stars have their own visible on/off control. Keep that explicit choice in
+   * charge even when the broad reduced-motion stylesheet shortens animations. */
+  animation-duration: var(--star-duration) !important;
+  animation-delay: var(--star-delay) !important;
+  animation-iteration-count: infinite !important;
 }
 
 :root[data-theme="dark"] .falling-stars i {
@@ -902,16 +909,6 @@
 
 .tile.is-on .switch-knob {
   transform: translateX(0.75rem);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .falling-stars i {
-    animation: none;
-  }
-
-  .falling-stars i {
-    opacity: 0.22;
-  }
 }
 
 /* ---------------------------------------------------------------------------
