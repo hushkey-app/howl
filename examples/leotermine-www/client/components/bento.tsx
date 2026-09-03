@@ -35,12 +35,12 @@ export function Bento() {
 
   return (
     <div ref={litRef} className="bento">
+      {/* First in reading order for mobile; the desktop grid pins it centrally. */}
+      <IntroTile index={next()} />
+
       <ProjectTile project={project("howl")} index={next()} span="t-wide" id="projects" />
       <ProjectTile project={project("pack")} index={next()} span="t-wide" />
       <ProjectTile project={project("hushkey")} index={next()} span="t-wide" />
-
-      {/* The middle of the board. Placed by hand; the rest packs around it. */}
-      <IntroTile index={next()} />
 
       <ProjectTile project={project("guard")} index={next()} span="t-wide" />
       <ProjectTile project={project("nobiru")} index={next()} span="t-sm" />
