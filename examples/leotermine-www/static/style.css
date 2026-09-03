@@ -167,18 +167,7 @@
   pointer-events: none;
   overflow: hidden;
   opacity: 1;
-  background-image:
-    radial-gradient(circle, oklch(0.35 0 0 / 0.38) 1px, transparent 1.5px),
-    radial-gradient(circle, oklch(0.35 0 0 / 0.24) 1px, transparent 1.5px);
-  background-position: 0 0, 3.5rem 5rem;
-  background-size: 8rem 9rem, 11rem 13rem;
   transition: opacity 0.5s ease;
-}
-
-:root[data-theme="dark"] .falling-stars {
-  background-image:
-    radial-gradient(circle, oklch(1 0 0 / 0.5) 1px, transparent 1.5px),
-    radial-gradient(circle, oklch(1 0 0 / 0.3) 1px, transparent 1.5px);
 }
 
 .falling-stars i {
@@ -206,14 +195,14 @@
 
 .falling-stars i:nth-child(1) {
   --star-x: 8%;
-  --star-delay: -7s;
+  --star-delay: 0s;
   --star-duration: 28s;
   height: 4.5rem;
 }
 
 .falling-stars i:nth-child(2) {
   --star-x: 38%;
-  --star-delay: -19s;
+  --star-delay: 5s;
   --star-duration: 34s;
   width: 4px;
   height: 6rem;
@@ -222,7 +211,7 @@
 
 .falling-stars i:nth-child(3) {
   --star-x: 72%;
-  --star-delay: -27s;
+  --star-delay: 11s;
   --star-duration: 40s;
   height: 3.5rem;
   animation-name: star-fall-short;
@@ -230,7 +219,7 @@
 
 @keyframes star-fall {
   0% {
-    opacity: 0;
+    opacity: 0.82;
     transform: translate3d(0, 0, 0) rotate(-32deg);
   }
   5%, 68% {
@@ -243,7 +232,7 @@
 }
 
 @keyframes star-fall-wide {
-  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(-42deg); }
+  0% { opacity: 0.78; transform: translate3d(0, 0, 0) rotate(-42deg); }
   5%, 70% { opacity: 0.78; }
   78%, 100% {
     opacity: 0;
@@ -252,7 +241,7 @@
 }
 
 @keyframes star-fall-short {
-  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(-24deg); }
+  0% { opacity: 0.72; transform: translate3d(0, 0, 0) rotate(-24deg); }
   5%, 62% { opacity: 0.72; }
   70%, 100% {
     opacity: 0;
