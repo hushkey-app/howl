@@ -16,7 +16,7 @@ export const nobiru: Project = {
   links: [
     {
       label: "App Store",
-      href: "https://apps.apple.com/app/id0000000000",
+      href: "https://apps.apple.com/au/app/nobiru/id6796767552",
       icon: "apple",
       primary: true,
     },

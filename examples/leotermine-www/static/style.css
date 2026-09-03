@@ -350,3 +350,738 @@
     background: oklch(0.26 0.014 265 / 0.97);
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * The bento. A résumé laid out as a summary board: tile size is how much the
+ * role mattered, reading order is newest to oldest.
+ *
+ * Deliberately *not* the frosted `.card` used everywhere else. These tiles are
+ * flat white on a grey bed with no border and no shadow — separation comes from
+ * the gutter alone, which is what makes the reference read as one printed board
+ * rather than a pile of floating cards. It is also why the grid adds no
+ * `backdrop-filter` layers: twelve more frosted surfaces would cost real
+ * compositor memory for an effect nobody would see at this size.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --bento-bed: var(--canvas-sunk);
+}
+
+:root[data-theme="dark"] {
+  --bento-bed: oklch(0.135 0.012 265);
+}
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  /* The whole site is meant to sit on one screen, so the board is sized to the
+   * viewport and the rows share what is left. `svh` rather than `vh` so a
+   * mobile browser's collapsing toolbar cannot push it into a scroll. */
+  height: calc(100svh - 3rem);
+  min-height: 34rem;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 1.75rem;
+  background: var(--bento-bed);
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.125rem;
+  padding: 1.125rem 1.25rem;
+  background: var(--surface);
+  /* The accent belongs to the tile, so a graphic inside can just use it. */
+  --accent: oklch(0.55 0.15 var(--tile-hue, 250));
+  transition:
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.4s ease;
+}
+
+:root[data-theme="dark"] .tile {
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  --accent: oklch(0.78 0.14 var(--tile-hue, 250));
+}
+
+.tile > * {
+  position: relative;
+}
+
+.tile-reveal:hover,
+.tile-reveal:focus-visible {
+  transform: translate3d(0, -3px, 0);
+  outline: none;
+}
+
+.tile-reveal:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* ---- media tiles: stretched link, hover actions ------------------------ */
+
+/* Covers the whole tile so the card is clickable, but sits *under* the action
+ * links, which keeps them real links rather than anchors inside an anchor. */
+.tile-stretch {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.tile-actions {
+  position: absolute;
+  inset: 0.75rem 0.75rem auto auto;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  /* Not clickable until they are actually there, so a cursor crossing the tile
+   * cannot catch an invisible pill. */
+  pointer-events: none;
+}
+
+.tile-media:hover .tile-actions,
+.tile-media:focus-within .tile-actions {
+  pointer-events: auto;
+}
+
+/* Each pill moves on its own rather than the row moving as a block: one
+ * compound transform on a container reads as a panel sliding, where separate
+ * ones read as the links arriving. Transform and opacity only, both on their
+ * own layer while in flight, so nothing under them repaints mid-animation. */
+.tile-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.6875rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.12),
+    0 6px 16px -8px oklch(0 0 0 / 0.3);
+  opacity: 0;
+  transform: translate3d(0, -0.625rem, 0);
+  transition:
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.58s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tile-media:hover .tile-action,
+.tile-media:focus-within .tile-action {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+}
+
+/* The stagger is only on the way in. Leaving, they all go at once — a
+ * staggered exit reads as the tile being slow to let go. */
+.tile-media:hover .tile-action:nth-child(2),
+.tile-media:focus-within .tile-action:nth-child(2) {
+  transition-delay: 55ms;
+}
+
+.tile-media:hover .tile-action:nth-child(3),
+.tile-media:focus-within .tile-action:nth-child(3) {
+  transition-delay: 110ms;
+}
+
+.tile-action:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+/* ---- tile interiors ---------------------------------------------------- */
+
+/* The headline numeral. Tabular so 15 / 500k / 80+ share a baseline rhythm. */
+.stat-value {
+  font-size: clamp(1.75rem, 3.2vw, 2.625rem);
+  font-weight: 600;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* A live role, breathing. The only looping animation on the page, on one 6px
+ * dot, because "currently here" is the single fact worth animating. */
+.pulse {
+  position: relative;
+  display: inline-block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 999px;
+  background: oklch(0.72 0.19 145);
+}
+
+.pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
+/* The route out of Sicily. A rule with three stops on it — the line is the
+ * information, so it is drawn rather than implied by spacing. */
+.route {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: start;
+  gap: 0.5rem;
+}
+
+.route::before {
+  content: "";
+  position: absolute;
+  left: 0.25rem;
+  right: calc(33.333% - 0.25rem);
+  top: 0.22rem;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    oklch(0.55 0.15 12),
+    oklch(0.55 0.15 138),
+    oklch(0.55 0.15 268)
+  );
+  opacity: 0.45;
+}
+
+.route-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--dot);
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+/* ---- spans -------------------------------------------------------------
+ * Twenty-four cells, filled exactly. The centre is placed by hand and
+ * everything else packs around it, so no other tile needs a row number.
+ * ---------------------------------------------------------------------- */
+
+.t-intro {
+  grid-column: 3 / span 2;
+  grid-row: 2 / span 2;
+}
+
+.t-wide {
+  grid-column: span 2;
+}
+
+.t-sm {
+  grid-column: span 1;
+}
+
+/* ---- media tiles ------------------------------------------------------- */
+
+/* A cover fills the tile and the name sits on a scrim over it, so the tile
+ * reads as the product rather than as a card describing one. */
+.tile-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  transform: translate3d(0, 0, 0);
+  transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tile-media:hover .tile-cover,
+.tile-media:focus-within .tile-cover {
+  transform: translate3d(0, 0, 0) scale(1.045);
+  will-change: transform;
+}
+
+.tile-wash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--accent) 26%, transparent),
+    transparent 70%),
+    var(--canvas-sunk);
+}
+
+/* The scrim only needs to carry the caption, so it stops well short of the
+ * top of the tile and lets the image keep its own light. */
+.tile-caption {
+  position: relative;
+  /* The only in-flow child of a media tile, so it has to claim the bottom
+   * itself — the cover and the actions are all absolutely positioned. */
+  margin-top: auto;
+  z-index: 1;
+  /* Text, not a target. Without this it sits on the stretched link and eats
+   * every click over the bottom of the tile — which on a one-column tile is
+   * most of it. */
+  pointer-events: none;
+  padding: 2.5rem 1.125rem 1rem;
+  background: linear-gradient(
+    to top,
+    var(--surface) 58%,
+    color-mix(in oklab, var(--surface) 92%, transparent) 78%,
+    transparent
+  );
+}
+
+:root[data-theme="dark"] .cover-scrim,
+:root[data-theme="dark"] .tile-caption {
+  background: linear-gradient(
+    to top,
+    var(--surface) 42%,
+    color-mix(in oklab, var(--surface) 84%, transparent) 68%,
+    transparent
+  );
+}
+
+@media (max-width: 1000px) {
+  .bento {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: minmax(10.5rem, auto);
+    height: auto;
+    min-height: 0;
+  }
+
+  .t-intro {
+    grid-column: 1 / span 4;
+    grid-row: auto;
+  }
+
+  .t-wide {
+    grid-column: span 2;
+  }
+
+  .t-sm {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 540px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem;
+    padding: 0.375rem;
+  }
+
+  .bento {
+    grid-auto-rows: minmax(9rem, auto);
+  }
+
+  .t-intro,
+  .t-wide {
+    grid-column: span 2;
+  }
+
+  .t-sm {
+    grid-column: span 1;
+  }
+
+  .tile,
+  .back {
+    padding: 0.9375rem 1rem;
+  }
+
+  .tile-caption {
+    padding: 2rem 1rem 0.875rem;
+  }
+}
+
+/* ---- the entrance ------------------------------------------------------ */
+
+/* One orchestrated moment when the section is reached, on a diagonal sweep,
+ * rather than a reveal fired on every tile independently. */
+.bento[data-armed] .tile {
+  opacity: 0;
+  transform: translateY(0.875rem) scale(0.985);
+}
+
+.bento[data-lit] .tile {
+  animation: tile-in 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 42ms);
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.875rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bento[data-armed] .tile {
+    opacity: 1;
+    transform: none;
+    animation: none !important;
+  }
+
+  .tile-reveal:hover,
+  .tile-reveal:focus-visible {
+    transform: none;
+  }
+
+  .tile-action {
+    transform: none;
+  }
+
+  .tile-media:hover .tile-action,
+  .tile-media:focus-within .tile-action {
+    transform: none;
+    transition-delay: 0ms !important;
+  }
+
+  .tile-media:hover .tile-cover,
+  .tile-media:focus-within .tile-cover {
+    transform: none;
+  }
+
+  .pulse::after {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Switch tiles. The state is the tile, not a knob hidden in a corner: the icon
+ * lights and the track fills, so "is this on?" is answerable at a glance.
+ * ------------------------------------------------------------------------- */
+
+.switch-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  color: var(--ink-faint);
+  background: var(--canvas-sunk);
+  transition:
+    color 0.35s ease,
+    background-color 0.35s ease;
+}
+
+.tile.is-on .switch-icon {
+  color: var(--surface);
+  background: var(--accent);
+}
+
+.switch-track {
+  position: relative;
+  display: inline-block;
+  width: 1.75rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: var(--hairline-strong);
+  transition: background-color 0.35s ease;
+}
+
+.tile.is-on .switch-track {
+  background: var(--accent);
+}
+
+.switch-knob {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.25);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tile.is-on .switch-knob {
+  transform: translateX(0.75rem);
+}
+
+/* ---------------------------------------------------------------------------
+ * The drifting wash.
+ *
+ * Two soft blobs over the static pools, moving on `transform` alone so each one
+ * rasterises once and is composited from then on — animating the gradient
+ * itself would repaint a full-viewport layer every frame.
+ *
+ * No `filter: blur()`. A radial gradient that fades to transparent is already
+ * soft, so the filter was paying for a full-surface blur pass every frame and
+ * buying nothing visible. Off under reduced motion, and switchable from the
+ * board.
+ * ------------------------------------------------------------------------- */
+
+.wash::before,
+.wash::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+:root[data-wave="on"] .wash::before,
+:root[data-wave="on"] .wash::after {
+  opacity: 1;
+  will-change: transform;
+}
+
+.wash::before {
+  top: -10%;
+  left: -5%;
+  width: 26rem;
+  height: 26rem;
+  background: radial-gradient(circle, oklch(0.88 0.08 250 / 0.55), transparent 70%);
+  animation: drift-a 34s ease-in-out infinite alternate;
+}
+
+.wash::after {
+  right: -8%;
+  bottom: -12%;
+  width: 28rem;
+  height: 28rem;
+  background: radial-gradient(circle, oklch(0.9 0.07 25 / 0.5), transparent 70%);
+  animation: drift-b 44s ease-in-out infinite alternate;
+}
+
+:root[data-theme="dark"] .wash::before {
+  background: radial-gradient(circle, oklch(0.55 0.15 255 / 0.4), transparent 70%);
+}
+
+:root[data-theme="dark"] .wash::after {
+  background: radial-gradient(circle, oklch(0.52 0.14 15 / 0.34), transparent 70%);
+}
+
+/* Paused rather than removed: flipping the switch back on should pick the
+ * motion up where it was, not restart both blobs from their corners. */
+:root:not([data-wave="on"]) .wash::before,
+:root:not([data-wave="on"]) .wash::after {
+  animation-play-state: paused;
+}
+
+@keyframes drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.5);
+  }
+  to {
+    transform: translate3d(22vw, 16vh, 0) scale(1.9);
+  }
+}
+
+@keyframes drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.8);
+  }
+  to {
+    transform: translate3d(-20vw, -18vh, 0) scale(1.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wash::before,
+  .wash::after {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Back button. With no nav bar, this is the only way off a project page, so it
+ * is a real object on the page rather than a line of faint text above the
+ * title — the same white pill the board uses for a project's links.
+ * ------------------------------------------------------------------------- */
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.5rem 0.9375rem 0.5rem 0.8125rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.1),
+    0 6px 16px -8px oklch(0 0 0 / 0.28);
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease;
+}
+
+.back-button:hover {
+  transform: translate3d(0, -1px, 0);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.12),
+    0 10px 22px -10px oklch(0 0 0 / 0.34);
+}
+
+:root[data-theme="dark"] .back-button {
+  box-shadow:
+    inset 0 0 0 1px var(--hairline),
+    0 6px 16px -8px oklch(0 0 0 / 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .back-button:hover {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Proficiency meters.
+ *
+ * One hue for every bar. These compare magnitude on a single measure, so a
+ * colour per row would encode a difference in kind that is not there, and
+ * shading by value would double-encode what the length already says. The track
+ * is a pale step of the same ramp rather than neutral grey — it reads as the
+ * unfilled part of one object instead of a separate grey object.
+ *
+ * The track sits at ~1.2:1 against the tile on purpose. That is below the 3:1
+ * a mark needs to stand on its own, which is why every row carries its name and
+ * its number as real text: the reading never depends on seeing the bar.
+ * ------------------------------------------------------------------------- */
+
+/* One grid for the whole list, not one per row. Sizing the label column per
+ * row would start every bar at a different x, and bars that do not share a
+ * baseline cannot be compared by length — which is the only thing they are for.
+ * The rows opt into the parent's columns with `subgrid` so each `li` stays a
+ * real list item. */
+.skills {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: auto minmax(3.5rem, 1fr) auto;
+  row-gap: 0.4375rem;
+  column-gap: 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  color: var(--ink-dim);
+}
+
+/* Label, bar and value on one line. Stacking the bar under its label cost ~14px
+ * a row, which the tile does not have at 800px tall. */
+.skill {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+/* Text keeps text colour — the bar beside it carries the accent. */
+.skill-name {
+  white-space: nowrap;
+}
+
+.skill-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+  text-align: right;
+}
+
+.skill-track {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: oklch(0.93 0.035 268);
+  overflow: hidden;
+}
+
+:root[data-theme="dark"] .skill-track {
+  background: oklch(0.34 0.06 268);
+}
+
+.skill-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: oklch(0.55 0.15 268);
+  /* Grown with a transform, not a width: scaling composites, where animating
+   * width relayouts and repaints the row on every frame. */
+  transform: scaleX(var(--v, 1));
+  transform-origin: left center;
+}
+
+:root[data-theme="dark"] .skill-fill {
+  background: oklch(0.78 0.14 268);
+}
+
+/* Empty only once JS has armed the board, so a no-script visitor sees the real
+ * values rather than six empty tracks. */
+.bento[data-armed] .skill-fill {
+  transform: scaleX(0);
+}
+
+.bento[data-lit] .skill-fill {
+  animation: skill-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--n, 0) * 70ms + 260ms);
+}
+
+@keyframes skill-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(var(--v, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bento[data-armed] .skill-fill {
+    transform: scaleX(var(--v, 1));
+  }
+
+  .bento[data-lit] .skill-fill {
+    animation: none;
+  }
+}
+
+/* On a short screen the intro tile is the one tile with more content than room —
+ * two rows of a viewport-height grid is ~364px at 800px tall, and name, role,
+ * copy and six meters want ~376px. Tighten the gaps rather than drop a meter or
+ * let `overflow: hidden` quietly clip the last row. */
+.intro-copy {
+  margin-top: 0.875rem;
+}
+
+.intro-copy > * + * {
+  margin-top: 0.625rem;
+}
+
+@media (max-height: 860px) {
+  .skills {
+    margin-top: 0.5rem;
+    gap: 0.25rem;
+  }
+
+  .skills {
+    line-height: 1.15;
+  }
+
+  .intro-copy {
+    margin-top: 0.6875rem;
+  }
+
+  .intro-copy > * + * {
+    margin-top: 0.5rem;
+  }
+}

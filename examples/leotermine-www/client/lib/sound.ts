@@ -4,10 +4,12 @@
  * the first tap.
  *
  * Everything is short and quiet, pitched around one small set of notes so
- * repeated interaction never turns into noise. There is no mute control: the
- * context cannot start before a gesture anyway, and at these levels a switch
- * for it is more chrome than it is worth.
+ * repeated interaction never turns into noise. The board carries a switch for
+ * it — the context cannot start before a gesture anyway, but someone who wants
+ * silence should not have to mute the tab to get it.
  */
+
+import { getPref } from "./prefs.ts";
 
 /** The named voices the UI can trigger. */
 export type Voice = "tap" | "hover" | "open" | "close" | "chip-on" | "chip-off";
@@ -100,6 +102,7 @@ function transient(ctx: AudioContext, gainValue: number, length = 0.05): void {
  * when called during SSR — callers never need to guard.
  */
 export function playSound(voice: Voice): void {
+  if (!getPref("sound")) return;
   const ctx = ensureContext();
   if (!ctx) return;
 

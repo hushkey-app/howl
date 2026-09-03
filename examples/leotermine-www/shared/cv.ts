@@ -106,3 +106,103 @@ export const ROLES: Role[] = [
     ],
   },
 ];
+
+/**
+ * Accent hue per company, in oklch degrees. Colour is used only inside a
+ * tile's graphic — the numeral, the status pulse, the route dot — never on the
+ * tile itself, so the grid stays white-on-grey the way the reference does.
+ */
+export const COMPANY_HUE: Record<string, number> = {
+  "Hushkey": 268,
+  "SpaceToCo": 196,
+  "Gnocchi Boys": 28,
+  "Freelance": 152,
+  "bet365": 138,
+  "Infinity Games": 12,
+};
+
+/** A headline number with the sentence that earns it. */
+export interface Stat {
+  /** The numeral itself, set large. Kept short — it is read as a graphic. */
+  value: string;
+  /** What the number counts, in plain words. */
+  caption: string;
+  /** The evidence behind it, revealed on hover. */
+  detail: string;
+  /** oklch hue for the numeral. */
+  hue: number;
+}
+
+/**
+ * The three numbers worth leading with. Each one is traceable to a specific
+ * line in `ROLES` — nothing here is a rounded-up impression.
+ */
+export const CAREER_STATS: Stat[] = [
+  {
+    value: "15",
+    caption: "Years shipping software",
+    detail:
+      "From racking servers on a Sicilian data-centre floor in 2011 to distributed systems in Perth.",
+    hue: 268,
+  },
+  {
+    value: "500k",
+    caption: "Users migrated without downtime",
+    detail:
+      "Moved off Cognito to Auth0 and Logto behind a custom low-latency identity layer built to absorb the traffic.",
+    hue: 196,
+  },
+  {
+    value: "80+",
+    caption: "Council clients on single sign-on",
+    detail:
+      "Role-based multi-tenant integrations delivered across Australia and the United Kingdom.",
+    hue: 152,
+  },
+];
+
+/** One stop on the route from Sicily to Perth. */
+export interface Waypoint {
+  /** Place name as it would be said out loud. */
+  place: string;
+  /** Country, for the line under the place. */
+  country: string;
+  /** Span spent there. */
+  years: string;
+  /** oklch hue for the dot. */
+  hue: number;
+}
+
+/** Where the work has happened, oldest first — the tile reads left to right. */
+export const JOURNEY: Waypoint[] = [
+  { place: "Sciacca", country: "Sicily", years: "2011", hue: 12 },
+  { place: "Malta", country: "Malta", years: "2014", hue: 138 },
+  { place: "Perth", country: "Australia", years: "2019", hue: 268 },
+];
+
+/** One row of the proficiency meter on the intro tile. */
+export interface Skill {
+  /** What the bar measures, in words a visitor would use. */
+  label: string;
+  /** Self-assessed proficiency, 0–100. */
+  value: number;
+}
+
+/**
+ * Proficiency by area, highest first.
+ *
+ * Sorted rather than grouped: the bars exist to be compared against each other,
+ * and an unsorted magnitude chart makes the reader do that work themselves.
+ *
+ * These are self-assessed and shown as one hue for exactly that reason — a
+ * colour per row would encode a difference in *kind* that isn't there, and
+ * shading by value would say the same thing the bar length already says.
+ */
+export const SKILLS: Skill[] = [
+  { label: "Software engineering", value: 90 },
+  { label: "Web development", value: 90 },
+  { label: "Native development", value: 90 },
+  { label: "Cloud", value: 90 },
+  { label: "UI/UX", value: 80 },
+  { label: "Project management", value: 80 },
+];

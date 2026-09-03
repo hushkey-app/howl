@@ -8,7 +8,6 @@ import { EMAIL } from "../../shared/profile.ts";
 
 const LINKS = [
   { hash: "#projects", label: "Projects" },
-  { hash: "#experience", label: "Experience" },
   { hash: "#contact", label: "Contact" },
 ];
 

@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useSyncExternalStore } from "react";
 import { getTheme, subscribeTheme, type Theme } from "./theme.ts";
+import { getPref, type Pref, subscribePrefs } from "./prefs.ts";
 
 /**
  * Motion helpers. The tilt writes CSS custom properties rather than React
@@ -128,4 +129,65 @@ export function useEscape(open: boolean, onClose: () => void): void {
  */
 export function useTheme(): Theme {
   return useSyncExternalStore(subscribeTheme, getTheme, () => "light" as const);
+}
+
+/**
+ * Runs the bento's entrance once, the first time it scrolls into view.
+ *
+ * The hidden starting state is applied by JS (`data-armed`) rather than sitting
+ * in the stylesheet, so the tiles are visible by default: if scripting is off,
+ * or `IntersectionObserver` never delivers — a background tab, an odd headless
+ * browser — the résumé still renders. A work history is content, and content
+ * must never depend on an animation firing to be readable.
+ *
+ * The timeout is the last line of that defence, not the intended trigger.
+ */
+export function useRevealOnce<T extends HTMLElement>(): RefObject<T | null> {
+  const ref = useRef<T | null>(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    const light = () => node.setAttribute("data-lit", "");
+
+    node.setAttribute("data-armed", "");
+    if (typeof IntersectionObserver === "undefined") {
+      light();
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          light();
+          observer.disconnect();
+        }
+      }
+    }, { threshold: 0.15 });
+
+    observer.observe(node);
+    const fallback = setTimeout(light, 4000);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(fallback);
+    };
+  }, []);
+
+  return ref;
+}
+
+/**
+ * Whether one of the board's switches is on, kept in sync across the tree.
+ *
+ * The server snapshot is always `true` — both switches default to on, and the
+ * real value is stamped onto `<html>` before paint and read here on mount.
+ */
+export function usePref(pref: Pref): boolean {
+  return useSyncExternalStore(
+    subscribePrefs,
+    () => getPref(pref),
+    () => true,
+  );
 }
