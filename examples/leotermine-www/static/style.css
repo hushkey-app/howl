@@ -161,23 +161,39 @@
  * no longer has its own backing panel. Each streak is a tiny compositor layer;
  * the fixed positions and timings keep server and client output identical. */
 .falling-stars {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: 2;
+  pointer-events: none;
   overflow: hidden;
+  opacity: 1;
+  background-image:
+    radial-gradient(circle, oklch(0.35 0 0 / 0.38) 1px, transparent 1.5px),
+    radial-gradient(circle, oklch(0.35 0 0 / 0.24) 1px, transparent 1.5px);
+  background-position: 0 0, 3.5rem 5rem;
+  background-size: 8rem 9rem, 11rem 13rem;
+  transition: opacity 0.5s ease;
+}
+
+:root[data-theme="dark"] .falling-stars {
+  background-image:
+    radial-gradient(circle, oklch(1 0 0 / 0.5) 1px, transparent 1.5px),
+    radial-gradient(circle, oklch(1 0 0 / 0.3) 1px, transparent 1.5px);
 }
 
 .falling-stars i {
   --star-x: 8%;
   --star-delay: 0s;
   --star-duration: 9s;
+  display: block;
   position: absolute;
   top: -5rem;
   left: var(--star-x);
-  width: 2px;
-  height: 5rem;
+  width: 3px;
+  height: 7rem;
   border-radius: 999px;
-  background: linear-gradient(to bottom, transparent, oklch(0.38 0 0 / 0.78));
-  box-shadow: 0 0 0.45rem oklch(0.35 0 0 / 0.32);
+  background: linear-gradient(to bottom, transparent, oklch(0.28 0 0 / 0.92));
+  box-shadow: 0 0 0.65rem oklch(0.25 0 0 / 0.42);
   opacity: 0;
   transform: rotate(-24deg);
   animation: star-fall var(--star-duration) linear var(--star-delay) infinite;
@@ -216,6 +232,9 @@
 
 :root:not([data-stars="on"]) .falling-stars i {
   animation-play-state: paused;
+}
+
+:root:not([data-stars="on"]) .falling-stars {
   opacity: 0;
 }
 

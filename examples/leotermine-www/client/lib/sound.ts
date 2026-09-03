@@ -17,7 +17,7 @@ export type Voice = "tap" | "hover" | "open" | "close" | "chip-on" | "chip-off" 
 let audio: AudioContext | null = null;
 let master: GainNode | null = null;
 let lastHover = 0;
-let lastStar = 0;
+let lastStar = -Infinity;
 
 function ensureContext(): AudioContext | null {
   if (typeof globalThis.window === "undefined") return null;

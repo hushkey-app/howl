@@ -292,9 +292,12 @@ function SwitchTile(
       aria-checked={active}
       aria-label={label}
       onClick={() => {
-        // Flip first: turning sound back on should be audible, turning it off silent.
+        const turningOn = !active;
         togglePref(pref);
-        playSound("tap");
+        // Preview the meteor voice immediately while the click still grants
+        // browser audio permission. All later passes can then play naturally.
+        if (pref === "stars" && turningOn) playSound("star");
+        else playSound("tap");
       }}
       style={{ "--i": index, "--tile-hue": hue } as CSSProperties}
       className={cn("tile tile-reveal t-sm justify-center text-left", active && "is-on")}

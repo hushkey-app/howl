@@ -7,8 +7,9 @@
  */
 export function Wash() {
   return (
-    <div className="wash" aria-hidden="true">
-      <div className="falling-stars">
+    <>
+      <div className="wash" aria-hidden="true" />
+      <div className="falling-stars" aria-hidden="true">
         {Array.from({ length: 12 }, (_, index) => (
           <i
             key={index}
@@ -16,7 +17,7 @@ export function Wash() {
           />
         ))}
       </div>
-    </div>
+    </>
   );
 }
 import { playSound } from "@/lib/sound.ts";
