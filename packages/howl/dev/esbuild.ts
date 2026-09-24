@@ -2,6 +2,20 @@ import { denoPlugin } from "./deno_esbuild_plugin.ts";
 import type { BuildContext, BuildOptions, Plugin as EsbuildPlugin } from "esbuild";
 import * as path from "@std/path";
 
+/**
+ * Warnings muted on every Howl bundle. `ignored-bare-import`: denoPlugin
+ * forwards each package's `sideEffects` flag, so esbuild drops bare imports
+ * like `import "./shared/chunk.mjs"` inside side-effect-free deps (unhead,
+ * hookable). esbuild itself mutes that warning for importers under
+ * node_modules, but deps served from Deno's global cache don't match that
+ * path check — so without this, every such dep floods the build log.
+ */
+const LOG_OVERRIDE: BuildOptions["logOverride"] = {
+  "suspicious-nullish-coalescing": "silent",
+  "unsupported-jsx-comment": "silent",
+  "ignored-bare-import": "silent",
+};
+
 export interface HowlBundleOptions {
   dev: boolean;
   cwd: string;
@@ -87,10 +101,7 @@ function clientBuildOptions(
     sourceRoot: options.dev ? undefined : options.sourceMap?.sourceRoot,
     sourcesContent: options.dev ? undefined : options.sourceMap?.sourcesContent,
     minify: !options.dev,
-    logOverride: {
-      "suspicious-nullish-coalescing": "silent",
-      "unsupported-jsx-comment": "silent",
-    },
+    logOverride: LOG_OVERRIDE,
 
     jsxDev: options.dev,
     jsx: "automatic",
@@ -303,10 +314,7 @@ export async function bundleVueSsr(
       outdir: options.outDir,
       entryNames: "[name]",
       write: true,
-      logOverride: {
-        "suspicious-nullish-coalescing": "silent",
-        "unsupported-jsx-comment": "silent",
-      },
+      logOverride: LOG_OVERRIDE,
       plugins: [
         buildIdPlugin(options.buildId),
         ...(options.plugins ?? []),
@@ -412,10 +420,7 @@ export async function bundleReactSsr(
           options.dev ? "development" : "production",
         ),
       },
-      logOverride: {
-        "suspicious-nullish-coalescing": "silent",
-        "unsupported-jsx-comment": "silent",
-      },
+      logOverride: LOG_OVERRIDE,
       // A CJS dependency that `require()`s an external module is lowered by
       // esbuild into `__require(...)`, which throws "Dynamic require of X is not
       // supported" in ESM output. Not hypothetical: use-sync-external-store
