@@ -1,4 +1,5 @@
 import { engineOf, isFullstack, type ProjectSpec, type UiKit } from "../spec.ts";
+import { wsFiles } from "./ws.ts";
 import { denoJson, devTs, envExample, gitignore, howlConfigTs, mainTs, pingApiTs } from "./core.ts";
 import { styleCss, tailwindConfigTs } from "./styles.ts";
 import { reactFiles } from "./react.ts";
@@ -21,6 +22,7 @@ export function buildProjectFiles(spec: ProjectSpec): Map<string, string> {
   files.set("server/main.ts", mainTs(spec));
   files.set("howl.config.ts", howlConfigTs(spec));
   files.set("server/apis/public/ping.api.ts", pingApiTs());
+  for (const [path, content] of Object.entries(wsFiles())) files.set(path, content);
   files.set(".gitignore", gitignore(spec));
   files.set(".env.example", envExample(spec));
   files.set("README.md", readmeMd(spec));
@@ -69,6 +71,7 @@ function readmeMd(spec: ProjectSpec): string {
     "",
     "- `server/main.ts` — the Howl app.",
     "- `server/apis/**/*.api.ts` — typed API routes (sample: `public/ping`).",
+    "- `server/ws/` — WebSocket endpoints (sample: `/channels`) + an in-memory `publish()` relay.",
     "- `dev.ts` — build/dev wiring (HowlBuilder + plugins).",
     "- `generated/http-client.ts` — a typed client generated from your APIs at build time.",
   ];
@@ -83,7 +86,8 @@ function readmeMd(spec: ProjectSpec): string {
 
   if (spec.service !== "none") {
     lines.push(
-      "- `server/services/**` — the " + spec.service + " service layer (sample: `items`).",
+      "- `server/services/**` — the " + spec.service + " service layer (sample: `items`), " +
+        "registered in `server/services/_index.services.ts`.",
     );
     lines.push("");
     lines.push("## Admin (Studio)");

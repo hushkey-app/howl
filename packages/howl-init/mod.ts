@@ -36,6 +36,13 @@ export interface RunInitOptions {
    * `true`; tests pass `false` to stay fast and subprocess-free.
    */
   format?: boolean;
+  /**
+   * Run `deno install` in the generated project so npm deps — including the
+   * JSX types (`@types/react`) the editor needs — are in `node_modules` before
+   * the first open. Best-effort, like `format`. Default `true`; tests pass
+   * `false` to stay offline.
+   */
+  install?: boolean;
 }
 
 /** Outcome of a successful init run. */
@@ -66,6 +73,7 @@ export async function runInit(opts: RunInitOptions = {}): Promise<RunInitResult>
   await scaffold({ spec, targetDir, onProgress: progress });
 
   if (opts.format !== false) await tryFormat(targetDir);
+  if (opts.install !== false) await tryInstall(targetDir);
 
   return { path: targetDir, spec };
 }
@@ -84,6 +92,26 @@ async function tryFormat(dir: string): Promise<void> {
     }).output();
   } catch {
     // leave the files as written
+  }
+}
+
+/**
+ * Best-effort `deno install` so dependencies (and the JSX types the Deno LSP
+ * resolves via `jsxImportSourceTypes`) are cached up front. Output streams to
+ * the terminal so a slow first download isn't silent; failures (offline, no
+ * `deno` on PATH) are ignored — `deno task dev` installs on first run anyway.
+ */
+async function tryInstall(dir: string): Promise<void> {
+  try {
+    console.log("\nInstalling dependencies…");
+    await new Deno.Command("deno", {
+      args: ["install"],
+      cwd: dir,
+      stdout: "inherit",
+      stderr: "inherit",
+    }).output();
+  } catch {
+    // leave it to the first `deno task dev`
   }
 }
 
