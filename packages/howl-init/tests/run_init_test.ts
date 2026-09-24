@@ -47,6 +47,7 @@ Deno.test("runInit with explicit options skips all prompts", async () => {
       cwd: dir,
       prompt: prompts,
       format: false,
+      install: false,
     });
 
     expect(result.spec.name).toBe("my-app");
@@ -64,7 +65,7 @@ Deno.test("runInit prompts name → type → service for a backend (no UI step)"
       ask: ["from-prompt"],
       pick: ["backend", "none"],
     });
-    const result = await runInit({ cwd: dir, prompt: prompts, format: false });
+    const result = await runInit({ cwd: dir, prompt: prompts, format: false, install: false });
 
     expect(result.spec.name).toBe("from-prompt");
     expect(result.spec.appType).toBe("backend");
@@ -79,7 +80,13 @@ Deno.test("runInit asks the UI-kit step for a fullstack app", async () => {
     const { prompts, picked } = recordingPrompts({
       pick: ["fullstack-react", "shadcn/ui", "none"],
     });
-    const result = await runInit({ name: "fs", cwd: dir, prompt: prompts, format: false });
+    const result = await runInit({
+      name: "fs",
+      cwd: dir,
+      prompt: prompts,
+      format: false,
+      install: false,
+    });
 
     expect(result.spec.appType).toBe("fullstack-react");
     expect(result.spec.ui).toBe("shadcn");
@@ -91,7 +98,13 @@ Deno.test("runInit asks the UI-kit step for a fullstack app", async () => {
 Deno.test("runInit wires service + studio when a database is picked", async () => {
   await withTempDir(async (dir) => {
     const { prompts } = recordingPrompts({ pick: ["backend", "sqlite"] });
-    const result = await runInit({ name: "svc", cwd: dir, prompt: prompts, format: false });
+    const result = await runInit({
+      name: "svc",
+      cwd: dir,
+      prompt: prompts,
+      format: false,
+      install: false,
+    });
 
     expect(result.spec.service).toBe("sqlite");
     expect((await Deno.stat(join(dir, "svc", "server/services/items/items.service.ts"))).isFile)

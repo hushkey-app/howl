@@ -5,9 +5,31 @@ export function serviceFiles(spec: ProjectSpec): Record<string, string> {
   if (spec.service === "none") return {};
   return {
     "server/services/connections.ts": connectionsTs(spec.service, spec.name),
+    "server/services/_index.services.ts": indexServicesTs(),
     "server/services/items/items.schema.ts": itemsSchemaTs(),
     "server/services/items/items.service.ts": itemsServiceTs(spec.service),
   };
+}
+
+function indexServicesTs(): string {
+  return `import { itemsService as items } from "./items/items.service.ts";
+
+/**
+ * Service registry — add one line per service. Studio (server/main.ts) reads
+ * this map, and handlers resolve services through \`service()\`:
+ *
+ *   import { service } from "../../services/_index.services.ts";
+ *   const pending = await service("items").find({ query: { done: false } });
+ */
+export const services = {
+  items,
+};
+
+export type Services = typeof services;
+
+/** Typed accessor — \`service("items")\` returns the ItemsService instance. */
+export const service = <K extends keyof Services>(name: K): Services[K] => services[name];
+`;
 }
 
 function connectionsTs(service: ServiceLayer, name: string): string {
