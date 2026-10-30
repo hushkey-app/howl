@@ -11,6 +11,8 @@ export function denoJson(spec: ProjectSpec): string {
     // Alias so client pages can `import { State } from "@howl/config"` without
     // brittle relative paths up out of client/.
     "@howl/config": "./howl.config.ts",
+    // Project-root alias: `import { x } from "@src/server/..."` from anywhere.
+    "@src/": "./",
     "zod": "npm:zod@4.3.6",
     "@std/path": "jsr:@std/path@^1.0.0",
   };
@@ -43,6 +45,7 @@ export function denoJson(spec: ProjectSpec): string {
       imports["tailwind-merge"] = "npm:tailwind-merge@^3.3.1";
       imports["lucide-react"] = "npm:lucide-react@^0.468.0";
       imports["@radix-ui/react-slot"] = "npm:@radix-ui/react-slot@^1.1.2";
+      imports["@radix-ui/react-navigation-menu"] = "npm:@radix-ui/react-navigation-menu@^1.2.5";
     }
   }
 
@@ -81,7 +84,14 @@ export function denoJson(spec: ProjectSpec): string {
   // would otherwise make `deno lint` enable JSR slow-type rules (every
   // `export const app = new Howl(...)` would need an explicit type) and warn on
   // a name without exports. The compile task embeds the project name directly.
+  //
+  // `nodeModulesDir: "auto"` materialises npm deps into ./node_modules. Without
+  // it the tailwind plugin can't resolve `@import "tailwindcss"` (postcss walks
+  // node_modules), and esbuild — which only mutes `ignored-bare-import` for
+  // importers under node_modules — warns on every `sideEffects: false` dep
+  // loaded from Deno's global cache (e.g. unhead).
   const obj = {
+    nodeModulesDir: "auto",
     tasks: {
       dev: `deno run -A --watch --watch-exclude=${watchExclude.join(",")} dev.ts`,
       build: "deno run -A dev.ts build",
@@ -156,8 +166,9 @@ export function mainTs(spec: ProjectSpec): string {
   if (engine === "vue") lines.push(`import { vueEngine } from "@hushkey/howl-vue";`);
   if (spec.service !== "none") {
     lines.push(`import { studio } from "@hushkey/studio";`);
-    lines.push(`import { itemsService } from "./services/items/items.service.ts";`);
+    lines.push(`import { services } from "./services/_index.services.ts";`);
   }
+  lines.push(`import ws from "./ws/_index.ws.ts";`);
   lines.push(`import { apiConfig, type State } from "../howl.config.ts";`);
   lines.push("");
   lines.push(`export const app = new Howl<State>({`);
@@ -175,7 +186,7 @@ export function mainTs(spec: ProjectSpec): string {
   lines.push("");
   if (spec.service !== "none") {
     lines.push(`// Admin dashboard at /studio, speaking the service contract.`);
-    lines.push(`app.use(studio({ services: { items: itemsService } }));`);
+    lines.push(`app.use(studio({ services }));`);
     lines.push("");
   }
   if (!fullstack) {
@@ -185,6 +196,9 @@ export function mainTs(spec: ProjectSpec): string {
     );
     lines.push("");
   }
+  lines.push(`// WebSocket endpoints (server/ws/) — realtime push via publish() in ws/relay.ts.`);
+  lines.push(`app.configure(ws);`);
+  lines.push("");
   lines.push(`app.fsApiRoutes(apiConfig);`);
   if (fullstack) lines.push(`app.fsClientRoutes();`);
   lines.push("");
@@ -200,6 +214,8 @@ export function howlConfigTs(_spec: ProjectSpec): string {
 export interface State {
   /** App title, surfaced on pages via ctx.state. */
   title: string;
+  /** User bound to a WebSocket connection (set in server/ws/channels.ws.ts). */
+  wsUserId?: string;
 }
 
 export const roles = ["USER"] as const;

@@ -44,7 +44,9 @@ export function agentsMd(spec: ProjectSpec): string {
     L.push("- API-only — no view engine, no client pages");
   } else {
     L.push(
-      `- View engine: ${engine === "vue" ? "Vue (.vue SFC pages)" : "React (.tsx pages)"} via ${enginePkg}`,
+      `- View engine: ${
+        engine === "vue" ? "Vue (.vue SFC pages)" : "React (.tsx pages)"
+      } via ${enginePkg}`,
     );
     L.push(`- UI: ${uiLabel(spec.ui)}`);
   }
@@ -69,11 +71,17 @@ export function agentsMd(spec: ProjectSpec): string {
   L.push("  apis/**/*.api.ts     typed API routes (sample: public/ping)");
   if (spec.service !== "none") {
     L.push("  services/<entity>/   schema + service per collection");
+    L.push("  services/_index.services.ts  service registry + typed service() accessor");
   }
+  L.push("  ws/*.ws.ts           WebSocket endpoints (sample: /channels)");
+  L.push("  ws/_index.ws.ts      registers every endpoint; main.ts calls app.configure(ws)");
+  L.push("  ws/relay.ts          in-memory userId → sockets relay + publish()");
   L.push("  main.ts              the Howl app: engine, middleware, routes");
   if (fullstack) {
     L.push("client/");
-    L.push(`  pages/**/*.${ext}     file-system-routed pages (_app, _layout, _error are structural)`);
+    L.push(
+      `  pages/**/*.${ext}     file-system-routed pages (_app, _layout, _error are structural)`,
+    );
     L.push("static/                served at /static/*");
   }
   L.push("generated/http-client.ts  typed client generated from apis/ (do not edit)");
@@ -97,7 +105,9 @@ export function agentsMd(spec: ProjectSpec): string {
   L.push('  name: "ListItems",');
   L.push('  directory: "items",        // REQUIRED — OpenAPI tag');
   L.push('  method: "GET",');
-  L.push("  roles: [],                  // [] = public; else listed roles (see checkPermissionStrategy)");
+  L.push(
+    "  roles: [],                  // [] = public; else listed roles (see checkPermissionStrategy)",
+  );
   L.push("  query: z.object({ limit: z.coerce.number().max(100).optional() }),");
   L.push("  responses: { 200: z.object({ data: z.array(z.any()) }) },");
   L.push("  handler: (ctx) => ({ status: 200, data: [] }),");
@@ -114,7 +124,7 @@ export function agentsMd(spec: ProjectSpec): string {
       "`ok: true` is injected, the rest is emitted as-is. Howl does **not** auto-nest — return " +
       "`{ status, data }` to get a `data` field.",
   );
-  L.push('- Throw `new HttpError(status, message)` (from `@hushkey/howl`) for controlled errors.');
+  L.push("- Throw `new HttpError(status, message)` (from `@hushkey/howl`) for controlled errors.");
   L.push("");
 
   // ── The request context (ctx) ──────────────────────────────────────
@@ -135,7 +145,7 @@ export function agentsMd(spec: ProjectSpec): string {
   );
   L.push("| `ctx.params` | Path params from `[param]` route folders (all strings). |");
   L.push(
-    "| `ctx.query(key?)` | Query-string reader — a **method**: `ctx.query(\"q\")` → one " +
+    '| `ctx.query(key?)` | Query-string reader — a **method**: `ctx.query("q")` → one ' +
       "value, `ctx.query()` → all. |",
   );
   L.push(
@@ -184,6 +194,34 @@ export function agentsMd(spec: ProjectSpec): string {
     "",
   );
 
+  // ── WebSockets ─────────────────────────────────────────────────────
+  L.push("## WebSockets", "");
+  L.push(
+    "Endpoints live in `server/ws/<name>.ws.ts`: default-export a function that takes " +
+      "the app and calls `app.ws(path, { open, message, close, error })`, then register it " +
+      "in `server/ws/_index.ws.ts` with `app.configure(<name>)` — `server/main.ts` already " +
+      "runs `app.configure(ws)` before `fsApiRoutes`. Each handler gets the socket and the " +
+      "upgrading request's `ctx`, so middleware-set `ctx.state` (auth) is available.",
+    "",
+  );
+  L.push("Push to a user from anywhere on the server (API handler, service):");
+  L.push("```ts");
+  L.push('import { publish } from "../../ws/relay.ts";');
+  L.push("");
+  L.push('publish(userId, "item.created", item); // → every open tab gets { event, data }');
+  L.push("```", "");
+  L.push("Rules:");
+  L.push(
+    "- The sample `/channels` endpoint identifies users by `?userId=` — a placeholder. " +
+      "Replace it with your auth middleware's user before shipping.",
+  );
+  L.push(
+    "- `relay.ts` is in-memory and single-process. For multiple instances, back " +
+      "`publish()` with a pub/sub (e.g. Redis) and keep the same `wsConnect` / " +
+      "`wsDisconnect` / `publish` surface.",
+  );
+  L.push("");
+
   // ── Add a service ──────────────────────────────────────────────────
   if (spec.service !== "none") {
     const w = SERVICE_WIRING[spec.service];
@@ -220,9 +258,23 @@ export function agentsMd(spec: ProjectSpec): string {
     L.push("}");
     L.push("export const itemsService = new ItemsService();");
     L.push("```", "");
-    L.push("Register it for the Studio admin in `server/main.ts`:");
+    L.push(
+      "Register it in `server/services/_index.services.ts` — one line per service. " +
+        "Studio (`/studio`) reads this map, so a registered service shows up in the admin " +
+        "automatically:",
+    );
     L.push("```ts");
-    L.push("app.use(studio({ services: { items: itemsService } }));");
+    L.push('import { itemsService as items } from "./items/items.service.ts";');
+    L.push("");
+    L.push("export const services = {");
+    L.push("  items,");
+    L.push("};");
+    L.push("```", "");
+    L.push("Use it from a handler through the typed `service()` accessor:");
+    L.push("```ts");
+    L.push('import { service } from "../../services/_index.services.ts";');
+    L.push("");
+    L.push('handler: async () => ({ status: 200, data: await service("items").pending() }),');
     L.push("```", "");
     L.push(
       "**The envelope is managed for you — never declare these fields yourself:** `id` " +
@@ -274,7 +326,10 @@ export function agentsMd(spec: ProjectSpec): string {
       "- Filter grammar: `$eq $ne $in $nin $gt $gte $lt $lte $or $and $exists` plus " +
         "dot-paths into nested fields.",
     );
-    L.push("- Call services from API handlers; keep handlers thin and the domain logic on the service.");
+    L.push(
+      '- Call services from API handlers via `service("<name>")`; keep handlers thin and ' +
+        "the domain logic on the service.",
+    );
     L.push("");
   }
 
@@ -297,7 +352,9 @@ export function agentsMd(spec: ProjectSpec): string {
     L.push('import { http } from "../../generated/http-client.ts";');
     L.push("const res = await http.api.items.$get();   // { ok, status, ...body }");
     L.push("```");
-    L.push("- Client-side navigation is opt-in via `client-nav` on `<body>` (already set in `_app`).");
+    L.push(
+      "- Client-side navigation is opt-in via `client-nav` on `<body>` (already set in `_app`).",
+    );
     L.push("");
   }
 

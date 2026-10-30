@@ -59,11 +59,18 @@ Deno.test("buildProjectFiles — fullstack-react + shadcn vendors components + d
   expect(files.has("client/lib/utils.ts")).toBe(true);
   expect(files.has("client/components/ui/button.tsx")).toBe(true);
   expect(files.has("client/components/ui/card.tsx")).toBe(true);
+  expect(files.has("client/components/ui/navigation-menu.tsx")).toBe(true);
+  expect(files.has("client/components/site-header.tsx")).toBe(true);
+  expect(files.has("client/pages/_layout.tsx")).toBe(true);
+  expect(files.has("client/pages/about.tsx")).toBe(true);
+  expect(files.get("client/pages/_layout.tsx")).toContain("<SiteHeader");
+  expect(files.get("client/pages/_app.tsx")).not.toContain("SiteHeader");
   expect(files.has("static/style.css")).toBe(true);
 
   const deno = files.get("deno.json")!;
   expect(deno).toContain("@hushkey/howl-react");
   expect(deno).toContain("class-variance-authority");
+  expect(deno).toContain("@radix-ui/react-navigation-menu");
   expect(deno).toContain('"@/": "./client/"');
   expect(deno).toContain('"jsxImportSource": "react"');
 
@@ -107,6 +114,33 @@ Deno.test("buildProjectFiles — fullstack-vue emits .vue pages + vue deps", () 
   expect(files.get("server/main.ts")).toContain("vueEngine()");
 });
 
+Deno.test("buildProjectFiles — every app type gets the ws folder, wired in main.ts", () => {
+  for (const appType of ["backend", "fullstack-react", "fullstack-vue"] as const) {
+    const ui = appType === "backend" ? "none" : "tailwind";
+    const files = buildProjectFiles({ name: "ws", appType, ui, service: "none" });
+    expect(files.get("server/ws/relay.ts")).toContain("export const publish");
+    expect(files.get("server/ws/channels.ws.ts")).toContain(`app.ws("/channels"`);
+    const main = files.get("server/main.ts")!;
+    expect(files.get("server/ws/_index.ws.ts")).toContain("app.configure(channels)");
+    expect(main).toContain(`import ws from "./ws/_index.ws.ts"`);
+    expect(main).toContain("app.configure(ws);");
+    expect(files.get("howl.config.ts")).toContain("wsUserId?: string");
+    expect(files.get("AGENTS.md")).toContain("## WebSockets");
+  }
+});
+
+Deno.test("buildProjectFiles — React index has a right-aligned button opening a continue/cancel modal", () => {
+  for (const ui of ["tailwind", "daisyui", "shadcn"] as const) {
+    const index = buildProjectFiles({ name: "m", appType: "fullstack-react", ui, service: "none" })
+      .get("client/pages/index.tsx")!;
+    expect(index).toContain("Open modal");
+    expect(index).toContain("justify-end");
+    expect(index).toContain('role="dialog"');
+    expect(index).toContain("onClick={closeModal}");
+    expect(index).toContain("onClick={continueModal}");
+  }
+});
+
 Deno.test("buildProjectFiles — service layer adds connection, service, studio, deps", () => {
   for (const service of ["sqlite", "postgres", "mongo"] as const) {
     const spec: ProjectSpec = { name: "svc", appType: "backend", ui: "none", service };
@@ -114,7 +148,10 @@ Deno.test("buildProjectFiles — service layer adds connection, service, studio,
     expect(files.has("server/services/connections.ts")).toBe(true);
     expect(files.has("server/services/items/items.schema.ts")).toBe(true);
     expect(files.has("server/services/items/items.service.ts")).toBe(true);
-    expect(files.get("server/main.ts")).toContain("studio(");
+    expect(files.get("server/services/_index.services.ts")).toContain("export const service =");
+    const main = files.get("server/main.ts")!;
+    expect(main).toContain(`from "./services/_index.services.ts"`);
+    expect(main).toContain("studio({ services })");
     const deno = files.get("deno.json")!;
     expect(deno).toContain("@hushkey/service-core");
     expect(deno).toContain("@hushkey/studio");
@@ -168,7 +205,7 @@ Deno.test("scaffold succeeds when target dir exists but is empty", async () => {
   });
 });
 
-Deno.test("every generated deno.json is valid JSON across the matrix", () => {
+Deno.test("every generated deno.json is valid JSON with nodeModulesDir across the matrix", () => {
   const types = ["backend", "fullstack-react", "fullstack-vue"] as const;
   const services = ["none", "sqlite", "postgres", "mongo"] as const;
   for (const appType of types) {
@@ -180,7 +217,10 @@ Deno.test("every generated deno.json is valid JSON across the matrix", () => {
     for (const ui of uis) {
       for (const service of services) {
         const files = buildProjectFiles({ name: "matrix", appType, ui, service });
-        expect(() => JSON.parse(files.get("deno.json")!)).not.toThrow();
+        const deno = JSON.parse(files.get("deno.json")!);
+        // Tailwind resolution + quiet esbuild both depend on a local node_modules.
+        expect(deno.nodeModulesDir).toBe("auto");
+        expect(deno.imports["@src/"]).toBe("./");
       }
     }
   }

@@ -224,3 +224,56 @@ const SHADCN_CSS = `@import "tailwindcss";
   }
 }
 `;
+
+/**
+ * shadcn `client/components/ui/navigation-menu.tsx` — the link-only subset
+ * (no trigger/content/viewport), which is all a flat top-bar nav needs.
+ */
+export function shadcnNavigationMenu(): string {
+  return `import * as React from "react";
+import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
+import { cva } from "class-variance-authority";
+
+import { cn } from "@/lib/utils.ts";
+
+function NavigationMenu({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Root>) {
+  return (
+    <NavigationMenuPrimitive.Root
+      data-slot="navigation-menu"
+      className={cn("relative flex max-w-max flex-1 items-center justify-center", className)}
+      {...props}
+    />
+  );
+}
+
+function NavigationMenuList({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.List>) {
+  return (
+    <NavigationMenuPrimitive.List
+      data-slot="navigation-menu-list"
+      className={cn("flex flex-1 list-none items-center justify-center gap-1", className)}
+      {...props}
+    />
+  );
+}
+
+function NavigationMenuItem({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Item>) {
+  return <NavigationMenuPrimitive.Item data-slot="navigation-menu-item" className={cn("relative", className)} {...props} />;
+}
+
+const navigationMenuTriggerStyle = cva(
+  "inline-flex h-9 w-max items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-[color,background-color,box-shadow] outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-active:bg-accent data-active:text-accent-foreground",
+);
+
+function NavigationMenuLink({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Link>) {
+  return (
+    <NavigationMenuPrimitive.Link
+      data-slot="navigation-menu-link"
+      className={cn(navigationMenuTriggerStyle(), className)}
+      {...props}
+    />
+  );
+}
+
+export { NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, navigationMenuTriggerStyle };
+`;
+}
